@@ -1,0 +1,4 @@
+# Training-only deps (install in a separate venv from backend/)
+ultralytics>=8.0.0
+pyyaml>=6.0.0
+pillow>=10.2.0

@@ -1,0 +1,6 @@
+# Optional shared defaults for train_yolov8.py (extend as needed)
+imgsz: 640
+batch: 16
+patience: 25
+project: ultralytics_runs
+name: plant_local

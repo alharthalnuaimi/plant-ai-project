@@ -1,0 +1,6 @@
+# One class name per line (optional). If omitted, classes are inferred from
+# subfolders under dataset/classification/train/.
+healthy
+diseased
+dehydrated
+nutrient_deficient

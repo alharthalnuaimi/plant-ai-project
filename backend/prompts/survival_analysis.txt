@@ -1,0 +1,10 @@
+Context JSON:
+{context_json}
+
+User question:
+{user_question}
+
+Generate:
+1) recommendation (short actionable)
+2) explanation (human-readable rationale referencing vision + sensors + survival score)
+

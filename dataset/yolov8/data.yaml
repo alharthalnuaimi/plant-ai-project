@@ -1,0 +1,16 @@
+# YOLOv8 dataset manifest — replace names with YOUR local taxonomy.
+# Paths are relative to this file's directory (dataset/yolov8/).
+
+path: .
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: healthy
+  1: diseased
+  2: dehydrated
+  3: nutrient_deficient
+
+# For detection: place label .txt files under labels/train and labels/val (same stem as image).
+# For YOLO-cls (classification): use Ultralytics folder layout or train with task=classify — see training/README.md

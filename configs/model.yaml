@@ -1,0 +1,8 @@
+vision:
+  confidence_threshold: 0.25
+  lazy_load: true
+
+llama:
+  timeout_s: 120
+  prompt_version: v1
+

@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+
+# Training runs (large)
+ultralytics_runs/
+artifacts/train_runs/
+
+# Trained weights (use registry + object storage in production)
+artifacts/models/**/*.pt
+
+# Optional: uncomment if you never commit raw images
+# dataset/**/images/**/*.jpg
+# dataset/**/images/**/*.png

@@ -1,0 +1,8 @@
+prediction:
+  min_image_bytes: 32
+  confidence_accept_threshold: 0.25
+
+preprocess:
+  standardize_on_predict: false
+  max_image_side: 2048
+

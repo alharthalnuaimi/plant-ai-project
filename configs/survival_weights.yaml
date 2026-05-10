@@ -1,0 +1,6 @@
+weights:
+  disease: 0.40
+  soil_moisture: 0.25
+  temperature: 0.20
+  humidity: 0.15
+
