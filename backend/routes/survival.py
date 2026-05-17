@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from schemas.contracts import SensorInput, SurvivalResponse, VisionResult
+from schemas.contracts import SurvivalSensorInput, SurvivalResponse, VisionResult
 from services.survival import SurvivalInputs, compute_survival
 
 router = APIRouter(tags=["survival"])
@@ -11,7 +11,7 @@ router = APIRouter(tags=["survival"])
 
 class SurvivalRequest(BaseModel):
     vision: VisionResult
-    sensors: SensorInput
+    sensors: SurvivalSensorInput
 
 
 @router.post("/survival", response_model=SurvivalResponse)
@@ -34,20 +34,21 @@ async def survival(req: SurvivalRequest) -> SurvivalResponse:
 
 @router.post("/survival/from-latest-sensor")
 async def survival_from_latest(vision: VisionResult) -> SurvivalResponse:
-    from routes.sensor import _latest
+    from services.sensor_store import get_latest
 
-    if _latest is None:
+    latest = get_latest()
+    if latest is None:
         raise HTTPException(
             status_code=400,
             detail="No sensor data yet; POST /sensor first or use /survival with full body.",
         )
     req = SurvivalRequest(
         vision=vision,
-        sensors=SensorInput(
-            soil_moisture=float(_latest["soil_moisture"]),
-            temperature=float(_latest["temperature"]),
-            humidity=float(_latest["humidity"]),
-            species=_latest.get("species"),
+        sensors=SurvivalSensorInput(
+            soil_moisture=latest.soil_humidity,
+            temperature=latest.air_temperature,
+            humidity=latest.air_humidity,
+            species=latest.plant_id,
         ),
     )
     return await survival(req)

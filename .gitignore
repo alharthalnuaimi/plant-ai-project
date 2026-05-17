@@ -1,17 +1,34 @@
+# Python
 __pycache__/
-*.py[cod]
-.venv/
+*.pyc
 venv/
+.venv/
 .env
 .env.*
 
-# Training runs (large)
+# Backend runtime uploads
+backend/uploads/
+
+# YOLO training outputs
+runs/
 ultralytics_runs/
 artifacts/train_runs/
 
-# Trained weights (use registry + object storage in production)
-artifacts/models/**/*.pt
+# Raw import folders
+dataset/_imports/
+frontend/_imports/
 
-# Optional: uncomment if you never commit raw images
-# dataset/**/images/**/*.jpg
-# dataset/**/images/**/*.png
+# Downloaded / generated model weights
+*.pt
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Node (frontend static server)
+node_modules/
+
+# Local firmware secrets
+firmware/esp32/config.h

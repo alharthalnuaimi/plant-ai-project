@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="PlantVision AI — Intelligent plant disease detection and monitoring dashboard with real-time diagnostics, zone management, and environmental tracking for Baghdad, Iraq.">
+    <meta name="keywords" content="plant disease detection, AI diagnostics, agriculture, botanical, Baghdad, Iraq, IoT sensors, plant health">
+    <meta name="author" content="PlantVision AI">
+    <meta name="theme-color" content="#181c20">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta property="og:title" content="PlantVision AI — Plant Disease Detection Dashboard">
+    <meta property="og:description" content="AI-powered plant diagnostics with real-time environmental monitoring and zone management.">
+    <meta property="og:type" content="website">
+    <title>PlantVision AI — Plant Disease Detection Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="ambient">
+        <img src="garden_background.png" alt="" class="ambient-img">
+        <div class="ambient-fade"></div>
+    </div>
+    <canvas id="particles"></canvas>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">PV</div>
+        <nav class="sidebar-nav">
+            <button class="sidebar-btn active" id="n1" aria-label="Home">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            </button>
+            <button class="sidebar-btn" id="n2" aria-label="Data">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            </button>
+            <button class="sidebar-btn" id="n3" aria-label="Garden">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2C20 17.5 12 22 12 22z"/></svg>
+            </button>
+            <button class="sidebar-btn" id="n4" aria-label="Config">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            </button>
+        </nav>
+
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main">
+        <!-- Topbar -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <div>
+                    <h1 class="topbar-title">PLANTVISION</h1>
+                    <p class="topbar-sub">Diagnostic System v4.2</p>
+                </div>
+            </div>
+            <div class="topbar-right">
+                <button class="top-btn theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+                    <svg class="ico-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                    <svg class="ico-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+                </button>
+                <div class="sys-strip">
+                    <div class="sys-item"><span class="sys-dot sys-dot-on"></span><span class="sys-lbl">Online</span></div>
+                    <div class="sys-item"><span class="sys-lbl">AI Core</span><span class="sys-val" id="sys-ai">Ready</span></div>
+                    <div class="sys-item"><span class="sys-lbl">FPS</span><span class="sys-val mono" id="sys-fps">60</span></div>
+                </div>
+                <div class="notif-anchor">
+                    <button class="top-btn" id="btn-bell" aria-label="Alerts">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+                        <span class="notif-badge" id="notif-badge">3</span>
+                    </button>
+                    <div class="notif-panel" id="notif-panel">
+                        <div class="notif-header">
+                            <span class="notif-header-title">Notifications</span>
+                            <div class="notif-header-actions">
+                                <button class="notif-action-btn" id="notif-mark-all" title="Mark all read">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                </button>
+                                <button class="notif-action-btn" id="notif-clear-all" title="Clear all">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="notif-list" id="notif-list">
+                            <!-- Notifications rendered by JS -->
+                        </div>
+                        <div class="notif-empty" id="notif-empty" style="display:none">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" style="opacity:.3"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+                            <span>All clear — no notifications</span>
+                        </div>
+                    </div>
+                </div>
+                <button class="top-btn" id="btn-user" aria-label="Profile">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 00-16 0"/></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Content Area -->
+        <div class="content">
+
+            <!-- ===== PAGE: HOME ===== -->
+            <div class="page page-home active" id="page-home">
+            <div class="grid-layout">
+
+                <!-- Scanner Card -->
+                <section class="scanner-card an" style="--d:.15s">
+                    <div class="scanner-header">
+                        <span class="scanner-label">SCAN MODULE</span>
+                        <span class="scanner-id mono">SN-4821</span>
+                    </div>
+                    <div class="scanner-view">
+                        <img src="scan_preview.png" alt="Scan" class="scanner-img">
+                        <div class="scanner-dim"></div>
+                        <svg class="scanner-hud" viewBox="0 0 300 170" fill="none">
+                            <line x1="0" y1="42.5" x2="300" y2="42.5" stroke="rgba(140,168,140,.06)" stroke-width=".5"/>
+                            <line x1="0" y1="85" x2="300" y2="85" stroke="rgba(140,168,140,.06)" stroke-width=".5"/>
+                            <line x1="0" y1="127.5" x2="300" y2="127.5" stroke="rgba(140,168,140,.06)" stroke-width=".5"/>
+                            <line x1="75" y1="0" x2="75" y2="170" stroke="rgba(140,168,140,.06)" stroke-width=".5"/>
+                            <line x1="150" y1="0" x2="150" y2="170" stroke="rgba(140,168,140,.06)" stroke-width=".5"/>
+                            <line x1="225" y1="0" x2="225" y2="170" stroke="rgba(140,168,140,.06)" stroke-width=".5"/>
+                            <path d="M22 40 V18 H44" stroke="rgba(140,168,140,.45)" stroke-width="1.5" stroke-linecap="round"/>
+                            <path d="M278 40 V18 H256" stroke="rgba(140,168,140,.45)" stroke-width="1.5" stroke-linecap="round"/>
+                            <path d="M22 130 V152 H44" stroke="rgba(140,168,140,.45)" stroke-width="1.5" stroke-linecap="round"/>
+                            <path d="M278 130 V152 H256" stroke="rgba(140,168,140,.45)" stroke-width="1.5" stroke-linecap="round"/>
+                            <rect x="60" y="25" width="180" height="120" rx="2" stroke="rgba(140,168,140,.12)" stroke-width=".6" stroke-dasharray="4 3" class="dash-anim"/>
+                            <circle cx="150" cy="85" r="20" stroke="rgba(140,168,140,.18)" stroke-width=".8" fill="none"/>
+                            <circle cx="150" cy="85" r="8" stroke="rgba(140,168,140,.25)" stroke-width=".6" fill="none"/>
+                            <circle cx="150" cy="85" r="2" fill="rgba(140,168,140,.45)"/>
+                            <line x1="150" y1="58" x2="150" y2="70" stroke="rgba(140,168,140,.2)" stroke-width=".6"/>
+                            <line x1="150" y1="100" x2="150" y2="112" stroke="rgba(140,168,140,.2)" stroke-width=".6"/>
+                            <line x1="123" y1="85" x2="135" y2="85" stroke="rgba(140,168,140,.2)" stroke-width=".6"/>
+                            <line x1="165" y1="85" x2="177" y2="85" stroke="rgba(140,168,140,.2)" stroke-width=".6"/>
+                            <rect x="0" width="300" height="1" rx=".5" fill="url(#sw)" opacity=".5">
+                                <animate attributeName="y" values="0;169;0" dur="4s" repeatCount="indefinite"/>
+                            </rect>
+                            <defs><linearGradient id="sw"><stop stop-color="transparent"/><stop offset=".5" stop-color="rgba(140,168,140,.35)"/><stop offset="1" stop-color="transparent"/></linearGradient></defs>
+                        </svg>
+                        <div class="s-chip s-chip-tl"><span class="s-rec"></span>REC</div>
+                        <div class="s-chip s-chip-tr mono" id="s-conf">CONF 94.2%</div>
+                        <div class="s-chip s-chip-bl mono">ISO 400 · f/2.8</div>
+                    </div>
+                    <div class="scanner-foot">
+                        <div>
+                            <span class="scanner-meta-top">Neural Engine v4.2.1</span>
+                            <span class="scanner-meta-bot">● Standby — awaiting target</span>
+                        </div>
+                        <button class="scan-trigger" id="scan-trigger">
+                            <span class="scan-trigger-ring"></span>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="3" y1="12" x2="7" y2="12"/><line x1="17" y1="12" x2="21" y2="12"/></svg>
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Stats Row -->
+                <div class="stats-row an" style="--d:.25s">
+                    <div class="stat-card">
+                        <div class="stat-top">
+                            <span class="stat-num">24</span>
+                            <span class="stat-badge sb-ok">OK</span>
+                        </div>
+                        <span class="stat-label">Healthy</span>
+                        <span class="stat-trend st-up">↑ 12% this week</span>
+                        <div class="stat-bar"><div class="stat-fill sf-ok" style="--w:86%"></div></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-top">
+                            <span class="stat-num">3</span>
+                            <span class="stat-badge sb-warn">!</span>
+                        </div>
+                        <span class="stat-label">At Risk</span>
+                        <span class="stat-trend st-up">↑ 2 new</span>
+                        <div class="stat-bar"><div class="stat-fill sf-warn" style="--w:11%"></div></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-top">
+                            <span class="stat-num">1</span>
+                            <span class="stat-badge sb-crit">✕</span>
+                        </div>
+                        <span class="stat-label">Critical</span>
+                        <span class="stat-trend st-flat">— unchanged</span>
+                        <div class="stat-bar"><div class="stat-fill sf-crit" style="--w:4%"></div></div>
+                    </div>
+                </div>
+
+                <!-- Live Environment Strip -->
+                <div class="env-strip an" style="--d:.3s">
+                    <span class="env-strip-label">LIVE ENVIRONMENT</span>
+                    <div class="env-strip-items">
+                        <div class="env-strip-item">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 00-5 0v11.26a4.5 4.5 0 105 0z"/></svg>
+                            <span class="env-strip-val mono" id="env-s-temp">24.2°C</span>
+                        </div>
+                        <div class="env-strip-item">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z"/></svg>
+                            <span class="env-strip-val mono" id="env-s-hum">62%</span>
+                        </div>
+                        <div class="env-strip-item">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                            <span class="env-strip-val mono" id="env-s-lux">1842 lx</span>
+                        </div>
+                        <div class="env-strip-item">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            <span class="env-strip-val mono" id="env-s-soil">54%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions Card -->
+                <div class="actions-card an" style="--d:.35s">
+                    <span class="actions-title">QUICK ACTIONS</span>
+                    <div class="act-row">
+                        <button class="act-btn act-primary" id="act-scan">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="3" y1="12" x2="7" y2="12"/><line x1="17" y1="12" x2="21" y2="12"/></svg>
+                            Initialize Scan
+                        </button>
+                        <button class="act-btn act-ghost" id="act-history">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            History
+                        </button>
+                    </div>
+                    <div class="act-row">
+                        <button class="act-btn act-ghost" id="act-add-zone">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            Add Zone
+                        </button>
+                        <button class="act-btn act-ghost" id="act-export">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Export Report
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Log Card -->
+                <section class="log-card an" style="--d:.45s">
+                    <div class="log-head">
+                        <h2 class="log-title">Scan Log</h2>
+                        <span class="log-count mono">3 entries</span>
+                    </div>
+                    <div class="log-grid">
+                        <article class="entry" id="e1">
+                            <div class="entry-thumb"><img src="healthy_leaf.png" alt="" class="entry-img"></div>
+                            <div class="entry-body">
+                                <div class="entry-r1">
+                                    <span class="entry-name">Monstera deliciosa</span>
+                                    <span class="entry-tag et-ok">PASS</span>
+                                </div>
+                                <span class="entry-sub mono">02m ago · 96.4% conf · ID#4821</span>
+                            </div>
+                        </article>
+                        <article class="entry" id="e2">
+                            <div class="entry-thumb entry-t-warn"><img src="diseased_leaf.png" alt="" class="entry-img"></div>
+                            <div class="entry-body">
+                                <div class="entry-r1">
+                                    <span class="entry-name">Leaf Spot Fungus</span>
+                                    <span class="entry-tag et-warn">WARN</span>
+                                </div>
+                                <span class="entry-sub mono">15m ago · 87.1% conf · ID#4820</span>
+                            </div>
+                        </article>
+                        <article class="entry" id="e3">
+                            <div class="entry-thumb"><img src="healthy_leaf.png" alt="" class="entry-img"></div>
+                            <div class="entry-body">
+                                <div class="entry-r1">
+                                    <span class="entry-name">Pothos Aureum</span>
+                                    <span class="entry-tag et-ok">PASS</span>
+                                </div>
+                                <span class="entry-sub mono">01h ago · 99.1% conf · ID#4819</span>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+            </div><!-- grid-layout -->
+            </div><!-- /page-home -->
+
+            <!-- ===== PAGE: DATA ===== -->
+            <div class="page page-data" id="page-data">
+                <div class="page-header an" style="--d:.1s">
+                    <h2 class="page-title">Analytics Dashboard</h2>
+                    <p class="page-desc mono">Real-time diagnostic metrics &amp; historical data</p>
+                </div>
+                <div class="data-grid an" style="--d:.2s">
+                    <div class="d-card d-card-wide">
+                        <div class="d-card-head"><span class="d-card-label">SCAN ACTIVITY</span><span class="d-card-tag mono">Last 7 days</span></div>
+                        <div class="chart-area">
+                            <div class="chart-bars">
+                                <div class="chart-col"><div class="chart-bar" style="--h:45%"></div><span class="chart-day">Mon</span></div>
+                                <div class="chart-col"><div class="chart-bar" style="--h:72%"></div><span class="chart-day">Tue</span></div>
+                                <div class="chart-col"><div class="chart-bar" style="--h:58%"></div><span class="chart-day">Wed</span></div>
+                                <div class="chart-col"><div class="chart-bar" style="--h:90%"></div><span class="chart-day">Thu</span></div>
+                                <div class="chart-col"><div class="chart-bar" style="--h:35%"></div><span class="chart-day">Fri</span></div>
+                                <div class="chart-col"><div class="chart-bar" style="--h:65%"></div><span class="chart-day">Sat</span></div>
+                                <div class="chart-col"><div class="chart-bar chart-bar-today" style="--h:80%"></div><span class="chart-day">Sun</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-card">
+                        <div class="d-card-head"><span class="d-card-label">DETECTION RATE</span></div>
+                        <div class="d-ring-wrap">
+                            <svg class="d-ring" viewBox="0 0 120 120">
+                                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--b1)" stroke-width="8"/>
+                                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--sage)" stroke-width="8" stroke-dasharray="272" stroke-dashoffset="40" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+                            </svg>
+                            <div class="d-ring-val"><span class="d-ring-num">87%</span><span class="d-ring-lbl">Accuracy</span></div>
+                        </div>
+                    </div>
+                    <div class="d-card">
+                        <div class="d-card-head"><span class="d-card-label">TOP DISEASES</span></div>
+                        <div class="d-list">
+                            <div class="d-list-item"><span class="d-list-name">Leaf Spot</span><span class="d-list-val">34%</span><div class="d-list-bar"><div class="d-list-fill" style="--w:34%"></div></div></div>
+                            <div class="d-list-item"><span class="d-list-name">Powdery Mildew</span><span class="d-list-val">28%</span><div class="d-list-bar"><div class="d-list-fill df-warn" style="--w:28%"></div></div></div>
+                            <div class="d-list-item"><span class="d-list-name">Root Rot</span><span class="d-list-val">18%</span><div class="d-list-bar"><div class="d-list-fill df-crit" style="--w:18%"></div></div></div>
+                            <div class="d-list-item"><span class="d-list-name">Blight</span><span class="d-list-val">12%</span><div class="d-list-bar"><div class="d-list-fill" style="--w:12%"></div></div></div>
+                            <div class="d-list-item"><span class="d-list-name">Anthracnose</span><span class="d-list-val">5%</span><div class="d-list-bar"><div class="d-list-fill df-warn" style="--w:5%"></div></div></div>
+                            <div class="d-list-item"><span class="d-list-name">Mosaic Virus</span><span class="d-list-val">3%</span><div class="d-list-bar"><div class="d-list-fill df-crit" style="--w:3%"></div></div></div>
+                        </div>
+                    </div>
+
+                    <!-- Species Distribution -->
+                    <div class="d-card">
+                        <div class="d-card-head"><span class="d-card-label">SPECIES DISTRIBUTION</span></div>
+                        <div class="d-ring-wrap">
+                            <svg class="d-ring" viewBox="0 0 120 120">
+                                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--b1)" stroke-width="8"/>
+                                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--sage)" stroke-width="8" stroke-dasharray="110 204" stroke-dashoffset="0" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+                                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--gold)" stroke-width="8" stroke-dasharray="75 239" stroke-dashoffset="-115" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+                                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--olive)" stroke-width="8" stroke-dasharray="50 264" stroke-dashoffset="-195" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+                                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--coral)" stroke-width="8" stroke-dasharray="30 284" stroke-dashoffset="-250" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+                            </svg>
+                            <div class="d-ring-val"><span class="d-ring-num">12</span><span class="d-ring-lbl">Species</span></div>
+                        </div>
+                        <div class="species-legend">
+                            <span class="species-dot" style="--c:var(--sage)"></span> Monstera
+                            <span class="species-dot" style="--c:var(--gold)"></span> Pothos
+                            <span class="species-dot" style="--c:var(--olive)"></span> Basil
+                            <span class="species-dot" style="--c:var(--coral)"></span> Other
+                        </div>
+                    </div>
+
+                    <!-- Model Performance -->
+                    <div class="d-card">
+                        <div class="d-card-head"><span class="d-card-label">MODEL PERFORMANCE</span><span class="d-card-tag mono">v4.2.1</span></div>
+                        <div class="perf-grid">
+                            <div class="perf-item">
+                                <span class="perf-val mono">94.7%</span>
+                                <span class="perf-lbl">PRECISION</span>
+                                <div class="stat-bar"><div class="stat-fill sf-ok" style="--w:94.7%"></div></div>
+                            </div>
+                            <div class="perf-item">
+                                <span class="perf-val mono">91.2%</span>
+                                <span class="perf-lbl">RECALL</span>
+                                <div class="stat-bar"><div class="stat-fill sf-ok" style="--w:91.2%"></div></div>
+                            </div>
+                            <div class="perf-item">
+                                <span class="perf-val mono">92.9%</span>
+                                <span class="perf-lbl">F1 SCORE</span>
+                                <div class="stat-bar"><div class="stat-fill sf-ok" style="--w:92.9%"></div></div>
+                            </div>
+                            <div class="perf-item">
+                                <span class="perf-val mono">3.8s</span>
+                                <span class="perf-lbl">LATENCY</span>
+                                <div class="stat-bar"><div class="stat-fill sf-warn" style="--w:38%"></div></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- System Metrics (redesigned) -->
+                    <div class="d-card d-card-wide">
+                        <div class="d-card-head"><span class="d-card-label">SYSTEM METRICS</span><span class="d-card-tag mono" style="color:var(--sage)">● Live</span></div>
+                        <div class="sys-metrics-grid">
+                            <div class="sys-metric-card">
+                                <div class="smc-ring">
+                                    <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="var(--sage)" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="18" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
+                                    <span class="smc-ico">🔬</span>
+                                </div>
+                                <div class="smc-info">
+                                    <span class="smc-val mono" id="sm-scans">28</span>
+                                    <span class="smc-lbl">Total Scans</span>
+                                </div>
+                                <span class="smc-trend smc-up">↑ 12%</span>
+                            </div>
+                            <div class="sys-metric-card">
+                                <div class="smc-ring">
+                                    <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="var(--gold)" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="60" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
+                                    <span class="smc-ico">⚡</span>
+                                </div>
+                                <div class="smc-info">
+                                    <span class="smc-val mono" id="sm-time">4.2<small>s</small></span>
+                                    <span class="smc-lbl">Avg Scan Time</span>
+                                </div>
+                                <span class="smc-trend smc-down">↓ 0.3s</span>
+                            </div>
+                            <div class="sys-metric-card">
+                                <div class="smc-ring">
+                                    <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="var(--olive)" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="40" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
+                                    <span class="smc-ico">🌿</span>
+                                </div>
+                                <div class="smc-info">
+                                    <span class="smc-val mono" id="sm-species">12</span>
+                                    <span class="smc-lbl">Species Found</span>
+                                </div>
+                                <span class="smc-trend smc-up">+3 new</span>
+                            </div>
+                            <div class="sys-metric-card">
+                                <div class="smc-ring">
+                                    <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="#6ec47e" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="4" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
+                                    <span class="smc-ico">🎯</span>
+                                </div>
+                                <div class="smc-info">
+                                    <span class="smc-val mono" id="sm-conf">96.4<small>%</small></span>
+                                    <span class="smc-lbl">Avg Confidence</span>
+                                </div>
+                                <span class="smc-trend smc-up">↑ 1.2%</span>
+                            </div>
+                            <div class="sys-metric-card">
+                                <div class="smc-ring">
+                                    <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="var(--sage)" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="50" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
+                                    <span class="smc-ico">📍</span>
+                                </div>
+                                <div class="smc-info">
+                                    <span class="smc-val mono" id="sm-zones">4</span>
+                                    <span class="smc-lbl">Active Zones</span>
+                                </div>
+                                <span class="smc-trend smc-neutral">— steady</span>
+                            </div>
+                            <div class="sys-metric-card">
+                                <div class="smc-ring">
+                                    <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="#7ba4c7" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="30" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
+                                    <span class="smc-ico">📡</span>
+                                </div>
+                                <div class="smc-info">
+                                    <span class="smc-val mono" id="sm-devices">7</span>
+                                    <span class="smc-lbl">Connected Devices</span>
+                                </div>
+                                <span class="smc-trend smc-up">+2 online</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Environmental Trends -->
+                    <div class="d-card d-card-wide">
+                        <div class="d-card-head"><span class="d-card-label">ENVIRONMENTAL TRENDS</span><span class="d-card-tag mono">24h Avg</span></div>
+                        <div class="env-trends">
+                            <div class="env-trend-item">
+                                <div class="env-trend-head">
+                                    <span class="env-trend-name">Temperature</span>
+                                    <span class="env-trend-val mono" id="trend-temp">24.2°C</span>
+                                </div>
+                                <div class="env-trend-bar-wrap">
+                                    <div class="env-trend-zone" style="left:20%;width:40%"></div>
+                                    <div class="env-trend-marker" style="left:48%" id="trend-temp-mark"></div>
+                                </div>
+                                <div class="env-trend-range mono"><span>10°</span><span>Optimal: 18-28°C</span><span>40°</span></div>
+                            </div>
+                            <div class="env-trend-item">
+                                <div class="env-trend-head">
+                                    <span class="env-trend-name">Humidity</span>
+                                    <span class="env-trend-val mono" id="trend-hum">62%</span>
+                                </div>
+                                <div class="env-trend-bar-wrap">
+                                    <div class="env-trend-zone" style="left:40%;width:30%"></div>
+                                    <div class="env-trend-marker" style="left:62%" id="trend-hum-mark"></div>
+                                </div>
+                                <div class="env-trend-range mono"><span>0%</span><span>Optimal: 40-70%</span><span>100%</span></div>
+                            </div>
+                            <div class="env-trend-item">
+                                <div class="env-trend-head">
+                                    <span class="env-trend-name">Soil pH</span>
+                                    <span class="env-trend-val mono" id="trend-ph">6.5</span>
+                                </div>
+                                <div class="env-trend-bar-wrap">
+                                    <div class="env-trend-zone" style="left:36%;width:14%"></div>
+                                    <div class="env-trend-marker" style="left:46%" id="trend-ph-mark"></div>
+                                </div>
+                                <div class="env-trend-range mono"><span>4.0</span><span>Optimal: 6.0-7.0</span><span>9.0</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Scan History Table -->
+                    <div class="d-card d-card-wide">
+                        <div class="d-card-head"><span class="d-card-label">SCAN HISTORY</span><span class="d-card-tag mono">Recent 5</span></div>
+                        <div class="scan-table">
+                            <div class="scan-table-head">
+                                <span>ID</span><span>Species</span><span>Result</span><span>Confidence</span><span>Time</span>
+                            </div>
+                            <div class="scan-table-row">
+                                <span class="mono">#4821</span><span>Monstera deliciosa</span><span class="entry-tag et-ok" style="font-size:8px">PASS</span><span class="mono">96.4%</span><span class="mono">2m ago</span>
+                            </div>
+                            <div class="scan-table-row">
+                                <span class="mono">#4820</span><span>Leaf Spot Fungus</span><span class="entry-tag et-warn" style="font-size:8px">WARN</span><span class="mono">87.1%</span><span class="mono">15m ago</span>
+                            </div>
+                            <div class="scan-table-row">
+                                <span class="mono">#4819</span><span>Pothos Aureum</span><span class="entry-tag et-ok" style="font-size:8px">PASS</span><span class="mono">99.1%</span><span class="mono">1h ago</span>
+                            </div>
+                            <div class="scan-table-row">
+                                <span class="mono">#4818</span><span>Basil — Early Blight</span><span class="entry-tag et-warn" style="font-size:8px">WARN</span><span class="mono">82.5%</span><span class="mono">3h ago</span>
+                            </div>
+                            <div class="scan-table-row">
+                                <span class="mono">#4817</span><span>Ficus elastica</span><span class="entry-tag et-ok" style="font-size:8px">PASS</span><span class="mono">97.8%</span><span class="mono">6h ago</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- /page-data -->
+
+            <!-- ===== PAGE: GARDEN ===== -->
+            <div class="page page-garden" id="page-garden">
+                <div class="page-header an" style="--d:.1s">
+                    <h2 class="page-title">Garden Map</h2>
+                    <p class="page-desc mono">Monitor plant locations & zone health status</p>
+                </div>
+                <div class="garden-layout an" style="--d:.2s">
+                    <div class="map-card">
+                        <div class="map-header"><span class="d-card-label">ZONE MAP</span><span class="d-card-tag mono" id="zone-counter">4 Zones Active</span></div>
+                        <div class="map-search-wrap">
+                            <svg class="map-search-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input type="text" class="map-search" id="map-search" placeholder="Search location (city, address...)" autocomplete="off">
+                            <button class="map-search-btn" id="map-search-btn">Go</button>
+                        </div>
+                        <div id="leaflet-map" class="leaflet-container-wrap"></div>
+                        <div class="poi-strip" id="poi-strip">
+                            <span class="poi-strip-label">NEARBY</span>
+                            <button class="poi-btn" data-cat="food">🍽️ Food</button>
+                            <button class="poi-btn" data-cat="education">🎓 Education</button>
+                            <button class="poi-btn" data-cat="health">🏥 Health</button>
+                            <button class="poi-btn" data-cat="parks">🌳 Parks</button>
+                            <button class="poi-btn" data-cat="shops">🛒 Shops</button>
+                            <button class="poi-btn" data-cat="fuel">⛽ Fuel</button>
+                            <button class="poi-btn" data-cat="hotel">🏨 Hotels</button>
+                            <button class="poi-btn" data-cat="atm">🏦 ATMs</button>
+                            <button class="poi-btn poi-btn-clear" id="poi-clear" style="display:none">✕ Clear</button>
+                        </div>
+                        <div class="poi-status" id="poi-status"></div>
+                        <div class="zone-list" id="zone-list">
+                            <!-- Rendered dynamically by JS -->
+                        </div>
+                        <button class="zone-add-btn" id="zone-add-btn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            Add Zone
+                        </button>
+                    </div>
+                    <div class="garden-sidebar">
+                        <div class="d-card">
+                            <div class="d-card-head"><span class="d-card-label">DEVICES & SENSORS</span><span class="d-card-tag mono" id="device-counter">Live</span></div>
+                            <div id="device-panel">
+                                <!-- Rendered dynamically per-zone devices -->
+                            </div>
+                        </div>
+                        <div class="d-card">
+                            <div class="d-card-head"><span class="d-card-label">RECENT ALERTS</span></div>
+                            <div class="alert-list">
+                                <div class="alert-item alert-warn"><span class="alert-ico">!</span><div><span class="alert-msg">Zone B basil needs water</span><span class="alert-time mono">2h ago</span></div></div>
+                                <div class="alert-item alert-crit"><span class="alert-ico">✕</span><div><span class="alert-msg">Zone D fungus detected</span><span class="alert-time mono">4h ago</span></div></div>
+                                <div class="alert-item alert-ok"><span class="alert-ico">✓</span><div><span class="alert-msg">Zone A scan complete</span><span class="alert-time mono">6h ago</span></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- /page-garden -->
+
+            <!-- ===== PAGE: SETTINGS ===== -->
+            <div class="page page-settings" id="page-settings">
+                <div class="page-header an" style="--d:.1s">
+                    <h2 class="page-title">Settings</h2>
+                    <p class="page-desc mono">Configure system preferences & calibration</p>
+                </div>
+                <div class="settings-grid an" style="--d:.2s">
+                    <div class="set-card">
+                        <div class="d-card-head"><span class="d-card-label">GENERAL</span></div>
+                        <div class="set-group">
+                            <div class="set-row"><div class="set-info"><span class="set-name">AI Model</span><span class="set-desc">Neural engine version</span></div><span class="set-val mono">v4.2.1</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Language</span><span class="set-desc">Interface language</span></div><span class="set-val">English</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Auto-Scan</span><span class="set-desc">Automatic specimen detection</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-autoscan" checked><label for="t-autoscan" class="toggle-lbl"></label></div></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Notifications</span><span class="set-desc">Alert &amp; scan notifications</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-notif" checked><label for="t-notif" class="toggle-lbl"></label></div></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Sound Effects</span><span class="set-desc">Scan completion sounds</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-sound"><label for="t-sound" class="toggle-lbl"></label></div></div>
+                        </div>
+                    </div>
+                    <div class="set-card">
+                        <div class="d-card-head"><span class="d-card-label">APPEARANCE</span></div>
+                        <div class="set-group">
+                            <div class="set-row"><div class="set-info"><span class="set-name">Theme</span><span class="set-desc">Light or dark interface</span></div><span class="set-val">Dark</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Compact Mode</span><span class="set-desc">Reduce spacing and card sizes</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-compact"><label for="t-compact" class="toggle-lbl"></label></div></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Animations</span><span class="set-desc">UI transition effects</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-anim" checked><label for="t-anim" class="toggle-lbl"></label></div></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Particle Background</span><span class="set-desc">Floating ambient particles</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-particles" checked><label for="t-particles" class="toggle-lbl"></label></div></div>
+                        </div>
+                    </div>
+                    <div class="set-card">
+                        <div class="d-card-head"><span class="d-card-label">SCANNER</span></div>
+                        <div class="set-group">
+                            <div class="set-row"><div class="set-info"><span class="set-name">Resolution</span><span class="set-desc">Camera capture quality</span></div><span class="set-val mono">2048px</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">HUD Overlay</span><span class="set-desc">Show scan grid &amp; reticle</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-hud" checked><label for="t-hud" class="toggle-lbl"></label></div></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Confidence Threshold</span><span class="set-desc">Min detection confidence</span></div><span class="set-val mono">85%</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Flash Mode</span><span class="set-desc">Camera flash behavior</span></div><span class="set-val">Auto</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Multi-Angle</span><span class="set-desc">Capture from multiple angles</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-multiangle"><label for="t-multiangle" class="toggle-lbl"></label></div></div>
+                        </div>
+                    </div>
+                    <div class="set-card">
+                        <div class="d-card-head"><span class="d-card-label">SENSOR CALIBRATION</span></div>
+                        <div class="set-group">
+                            <div class="set-row"><div class="set-info"><span class="set-name">Reading Interval</span><span class="set-desc">Sensor polling frequency</span></div><span class="set-val mono">5s</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Temp Alert</span><span class="set-desc">High temperature threshold</span></div><span class="set-val mono">32°C</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Moisture Alert</span><span class="set-desc">Low soil moisture threshold</span></div><span class="set-val mono">25%</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">pH Alert Range</span><span class="set-desc">Acceptable pH bounds</span></div><span class="set-val mono">5.5–7.5</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Auto-Calibrate</span><span class="set-desc">Self-calibrate on startup</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-autocalib" checked><label for="t-autocalib" class="toggle-lbl"></label></div></div>
+                        </div>
+                    </div>
+                    <div class="set-card">
+                        <div class="d-card-head"><span class="d-card-label">DATA &amp; STORAGE</span></div>
+                        <div class="set-group">
+                            <div class="set-row"><div class="set-info"><span class="set-name">Local Storage</span><span class="set-desc">Cached scan data</span></div><span class="set-val mono">142 MB</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Cloud Sync</span><span class="set-desc">Sync data across devices</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-sync"><label for="t-sync" class="toggle-lbl"></label></div></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Export Format</span><span class="set-desc">Report file format</span></div><span class="set-val mono">PDF</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Auto-Backup</span><span class="set-desc">Daily automatic backups</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-backup" checked><label for="t-backup" class="toggle-lbl"></label></div></div>
+                        </div>
+                        <button class="set-danger" id="btn-clear">Clear All Data</button>
+                    </div>
+                    <div class="set-card">
+                        <div class="d-card-head"><span class="d-card-label">SECURITY</span></div>
+                        <div class="set-group">
+                            <div class="set-row"><div class="set-info"><span class="set-name">Session</span><span class="set-desc">Current device session</span></div><span class="set-val mono" style="color:var(--sage)">Active</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Two-Factor Auth</span><span class="set-desc">Extra login protection</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-2fa"><label for="t-2fa" class="toggle-lbl"></label></div></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">API Key</span><span class="set-desc">External integrations</span></div><span class="set-val mono" style="font-size:10px">pv_k...x7f2</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Password</span><span class="set-desc">Update account password</span></div><button class="profile-edit-btn" style="width:auto;padding:6px 14px;font-size:10px">Update</button></div>
+                        </div>
+                    </div>
+                    <div class="set-card">
+                        <div class="d-card-head"><span class="d-card-label">ABOUT</span></div>
+                        <div class="set-group">
+                            <div class="set-row"><div class="set-info"><span class="set-name">Version</span><span class="set-desc">Application version</span></div><span class="set-val mono">6.0.0</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Build</span><span class="set-desc">Build identifier</span></div><span class="set-val mono">#2026.05</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">License</span><span class="set-desc">Software license type</span></div><span class="set-val">Pro</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Uptime</span><span class="set-desc">System running time</span></div><span class="set-val mono" id="set-uptime">0h 0m</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- /page-settings -->
+
+            <!-- ===== PAGE: PROFILE ===== -->
+            <div class="page" id="page-profile">
+                <div class="page-header an" style="--d:.1s">
+                    <h2 class="page-title">My Profile</h2>
+                    <p class="page-desc mono">Manage your account & preferences</p>
+                </div>
+                <div class="profile-layout an" style="--d:.2s">
+                    <!-- Left: Profile Card -->
+                    <div class="profile-card-main">
+                        <div class="profile-avatar" id="profile-avatar-display">PV</div>
+                        <div class="profile-name" id="profile-display-name">PlantVision User</div>
+                        <div class="profile-role">PRO RESEARCHER</div>
+                        <div class="profile-email" id="profile-display-email">user@plantvision.ai</div>
+                        <div class="profile-stats">
+                            <div class="profile-stat"><span class="profile-stat-val" id="prof-scan-count">47</span><span class="profile-stat-lbl">Scans</span></div>
+                            <div class="profile-stat"><span class="profile-stat-val" id="prof-zone-count">4</span><span class="profile-stat-lbl">Zones</span></div>
+                            <div class="profile-stat"><span class="profile-stat-val" id="prof-device-count">7</span><span class="profile-stat-lbl">Devices</span></div>
+                        </div>
+                        <button class="profile-edit-btn" id="profile-edit-btn">Edit Profile</button>
+                        <div class="profile-joined">Member since May 2026</div>
+                    </div>
+
+                    <!-- Right: Details & Activity -->
+                    <div class="profile-right">
+                        <!-- Account Details -->
+                        <div class="set-card">
+                            <div class="d-card-head"><span class="d-card-label">ACCOUNT DETAILS</span></div>
+                            <div style="display:flex;flex-direction:column;gap:12px">
+                                <div class="profile-field-row">
+                                    <div class="profile-field">
+                                        <label class="profile-field-label">First Name</label>
+                                        <input type="text" class="profile-field-input" id="prof-fname" value="Plant" placeholder="First name">
+                                    </div>
+                                    <div class="profile-field">
+                                        <label class="profile-field-label">Last Name</label>
+                                        <input type="text" class="profile-field-input" id="prof-lname" value="Researcher" placeholder="Last name">
+                                    </div>
+                                </div>
+                                <div class="profile-field">
+                                    <label class="profile-field-label">Email Address</label>
+                                    <input type="email" class="profile-field-input" id="prof-email" value="user@plantvision.ai" placeholder="Email">
+                                </div>
+                                <div class="profile-field-row">
+                                    <div class="profile-field">
+                                        <label class="profile-field-label">Organization</label>
+                                        <input type="text" class="profile-field-input" id="prof-org" value="PlantVision Lab" placeholder="Organization">
+                                    </div>
+                                    <div class="profile-field">
+                                        <label class="profile-field-label">Location</label>
+                                        <input type="text" class="profile-field-input" id="prof-location" value="Baghdad, Iraq" placeholder="Location">
+                                    </div>
+                                </div>
+                                <button class="profile-save-btn" id="profile-save-btn">Save Changes</button>
+                            </div>
+                        </div>
+
+                        <!-- Preferences -->
+                        <div class="set-card">
+                            <div class="d-card-head"><span class="d-card-label">PREFERENCES</span></div>
+                            <div class="set-group">
+                                <div class="set-row"><div class="set-info"><span class="set-name">Email Alerts</span><span class="set-desc">Receive critical zone alerts via email</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-email-alerts" checked><label for="t-email-alerts" class="toggle-lbl"></label></div></div>
+                                <div class="set-row"><div class="set-info"><span class="set-name">Weekly Report</span><span class="set-desc">Automated health summary every Monday</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-weekly" checked><label for="t-weekly" class="toggle-lbl"></label></div></div>
+                                <div class="set-row"><div class="set-info"><span class="set-name">Data Sharing</span><span class="set-desc">Contribute anonymized data to research</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-datashare"><label for="t-datashare" class="toggle-lbl"></label></div></div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Activity -->
+                        <div class="set-card">
+                            <div class="d-card-head"><span class="d-card-label">RECENT ACTIVITY</span></div>
+                            <div class="profile-activity">
+                                <div class="profile-act-item">
+                                    <div class="profile-act-ico act-scan">🔬</div>
+                                    <div><span class="profile-act-text">Scanned Monstera deliciosa — Healthy</span><span class="profile-act-time">2 hours ago</span></div>
+                                </div>
+                                <div class="profile-act-item">
+                                    <div class="profile-act-ico act-zone">🌿</div>
+                                    <div><span class="profile-act-text">Added ESP32-D3 to Zone D (Greenhouse)</span><span class="profile-act-time">5 hours ago</span></div>
+                                </div>
+                                <div class="profile-act-item">
+                                    <div class="profile-act-ico act-alert">⚠️</div>
+                                    <div><span class="profile-act-text">Alert triggered: Zone B soil moisture low</span><span class="profile-act-time">1 day ago</span></div>
+                                </div>
+                                <div class="profile-act-item">
+                                    <div class="profile-act-ico act-scan">🔬</div>
+                                    <div><span class="profile-act-text">Scanned Basil — Early blight detected</span><span class="profile-act-time">2 days ago</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Danger Zone -->
+                        <div class="set-card">
+                            <div class="d-card-head"><span class="d-card-label">ACCOUNT ACTIONS</span></div>
+                            <div class="set-group">
+                                <div class="set-row"><div class="set-info"><span class="set-name">Export My Data</span><span class="set-desc">Download all your scans, zones, and reports</span></div><button class="profile-edit-btn" style="width:auto;padding:8px 16px;font-size:10px" id="prof-export">Export</button></div>
+                            </div>
+                            <button class="profile-logout" id="prof-logout">Sign Out</button>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- /page-profile -->
+
+        </div>
+
+    </div>
+
+    <!-- Scan Modal -->
+    <div class="ov" id="scan-modal">
+        <div class="modal">
+            <div class="m-pulse"><div class="m-r"></div><div class="m-r mr2"></div><div class="m-r mr3"></div>
+                <div class="m-ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--sage)" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="3" y1="12" x2="7" y2="12"/><line x1="17" y1="12" x2="21" y2="12"/></svg></div>
+            </div>
+            <h3 class="m-t">Processing Specimen</h3>
+            <p class="m-d">Neural analysis in progress</p>
+            <div class="m-track"><div class="m-fill" id="m-fill"></div></div>
+            <span class="m-lbl mono" id="m-lbl">INIT… 0%</span>
+            <button class="m-cancel" id="m-cancel">Abort</button>
+        </div>
+    </div>
+
+    <!-- Result Modal -->
+    <div class="ov" id="res-modal">
+        <div class="modal rm">
+            <div class="r-ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+            <h3 class="m-t" id="r-title">Specimen Healthy</h3>
+            <p class="m-species mono" id="r-species">Monstera deliciosa</p>
+            <div class="r-grid">
+                <div class="rg"><span class="rg-v rg-hl" id="r-conf">96.4%</span><span class="rg-l">CONF</span></div>
+                <div class="rg"><span class="rg-v rg-hl" id="r-hp">9.2/10</span><span class="rg-l">HEALTH</span></div>
+                <div class="rg"><span class="rg-v" id="r-risk">Low</span><span class="rg-l">RISK</span></div>
+                <div class="rg"><span class="rg-v" id="r-water">Moderate</span><span class="rg-l">H₂O</span></div>
+            </div>
+            <div class="r-btns">
+                <button class="rb rb1" id="r-save">Export Report</button>
+                <button class="rb rb2" id="r-dismiss">Dismiss</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Zone Modal -->
+    <div class="ov" id="zone-modal">
+        <div class="modal zm-modal">
+            <h3 class="m-t" id="zm-title">Add Zone</h3>
+            <p class="m-d" id="zm-desc">Click on the map to set the zone location</p>
+            <div class="zm-form">
+                <div class="zm-field">
+                    <label class="zm-label">Zone Name</label>
+                    <input type="text" class="zm-input" id="zm-name" placeholder="e.g. Herb Garden">
+                </div>
+                <div class="zm-row">
+                    <div class="zm-field zm-half">
+                        <label class="zm-label">Status</label>
+                        <select class="zm-select" id="zm-status">
+                            <option value="Healthy">Healthy</option>
+                            <option value="At Risk">At Risk</option>
+                            <option value="Critical">Critical</option>
+                        </select>
+                    </div>
+                    <div class="zm-field zm-half">
+                        <label class="zm-label">Plants</label>
+                        <input type="number" class="zm-input" id="zm-plants" placeholder="0" min="0" value="1">
+                    </div>
+                </div>
+                <div class="zm-coords" id="zm-coords">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    <span id="zm-coords-text">Click map to set location</span>
+                </div>
+                <div class="zm-devices-section">
+                    <div class="zm-label" style="margin-bottom:8px">ESP32 Devices</div>
+                    <div id="zm-device-list" class="zm-device-list"></div>
+                    <button class="zm-add-device" id="zm-add-device" type="button">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Add Device
+                    </button>
+                </div>
+            </div>
+            <div class="r-btns" style="margin-top:20px">
+                <button class="rb rb1" id="zm-save">Save Zone</button>
+                <button class="rb rb2" id="zm-cancel">Cancel</button>
+            </div>
+            <button class="zm-delete" id="zm-delete" style="display:none">Delete Zone</button>
+        </div>
+    </div>
+
+    <!-- AI Chatbot Widget -->
+    <div class="chat-widget" id="chat-widget">
+        <button class="chat-fab" id="chat-fab" aria-label="Open AI Chat">
+            <svg class="chat-fab-ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            <svg class="chat-fab-x" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            <span class="chat-fab-badge">AI</span>
+        </button>
+        <div class="chat-panel" id="chat-panel">
+            <div class="chat-head">
+                <div class="chat-head-info">
+                    <div class="chat-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sage)" stroke-width="1.8"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+                    <div><span class="chat-head-name">PlantVision AI</span><span class="chat-head-status mono">● Online — Neural v4.2</span></div>
+                </div>
+            </div>
+            <div class="chat-body" id="chat-body">
+                <div class="chat-msg chat-msg-bot">
+                    <div class="chat-bubble">Hello! I'm your PlantVision AI assistant. Ask me about plant care, diseases, or scan results 🌿</div>
+                    <span class="chat-time mono">Just now</span>
+                </div>
+            </div>
+            <div class="chat-input-wrap">
+                <input type="text" class="chat-input" id="chat-input" placeholder="Ask about plant health..." autocomplete="off">
+                <button class="chat-send" id="chat-send" aria-label="Send">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Nav -->
+    <nav class="mobile-nav">
+        <button class="mn-btn active" data-page="page-home"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><span>Home</span></button>
+        <button class="mn-btn" data-page="page-data"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span>Data</span></button>
+        <button class="mn-btn" data-page="page-garden"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2C20 17.5 12 22 12 22z"/></svg><span>Garden</span></button>
+        <button class="mn-btn" data-page="page-settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg><span>Config</span></button>
+    </nav>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="config.js"></script>
+    <script src="api.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

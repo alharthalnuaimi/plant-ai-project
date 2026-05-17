@@ -2,24 +2,23 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from schemas.contracts import SensorInput
+from schemas.sensors import SensorInput, SensorLatestResponse, SensorReading
+from services.sensor_processing import process_sensor_reading
+from services.sensor_store import get_latest, save_reading
 
 router = APIRouter(tags=["sensor"])
 
-# In-memory last reading for quick mobile demos (replace with SQLite/Firebase later)
-_latest: dict | None = None
+
+@router.post("/sensor", response_model=SensorReading)
+async def post_sensor(payload: SensorInput) -> SensorReading:
+    reading = process_sensor_reading(payload)
+    save_reading(reading)
+    return reading
 
 
-@router.post("/sensor")
-async def sensor(payload: SensorInput) -> dict:
-    global _latest
-    body = payload.model_dump()
-    _latest = body
-    return {"ok": True, "stored": body}
-
-
-@router.get("/sensor/latest")
-async def sensor_latest() -> dict:
-    if _latest is None:
-        return {"stored": None}
-    return {"stored": _latest}
+@router.get("/sensor/latest", response_model=SensorLatestResponse)
+async def sensor_latest() -> SensorLatestResponse:
+    reading = get_latest()
+    if reading is None:
+        return SensorLatestResponse(ok=True, source="none", reading=None)
+    return SensorLatestResponse(ok=True, source="live", reading=reading)

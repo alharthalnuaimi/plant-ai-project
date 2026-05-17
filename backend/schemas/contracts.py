@@ -5,7 +5,9 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
-class SensorInput(BaseModel):
+class SurvivalSensorInput(BaseModel):
+    """Legacy survival/analyze sensor block (soil moisture + climate)."""
+
     soil_moisture: float = Field(ge=0, le=100, description="Soil moisture 0-100%")
     temperature: float = Field(description="Temperature in Celsius")
     humidity: float = Field(ge=0, le=100, description="Relative humidity 0-100%")
@@ -13,6 +15,10 @@ class SensorInput(BaseModel):
         default=None,
         description="Optional species/cultivar; used for sensitivity scoring",
     )
+
+
+# Backward-compatible alias for survival / analyze routes
+SensorInput = SurvivalSensorInput
 
 
 class VisionResult(BaseModel):
@@ -43,7 +49,7 @@ class SurvivalResponse(BaseModel):
 
 
 class OrchestratorRequest(BaseModel):
-    sensors: SensorInput
+    sensors: SurvivalSensorInput
     user_question: str | None = None
     persist_upload: bool = False
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
-from schemas.contracts import OrchestratorRequest, OrchestratorResponse, SensorInput, VisionResult
+from schemas.contracts import OrchestratorRequest, OrchestratorResponse, SurvivalSensorInput, VisionResult
 from services.config_loader import get_runtime_config
 from services.orchestrator import run_analysis_pipeline
 from services.prediction import run_vision_prediction
@@ -61,7 +61,7 @@ async def analyze(
         raise HTTPException(status_code=400, detail="Image too small or empty")
 
     payload = OrchestratorRequest(
-        sensors=SensorInput(
+        sensors=SurvivalSensorInput(
             soil_moisture=soil_moisture,
             temperature=temperature,
             humidity=humidity,

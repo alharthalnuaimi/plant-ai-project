@@ -9,7 +9,7 @@ from models.llama_model import (
     get_llama_client,
     parse_reasoning_response,
 )
-from schemas.contracts import SensorInput, SurvivalResponse, VisionResult
+from schemas.contracts import SurvivalSensorInput, SurvivalResponse, VisionResult
 from services.survival import SurvivalInputs, compute_survival
 
 router = APIRouter(tags=["chat"])
@@ -17,7 +17,7 @@ router = APIRouter(tags=["chat"])
 
 class ChatRequest(BaseModel):
     vision: VisionResult
-    sensors: SensorInput
+    sensors: SurvivalSensorInput
     user_question: str | None = None
 
 

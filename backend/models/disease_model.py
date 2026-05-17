@@ -115,8 +115,9 @@ class YoloVisionPredictor(VisionPredictor):
     def predict(self, image_bytes: bytes) -> DiseasePrediction:
         from ultralytics import YOLO  # noqa: F401 — side effect: ensures dep present
 
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         results = self._model.predict(
-            source=image_bytes,
+            source=img,
             verbose=False,
             conf=self._conf,
             imgsz=self._imgsz,
