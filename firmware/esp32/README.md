@@ -15,6 +15,16 @@ Starter sketch for the Plant AI sensor integration MVP.
 - `plant_sensor_node.ino` — main loop, HTTP POST to backend
 - `config.example.h` — copy to `config.h` (keep `config.h` out of git if it has secrets)
 
+## Identity fields (POST /sensor JSON)
+
+| Field | Example | Meaning |
+|-------|---------|---------|
+| `user_id` | `demo_user` | Operator / account (MVP default) |
+| `zone_id` | `zone_alpha` | Growing zone or greenhouse section |
+| `device_id` | `esp32_001` | This ESP32 node |
+
+Set `ZONE_ID` and `DEVICE_ID` in `config.h` (from `config.example.h`).
+
 ## Backend endpoint
 
 ```http

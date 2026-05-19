@@ -12,7 +12,7 @@
 #define API_BASE_URL "http://192.168.1.10:8000"
 
 #define DEVICE_ID "esp32_001"
-#define PLANT_ID "cucumber_001"
+#define ZONE_ID "zone_alpha"
 
 // DHT22 — air temperature + humidity
 #define DHT_PIN 4

@@ -188,11 +188,12 @@ def process_sensor_reading(payload: SensorInput) -> SensorReading:
 
 
 
+    uid = (payload.user_id or "demo_user").strip() or "demo_user"
+
     return SensorReading(
-
+        user_id=uid,
         device_id=payload.device_id,
-
-        plant_id=payload.plant_id,
+        zone_id=(payload.zone_id or "zone_alpha").strip() or "zone_alpha",
 
         air_temperature=payload.air_temperature,
 

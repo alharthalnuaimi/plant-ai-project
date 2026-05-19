@@ -42,6 +42,28 @@ Do **not** move backend or frontend into new roots. Do **not** commit datasets o
 2. Export best weights to `artifacts/models/`.
 3. Tell backend to use the new path via `YOLO_WEIGHTS_PATH`.
 
+## MVP identity model
+
+API payloads use three IDs (no database yet):
+
+- `user_id` — who owns the data (default `demo_user`)
+- `zone_id` — which growing zone / section (default `zone_alpha`)
+- `device_id` — which ESP32 node (e.g. `esp32_001`)
+
+Keep these **separate** — do not merge into one field (e.g. no `user_zone_id`).
+
+Relationships (MVP):
+
+- One user → many zones
+- One zone → one user
+- One zone → one or more devices
+- Sensor reading → `user_id` + `zone_id` + `device_id`
+- Vision scan → `user_id` + `zone_id`
+
+Vision scans (`POST /predict`) send `user_id` + `zone_id` as form fields.  
+Sensor posts (`POST /sensor`) send all three in JSON.  
+`GET /sensor/latest` filters by all three query parameters.
+
 ## MVP boundaries (for now)
 
 - No Supabase / DB for sensors (in-memory store).

@@ -44,16 +44,20 @@ async function loadFromServer(){
   } catch(e){ return null; }
 }
 
-// --- HUD simulation ---
+// --- HUD confidence chip (live after scan, subtle demo idle) ---
 setInterval(()=>{
   const c=document.getElementById('s-conf');
   const f=document.getElementById('sys-fps');
-  if(c) c.textContent='CONF '+(92+Math.random()*7).toFixed(1)+'%';
   if(f) f.textContent=Math.floor(58+Math.random()*4);
+  if(!c) return;
+  if(c.dataset.liveConf) return;
+  c.textContent='CONF '+(92+Math.random()*7).toFixed(1)+'%';
 },2200);
 
 // --- Scan (FastAPI POST /predict) ---
 const scanModal = document.getElementById('scan-modal');
+const scanSourceModal = document.getElementById('scan-source-modal');
+const cameraModal = document.getElementById('camera-modal');
 const resModal  = document.getElementById('res-modal');
 const mFill     = document.getElementById('m-fill');
 const mLbl      = document.getElementById('m-lbl');
@@ -62,9 +66,17 @@ let timer = null;
 const scanFileInput = document.createElement('input');
 scanFileInput.type = 'file';
 scanFileInput.accept = 'image/*';
-scanFileInput.capture = 'environment';
 scanFileInput.style.display = 'none';
 document.body.appendChild(scanFileInput);
+
+const camPreview = document.getElementById('cam-preview');
+const camCanvas = document.getElementById('cam-canvas');
+const camHint = document.getElementById('cam-hint');
+const camCaptureBtn = document.getElementById('cam-capture');
+const camUseBtn = document.getElementById('cam-use');
+const camCancelBtn = document.getElementById('cam-cancel');
+let camStream = null;
+let capturedBlob = null;
 
 function clearScanTimer(){
   if(timer){ clearInterval(timer); timer = null; }
@@ -94,8 +106,12 @@ function runProgressAnimation(onComplete){
 
 function showPredictResult(result){
   const disease = result.disease || 'Unknown';
-  const confPct = ((result.confidence ?? 0) * 100).toFixed(1) + '%';
-  const accepted = result.accepted ? 'Yes' : 'No';
+  const confNum = (result.confidence ?? 0) * 100;
+  const confPct = confNum.toFixed(1) + '%';
+  const userOk = window.plantVisionSettings && typeof window.plantVisionSettings.meetsConfidenceThreshold === 'function'
+    ? window.plantVisionSettings.meetsConfidenceThreshold(result.confidence)
+    : result.accepted;
+  const health = result.health || null;
   const inferMs = Math.round(result.inference_ms ?? 0) + ' ms';
 
   const titleEl = document.getElementById('r-title');
@@ -103,20 +119,46 @@ function showPredictResult(result){
   const confEl = document.getElementById('r-conf');
   const hpEl = document.getElementById('r-hp');
   const riskEl = document.getElementById('r-risk');
+  const survEl = document.getElementById('r-surv');
+  const recEl = document.getElementById('r-rec');
   const waterEl = document.getElementById('r-water');
 
-  if(titleEl) titleEl.textContent = result.accepted ? 'Analysis Complete' : 'Low Confidence';
-  if(speciesEl) speciesEl.textContent = `Cucumber · ${disease}`;
+  const classLabel = result.class_name || result.disease_type || '';
+  if(titleEl) titleEl.textContent = userOk ? 'Analysis Complete' : 'Low Confidence';
+  if(speciesEl) speciesEl.textContent = classLabel ? `Cucumber · ${disease} (${classLabel})` : `Cucumber · ${disease}`;
   if(confEl) confEl.textContent = confPct;
-  if(hpEl) hpEl.textContent = accepted;
-  if(riskEl) riskEl.textContent = inferMs;
+  if(hpEl) hpEl.textContent = health ? health.plant_health + '%' : (userOk ? '—' : 'Low conf.');
+  if(riskEl) riskEl.textContent = health ? health.disease_risk : inferMs;
+  if(survEl) survEl.textContent = health ? health.survival_chance + '%' : '—';
+  if(recEl) recEl.textContent = health ? health.recommendation : (result.stress_hint || 'Monitor plant and rescan if symptoms persist.');
   if(waterEl) waterEl.textContent = result.model_name || 'yolov8';
 
+  if(window.plantAssistant && typeof window.plantAssistant.setLastScan === 'function'){
+    window.plantAssistant.setLastScan(result);
+  }
+
   const confChip = document.getElementById('s-conf');
-  if(confChip) confChip.textContent = 'CONF ' + confPct;
+  if(confChip){
+    confChip.textContent = 'CONF ' + confPct;
+    confChip.dataset.liveConf = '1';
+  }
+
+  if(window.plantVisionSettings){
+    if(typeof window.plantVisionSettings.recordScanComplete === 'function') window.plantVisionSettings.recordScanComplete();
+    if(typeof window.plantVisionSettings.playScanSound === 'function') window.plantVisionSettings.playScanSound();
+  }
 
   scanModal.classList.remove('active');
   resModal.classList.add('active');
+  if (window.plantAnalytics && typeof window.plantAnalytics.refresh === 'function') {
+    window.plantAnalytics.refresh();
+  }
+  if (window.plantGarden && result.zone_id && typeof window.plantGarden.pulseZone === 'function') {
+    window.plantGarden.pulseZone(result.zone_id);
+  }
+  if (window.plantProfile && typeof window.plantProfile.refresh === 'function') {
+    window.plantProfile.refresh(false);
+  }
 }
 
 function showScanError(message){
@@ -148,9 +190,103 @@ async function runPlantPredict(file){
   }
 }
 
+function openScanSourceModal(){
+  scanSourceModal?.classList.add('active');
+}
+
+function closeScanSourceModal(){
+  scanSourceModal?.classList.remove('active');
+}
+
 function triggerScanUpload(){
+  closeScanSourceModal();
   scanFileInput.value = '';
   scanFileInput.click();
+}
+
+function stopCameraStream(){
+  if(camStream){
+    camStream.getTracks().forEach(t => t.stop());
+    camStream = null;
+  }
+  if(camPreview) camPreview.srcObject = null;
+}
+
+function closeCameraModal(){
+  stopCameraStream();
+  capturedBlob = null;
+  if(camCanvas){
+    camCanvas.hidden = true;
+    const ctx = camCanvas.getContext('2d');
+    if(ctx) ctx.clearRect(0, 0, camCanvas.width, camCanvas.height);
+  }
+  if(camPreview) camPreview.hidden = false;
+  if(camCaptureBtn) camCaptureBtn.hidden = false;
+  if(camUseBtn){
+    camUseBtn.hidden = true;
+    camUseBtn.disabled = false;
+  }
+  if(camHint) camHint.textContent = 'Point at a leaf, then capture';
+  cameraModal?.classList.remove('active');
+}
+
+async function openCameraModal(){
+  closeScanSourceModal();
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    alert('Camera is not supported in this browser. Please upload an image instead.');
+    triggerScanUpload();
+    return;
+  }
+  try {
+    const constraints = window.plantVisionSettings && typeof window.plantVisionSettings.getCameraConstraints === 'function'
+      ? window.plantVisionSettings.getCameraConstraints()
+      : { video: { facingMode: { ideal: 'environment' } }, audio: false };
+    camStream = await navigator.mediaDevices.getUserMedia(constraints);
+    if(window.plantVisionSettings && typeof window.plantVisionSettings.applyTorchIfNeeded === 'function'){
+      await window.plantVisionSettings.applyTorchIfNeeded(camStream);
+    }
+    if(camPreview){
+      camPreview.srcObject = camStream;
+      camPreview.hidden = false;
+    }
+    capturedBlob = null;
+    if(camUseBtn) camUseBtn.hidden = true;
+    if(camCaptureBtn) camCaptureBtn.hidden = false;
+    cameraModal?.classList.add('active');
+  } catch (err) {
+    console.warn('Camera permission error:', err);
+    alert('Could not access the camera. Check permissions or upload an image instead.');
+    triggerScanUpload();
+  }
+}
+
+function captureCameraPhoto(){
+  if(!camPreview || !camCanvas || !camStream) return;
+  const w = camPreview.videoWidth;
+  const h = camPreview.videoHeight;
+  if(!w || !h) return;
+  camCanvas.width = w;
+  camCanvas.height = h;
+  const ctx = camCanvas.getContext('2d');
+  ctx.drawImage(camPreview, 0, 0, w, h);
+  camCanvas.hidden = false;
+  camPreview.hidden = true;
+  camCanvas.toBlob(blob => {
+    capturedBlob = blob;
+    if(camHint) camHint.textContent = 'Review capture, then use photo';
+    if(camUseBtn) camUseBtn.hidden = false;
+    if(camCaptureBtn) camCaptureBtn.hidden = true;
+  }, 'image/jpeg', 0.92);
+}
+
+function useCameraPhoto(){
+  if(!capturedBlob){
+    captureCameraPhoto();
+    return;
+  }
+  const file = new File([capturedBlob], 'camera-capture.jpg', { type: 'image/jpeg' });
+  closeCameraModal();
+  runPlantPredict(file);
 }
 
 scanFileInput.addEventListener('change', () => {
@@ -158,8 +294,14 @@ scanFileInput.addEventListener('change', () => {
   if(file) runPlantPredict(file);
 });
 
-document.getElementById('scan-trigger').addEventListener('click', triggerScanUpload);
-document.getElementById('act-scan').addEventListener('click', triggerScanUpload);
+document.getElementById('scan-trigger')?.addEventListener('click', openScanSourceModal);
+document.getElementById('act-scan')?.addEventListener('click', openScanSourceModal);
+document.getElementById('scan-opt-camera')?.addEventListener('click', openCameraModal);
+document.getElementById('scan-opt-upload')?.addEventListener('click', triggerScanUpload);
+document.getElementById('scan-opt-cancel')?.addEventListener('click', closeScanSourceModal);
+camCaptureBtn?.addEventListener('click', captureCameraPhoto);
+camUseBtn?.addEventListener('click', useCameraPhoto);
+camCancelBtn?.addEventListener('click', closeCameraModal);
 
 // Backend health indicator (optional)
 (async function checkApiOnLoad(){
@@ -190,13 +332,28 @@ function switchPage(targetId){
   const pg = document.getElementById(targetId);
   if(pg){
     pg.classList.add('active');
-    pg.querySelectorAll('.an').forEach(el=>{
-      el.style.animation='none';
-      el.offsetHeight;
-      el.style.animation='';
-    });
-    // Count-up animations for stat numbers
+    // Skip replaying entrance animations on analytics — avoids flicker on Data page
+    const reduced = document.body.classList.contains('pv-reduced-motion');
+    if(targetId !== 'page-data' && targetId !== 'page-settings' && !reduced){
+      pg.querySelectorAll('.an').forEach(el=>{
+        el.style.animation='none';
+        el.offsetHeight;
+        el.style.animation='';
+      });
+    }
     if(targetId==='page-home') animateCountUp();
+  }
+  if(window.plantAnalytics && typeof window.plantAnalytics.onNavigate === 'function'){
+    window.plantAnalytics.onNavigate(targetId);
+  }
+  if(window.plantVisionSettings && typeof window.plantVisionSettings.onNavigate === 'function'){
+    window.plantVisionSettings.onNavigate(targetId);
+  }
+  if(window.plantGarden && typeof window.plantGarden.onNavigate === 'function'){
+    window.plantGarden.onNavigate(targetId);
+  }
+  if(window.plantProfile && typeof window.plantProfile.onNavigate === 'function'){
+    window.plantProfile.onNavigate(targetId);
   }
   // Sync sidebar active
   document.querySelectorAll('.sidebar-btn:not(.theme-toggle)').forEach(n=>n.classList.remove('active'));
@@ -277,10 +434,10 @@ if(saved === 'light'){
 
 // ====== ZONE MANAGEMENT (CRUD + LEAFLET MAP) ======
 const defaultZones = [
-  { id:'a', lat:33.3152, lng:44.3661, name:'Alfarabi University', plants:8, status:'Healthy', devices:[{name:'ESP32-A1',ip:'192.168.1.10'}] },
-  { id:'b', lat:33.3128, lng:44.3890, name:'Karrada Garden', plants:5, status:'At Risk', devices:[{name:'ESP32-B1',ip:'192.168.1.11'},{name:'ESP32-B2',ip:'192.168.1.12'}] },
-  { id:'c', lat:33.3400, lng:44.3650, name:'Mansour Nursery', plants:12, status:'Healthy', devices:[{name:'ESP32-C1',ip:'192.168.1.13'}] },
-  { id:'d', lat:33.2950, lng:44.3800, name:'Jadriya Greenhouse', plants:3, status:'Critical', devices:[{name:'ESP32-D1',ip:'192.168.1.14'},{name:'ESP32-D2',ip:'192.168.1.15'},{name:'ESP32-D3',ip:'192.168.1.16'}] }
+  { id:'a', zone_id:'zone_alpha', lat:33.3152, lng:44.3661, name:'Alfarabi University', plants:8, status:'Healthy', devices:[{name:'ESP32-A1',device_id:'esp32_001',ip:'192.168.1.10'}] },
+  { id:'b', zone_id:'zone_beta', lat:33.3128, lng:44.3890, name:'Karrada Garden', plants:5, status:'At Risk', devices:[{name:'ESP32-B1',device_id:'esp32_b1',ip:'192.168.1.11'},{name:'ESP32-B2',device_id:'esp32_b2',ip:'192.168.1.12'}] },
+  { id:'c', zone_id:'zone_gamma', lat:33.3400, lng:44.3650, name:'Mansour Nursery', plants:12, status:'Healthy', devices:[{name:'ESP32-C1',device_id:'esp32_c1',ip:'192.168.1.13'}] },
+  { id:'d', zone_id:'zone_delta', lat:33.2950, lng:44.3800, name:'Jadriya Greenhouse', plants:3, status:'Critical', devices:[{name:'ESP32-D1',device_id:'esp32_d1',ip:'192.168.1.14'},{name:'ESP32-D2',device_id:'esp32_d2',ip:'192.168.1.15'},{name:'ESP32-D3',device_id:'esp32_d3',ip:'192.168.1.16'}] }
 ];
 
 let zones = JSON.parse(localStorage.getItem('pv-zones')) || defaultZones;
@@ -298,6 +455,7 @@ function statusColor(s){
 function statusClass(s){
   if(s==='Healthy') return 'ok';
   if(s==='At Risk') return 'warn';
+  if(s==='Offline') return 'off';
   return 'crit';
 }
 
@@ -313,11 +471,14 @@ function renderZoneChips(){
     const cls = statusClass(z.status);
     const chip = document.createElement('div');
     chip.className = 'zone-chip';
-    chip.innerHTML = `<span class="zone-chip-dot zcd-${cls}"></span>${z.id.toUpperCase()} — ${z.name}<span class="zone-chip-count mono">${z.plants}</span><div class="zone-chip-actions"><button class="zone-chip-btn zb-edit" data-id="${z.id}" title="Edit">✎</button><button class="zone-chip-btn zb-del" data-id="${z.id}" title="Delete">✕</button></div>`;
-    // Click chip → fly to location
+    chip.dataset.zoneLocal = z.id;
+    chip.innerHTML = `<span class="zone-chip-dot zcd-${cls}"></span><span class="zone-chip-main"><span class="zone-chip-line"><span class="zone-chip-id mono">${z.id.toUpperCase()}</span> — ${z.name}</span><span class="zone-chip-meta"><span class="zone-chip-status zcs-${cls}">${z.status || 'Offline'}</span><span class="zone-chip-plants mono">${z.plants} plants</span></span></span><span class="zone-chip-count mono">${z.plants}</span><div class="zone-chip-actions"><button class="zone-chip-btn zb-edit" data-id="${z.id}" title="Edit">✎</button><button class="zone-chip-btn zb-del" data-id="${z.id}" title="Delete">✕</button></div>`;
     chip.addEventListener('click',(e)=>{
       if(e.target.closest('.zone-chip-btn')) return;
-      if(gardenMap) gardenMap.flyTo([z.lat,z.lng],18,{duration:0.8});
+      const zid = z.zone_id || z.id;
+      if(window.plantGarden && typeof window.plantGarden.selectZone === 'function'){
+        window.plantGarden.selectZone(zid);
+      } else if(gardenMap) gardenMap.flyTo([z.lat,z.lng],18,{duration:0.8});
     });
     list.appendChild(chip);
   });
@@ -327,6 +488,7 @@ function renderZoneChips(){
 }
 
 function renderMapMarkers(){
+  if(window.plantGarden) return;
   if(!gardenMap) return;
   Object.values(mapMarkers).forEach(m=>gardenMap.removeLayer(m));
   mapMarkers = {};
@@ -421,7 +583,11 @@ zmSave.addEventListener('click', ()=>{
   saveZones();
   renderZoneChips();
   renderMapMarkers();
-  renderDevicePanel();
+  if(window.plantGarden && typeof window.plantGarden.onZonesChanged === 'function'){
+    window.plantGarden.onZonesChanged();
+  } else {
+    renderDevicePanel();
+  }
   closeZoneModal();
 });
 
@@ -454,7 +620,11 @@ function executeDeleteZone(id){
   saveZones();
   renderZoneChips();
   renderMapMarkers();
-  renderDevicePanel();
+  if(window.plantGarden && typeof window.plantGarden.onZonesChanged === 'function'){
+    window.plantGarden.onZonesChanged();
+  } else {
+    renderDevicePanel();
+  }
 }
 
 // deleteZone from chip buttons — inline 2-click confirm
@@ -556,6 +726,8 @@ function initMap(){
       pendingLatLng = {lat:e.latlng.lat, lng:e.latlng.lng};
       zmCoordsText.textContent = e.latlng.lat.toFixed(4)+', '+e.latlng.lng.toFixed(4);
       zmCoords.classList.add('has-coords');
+    } else if(window.plantGarden && typeof window.plantGarden.hasSelection === 'function' && window.plantGarden.hasSelection()){
+      window.plantGarden.clearSelection();
     } else {
       // No modal open — show "Add zone here?" popup
       const popup = L.popup()
@@ -833,12 +1005,20 @@ function initPOI(){
 const mapObs = new MutationObserver(()=>{
   const pg = document.getElementById('page-garden');
   if(pg && pg.classList.contains('active')){
-    setTimeout(()=>{ initMap(); if(gardenMap) gardenMap.invalidateSize(); initMapSearch(); initPOI(); },100);
+    setTimeout(()=>{ initMap(); if(gardenMap) gardenMap.invalidateSize(); initPOI(); },100);
   }
 });
 mapObs.observe(document.querySelector('.content'),{subtree:true,attributes:true,attributeFilter:['class']});
 
-// Render zone chips on load
+window.plantGardenBridge = {
+  getZones: () => zones,
+  getMap: () => gardenMap,
+  getMarkers: () => mapMarkers,
+  getAllDevices: getAllDevices,
+  renderChips: renderZoneChips,
+  isMapClickMode: () => mapClickMode,
+};
+
 renderZoneChips();
 
 // ====== AI CHATBOT ======
@@ -969,14 +1149,42 @@ function getBotReply(msg){
   return "I can help with plant care, disease identification, sensor readings, and garden management. Try asking about watering, pH levels, light requirements, or specific plant species! 🌿";
 }
 
+function escapeChatHtml(text){
+  const el = document.createElement('span');
+  el.textContent = text;
+  return el.innerHTML;
+}
+
 function addMsg(text, isUser){
   const div = document.createElement('div');
   div.className = `chat-msg ${isUser ? 'chat-msg-user' : 'chat-msg-bot'}`;
   const now = new Date();
   const time = now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
-  div.innerHTML = `<div class="chat-bubble">${text}</div><span class="chat-time mono">${time}</span>`;
+  div.innerHTML = `<div class="chat-bubble">${escapeChatHtml(text)}</div><span class="chat-time mono">${time}</span>`;
   chatBody.appendChild(div);
   chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+function removeChatTyping(){
+  const typing = document.getElementById('chat-typing');
+  if(typing) typing.remove();
+}
+
+function formatScanChatMessage(result){
+  const disease = (result.disease || 'unknown').replace(/_/g, ' ');
+  const confPct = ((result.confidence ?? 0) * 100).toFixed(1);
+  const label = disease.charAt(0).toUpperCase() + disease.slice(1);
+  const h = result.health;
+  let msg;
+  if(result.accepted === false){
+    msg = `Scan complete: ${label} detected with ${confPct}% confidence (low confidence — try another angle or better lighting).`;
+  } else {
+    msg = `Scan complete: Cucumber ${label} detected with ${confPct}% confidence.`;
+  }
+  if(h){
+    msg += ` Plant health ${h.plant_health}%, risk ${h.disease_risk}. ${h.recommendation}`;
+  }
+  return msg;
 }
 
 function showTyping(){
@@ -994,15 +1202,140 @@ function sendMsg(){
   addMsg(text, true);
   chatInput.value = '';
   showTyping();
-  setTimeout(()=>{
+  setTimeout(async ()=>{
     const typing = document.getElementById('chat-typing');
     if(typing) typing.remove();
-    addMsg(getBotReply(text), false);
+    let reply = null;
+    if(window.plantAssistant && typeof window.plantAssistant.getContextualReply === 'function'){
+      reply = window.plantAssistant.getContextualReply(text);
+    }
+    if(!reply){
+      if(window.plantAssistant && typeof window.plantAssistant.refreshContext === 'function'){
+        await window.plantAssistant.refreshContext();
+        reply = window.plantAssistant.getContextualReply(text);
+      }
+    }
+    addMsg(reply || getBotReply(text), false);
   }, 800 + Math.random()*600);
 }
 
 chatSend.addEventListener('click', sendMsg);
 chatInput.addEventListener('keydown', e=>{ if(e.key==='Enter') sendMsg(); });
+
+// ====== AI CHAT — camera scan ======
+const chatCamBtn = document.getElementById('chat-cam-btn');
+const chatCamPanel = document.getElementById('chat-cam-panel');
+const chatCamPreview = document.getElementById('chat-cam-preview');
+const chatCamCanvas = document.getElementById('chat-cam-canvas');
+const chatCamHint = document.getElementById('chat-cam-hint');
+const chatCamCaptureBtn = document.getElementById('chat-cam-capture');
+const chatCamUseBtn = document.getElementById('chat-cam-use');
+const chatCamCancelBtn = document.getElementById('chat-cam-cancel');
+let chatCamStream = null;
+let chatCapturedBlob = null;
+
+function stopChatCameraStream(){
+  if(chatCamStream){
+    chatCamStream.getTracks().forEach(t => t.stop());
+    chatCamStream = null;
+  }
+  if(chatCamPreview) chatCamPreview.srcObject = null;
+}
+
+function closeChatCameraPanel(){
+  stopChatCameraStream();
+  chatCapturedBlob = null;
+  if(chatCamCanvas){
+    chatCamCanvas.hidden = true;
+    const ctx = chatCamCanvas.getContext('2d');
+    if(ctx) ctx.clearRect(0, 0, chatCamCanvas.width, chatCamCanvas.height);
+  }
+  if(chatCamPreview) chatCamPreview.hidden = false;
+  if(chatCamCaptureBtn) chatCamCaptureBtn.hidden = false;
+  if(chatCamUseBtn) chatCamUseBtn.hidden = true;
+  if(chatCamHint) chatCamHint.textContent = 'Point at a leaf, then capture';
+  if(chatCamPanel){
+    chatCamPanel.classList.remove('active');
+    chatCamPanel.setAttribute('aria-hidden', 'true');
+  }
+}
+
+async function openChatCameraPanel(){
+  if(!chatCamPanel) return;
+  chatWidget.classList.add('open');
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    addMsg('Camera is not supported in this browser. Use the Home scan upload instead.', false);
+    return;
+  }
+  try {
+    chatCamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    if(chatCamPreview){
+      chatCamPreview.srcObject = chatCamStream;
+      chatCamPreview.hidden = false;
+    }
+    chatCapturedBlob = null;
+    if(chatCamUseBtn) chatCamUseBtn.hidden = true;
+    if(chatCamCaptureBtn) chatCamCaptureBtn.hidden = false;
+    chatCamPanel.classList.add('active');
+    chatCamPanel.setAttribute('aria-hidden', 'false');
+  } catch (err) {
+    console.warn('Chat camera error:', err);
+    addMsg('Camera access was denied. You can still upload an image.', false);
+    closeChatCameraPanel();
+  }
+}
+
+function captureChatPhoto(){
+  if(!chatCamPreview || !chatCamCanvas || !chatCamStream) return;
+  const w = chatCamPreview.videoWidth;
+  const h = chatCamPreview.videoHeight;
+  if(!w || !h) return;
+  chatCamCanvas.width = w;
+  chatCamCanvas.height = h;
+  chatCamCanvas.getContext('2d').drawImage(chatCamPreview, 0, 0, w, h);
+  chatCamCanvas.hidden = false;
+  chatCamPreview.hidden = true;
+  chatCamCanvas.toBlob(blob => {
+    chatCapturedBlob = blob;
+    if(chatCamHint) chatCamHint.textContent = 'Review capture, then use photo';
+    if(chatCamUseBtn) chatCamUseBtn.hidden = false;
+    if(chatCamCaptureBtn) chatCamCaptureBtn.hidden = true;
+  }, 'image/jpeg', 0.92);
+}
+
+async function runChatPlantPredict(file){
+  closeChatCameraPanel();
+  addMsg('Scanning plant image…', true);
+  showTyping();
+  try {
+    const result = await predictPlantImage(file);
+    removeChatTyping();
+    addMsg(formatScanChatMessage(result), false);
+    showPredictResult(result);
+  } catch (e) {
+    removeChatTyping();
+    const msg = e.message || 'Could not reach the vision API.';
+    addMsg('Scan failed: ' + msg, false);
+    showScanError(msg);
+  }
+}
+
+function useChatPhoto(){
+  if(!chatCapturedBlob){
+    captureChatPhoto();
+    return;
+  }
+  const file = new File([chatCapturedBlob], 'chat-camera.jpg', { type: 'image/jpeg' });
+  runChatPlantPredict(file);
+}
+
+chatCamBtn?.addEventListener('click', e => {
+  e.stopPropagation();
+  openChatCameraPanel();
+});
+chatCamCaptureBtn?.addEventListener('click', e => { e.stopPropagation(); captureChatPhoto(); });
+chatCamUseBtn?.addEventListener('click', e => { e.stopPropagation(); useChatPhoto(); });
+chatCamCancelBtn?.addEventListener('click', e => { e.stopPropagation(); closeChatCameraPanel(); });
 
 // ====== DEVICE MODAL HELPERS ======
 const zmDeviceList = document.getElementById('zm-device-list');
@@ -1124,34 +1457,48 @@ function createDeviceCard(d){
   card.className = 'dev-card';
   card.style.marginBottom = '8px';
   card.innerHTML = `<div class="dev-head"><span class="dev-dot"></span><span class="dev-name">${d.name||'Unnamed'}</span><span class="dev-ip">${d.ip||'\u2014'}</span><span class="dev-zone-tag">Zone ${d.zoneId.toUpperCase()}</span></div>`+
-    `<div class="dev-sensors">`+
+    `<div class="dev-sensor-rows">`+
+    `<div class="dev-sensors dev-sensors-env">`+
     `<div class="dev-s"><span class="dev-s-val" id="dv-${d.uid}-temp">--</span><span class="dev-s-lbl">Air <span class="dev-s-unit">°C</span></span></div>`+
     `<div class="dev-s"><span class="dev-s-val" id="dv-${d.uid}-hum">--</span><span class="dev-s-lbl">Humid <span class="dev-s-unit">%</span></span></div>`+
     `<div class="dev-s"><span class="dev-s-val" id="dv-${d.uid}-lux">--</span><span class="dev-s-lbl">Light <span class="dev-s-unit">lux</span></span></div>`+
+    `</div>`+
+    `<div class="dev-sensors dev-sensors-soil">`+
+    `<div class="dev-s"><span class="dev-s-val" id="dv-${d.uid}-soiltemp">--</span><span class="dev-s-lbl">Soil <span class="dev-s-unit">°C</span></span></div>`+
     `<div class="dev-s"><span class="dev-s-val" id="dv-${d.uid}-soil">--</span><span class="dev-s-lbl">Soil <span class="dev-s-unit">%</span></span></div>`+
     `<div class="dev-s"><span class="dev-s-val" id="dv-${d.uid}-ph">--</span><span class="dev-s-lbl">pH</span></div>`+
     `<div class="dev-s"><span class="dev-s-val" id="dv-${d.uid}-ec">--</span><span class="dev-s-lbl">EC <span class="dev-s-unit">mS</span></span></div>`+
-    `</div>`;
+    `</div></div>`;
   return card;
 }
 
 function calcAverages(){
   const keys = Object.keys(deviceSensorData);
-  if(keys.length===0) return {temp:'--',hum:'--',ph:'--',soil:'--'};
-  let t=0,h=0,p=0,s=0;
+  if(keys.length===0) return {temp:'--',hum:'--',ph:'--',soil:'--',soilTemp:'--',ec:'--',lux:'--'};
+  let t=0,h=0,p=0,s=0,st=0,ec=0,lux=0;
   keys.forEach(k=>{
     const d = deviceSensorData[k];
     t+=d.temp||0; h+=d.hum||0; p+=d.ph||0; s+=d.soil||0;
+    st+=d.soilTemp||0; ec+=d.ec||0; lux+=d.lux||0;
   });
   const n = keys.length;
-  return { temp:(t/n).toFixed(1), hum:Math.round(h/n), ph:(p/n).toFixed(1), soil:Math.round(s/n) };
+  return {
+    temp:(t/n).toFixed(1),
+    hum:Math.round(h/n),
+    ph:(p/n).toFixed(1),
+    soil:Math.round(s/n),
+    soilTemp:(st/n).toFixed(1),
+    ec:(ec/n).toFixed(1),
+    lux:Math.round(lux/n),
+  };
 }
 
-renderDevicePanel();
+if(!window.plantGarden) renderDevicePanel();
 
 // ====== SENSOR SIMULATION (PER-DEVICE) ======
 // Replace with real WebSocket/fetch to each ESP32 IP later
 function simulateSensors(){
+  if(window.plantGarden) return;
   zones.forEach(z=>{
     (z.devices||[]).forEach((d,i)=>{
       const uid = z.id+'_'+i;
@@ -1159,22 +1506,22 @@ function simulateSensors(){
         temp: parseFloat((22+Math.random()*4).toFixed(1)),
         hum: Math.floor(60+Math.random()*15),
         lux: Math.floor(700+Math.random()*300),
+        soilTemp: parseFloat((20+Math.random()*8).toFixed(1)),
         soil: Math.floor(35+Math.random()*20),
         ph: parseFloat((6.0+Math.random()*1.5).toFixed(1)),
         ec: parseFloat((1.0+Math.random()*1.0).toFixed(1))
       };
       deviceSensorData[uid] = vals;
-      // Update DOM if card is visible
       const u=(k,v)=>{const e=document.getElementById('dv-'+uid+'-'+k);if(e)e.textContent=v;};
       u('temp',vals.temp);
       u('hum',vals.hum);
       u('lux',vals.lux);
+      u('soiltemp',vals.soilTemp);
       u('soil',vals.soil);
       u('ph',vals.ph);
       u('ec',vals.ec);
     });
   });
-  // Update summary bar
   const avg = calcAverages();
   ['temp','hum','ph','soil'].forEach(k=>{
     const el = document.querySelector(`.dev-sum-item:nth-child(${k==='temp'?1:k==='hum'?2:k==='ph'?3:4}) .dev-sum-val`);
@@ -1182,130 +1529,10 @@ function simulateSensors(){
   });
 }
 simulateSensors();
-setInterval(simulateSensors, 5000);
+const sensorSimTimer = setInterval(simulateSensors, 5000);
+window._stopSensorSimulation = () => clearInterval(sensorSimTimer);
 
-// ====== PROFILE PAGE ======
-// Profile btn in topbar navigates to profile page
-document.getElementById('btn-user').addEventListener('click', ()=>{
-  switchPage('page-profile');
-  updateProfileCounts();
-});
-
-// Load saved profile data
-const defaultProfile = {
-  fname: 'Plant',
-  lname: 'Researcher',
-  email: 'user@plantvision.ai',
-  org: 'PlantVision Lab',
-  location: 'Baghdad, Iraq'
-};
-
-let profileData = JSON.parse(localStorage.getItem('pv-profile')) || {...defaultProfile};
-
-function loadProfile(){
-  const f = document.getElementById('prof-fname');
-  const l = document.getElementById('prof-lname');
-  const e = document.getElementById('prof-email');
-  const o = document.getElementById('prof-org');
-  const loc = document.getElementById('prof-location');
-  if(f) f.value = profileData.fname || '';
-  if(l) l.value = profileData.lname || '';
-  if(e) e.value = profileData.email || '';
-  if(o) o.value = profileData.org || '';
-  if(loc) loc.value = profileData.location || '';
-  // Update display card
-  const displayName = document.getElementById('profile-display-name');
-  const displayEmail = document.getElementById('profile-display-email');
-  const avatar = document.getElementById('profile-avatar-display');
-  if(displayName) displayName.textContent = (profileData.fname||'')+' '+(profileData.lname||'');
-  if(displayEmail) displayEmail.textContent = profileData.email || '';
-  if(avatar){
-    const initials = ((profileData.fname||'P')[0]+(profileData.lname||'V')[0]).toUpperCase();
-    avatar.textContent = initials;
-  }
-}
-
-function saveProfile(){
-  const f = document.getElementById('prof-fname');
-  const l = document.getElementById('prof-lname');
-  const e = document.getElementById('prof-email');
-  const o = document.getElementById('prof-org');
-  const loc = document.getElementById('prof-location');
-  profileData = {
-    fname: f?f.value.trim():'',
-    lname: l?l.value.trim():'',
-    email: e?e.value.trim():'',
-    org: o?o.value.trim():'',
-    location: loc?loc.value.trim():''
-  };
-  localStorage.setItem('pv-profile', JSON.stringify(profileData));
-  syncToServer('profile', profileData);
-  loadProfile();
-}
-
-function updateProfileCounts(){
-  const zc = document.getElementById('prof-zone-count');
-  const dc = document.getElementById('prof-device-count');
-  if(zc) zc.textContent = zones.length;
-  if(dc){
-    let total = 0;
-    zones.forEach(z=> total += (z.devices||[]).length);
-    dc.textContent = total;
-  }
-}
-
-// Bind save button
-const profileSaveBtn = document.getElementById('profile-save-btn');
-if(profileSaveBtn){
-  profileSaveBtn.addEventListener('click', ()=>{
-    saveProfile();
-    profileSaveBtn.textContent = '✓ Saved!';
-    profileSaveBtn.style.background = 'var(--sage-mid)';
-    setTimeout(()=>{
-      profileSaveBtn.textContent = 'Save Changes';
-      profileSaveBtn.style.background = '';
-    }, 1500);
-  });
-}
-
-// Edit profile button scrolls to the fields
-const profileEditBtn = document.getElementById('profile-edit-btn');
-if(profileEditBtn){
-  profileEditBtn.addEventListener('click', ()=>{
-    const fname = document.getElementById('prof-fname');
-    if(fname) fname.focus();
-  });
-}
-
-// Sign out (clears profile data for now)
-const logoutBtn = document.getElementById('prof-logout');
-if(logoutBtn){
-  logoutBtn.addEventListener('click', ()=>{
-    if(confirm('Sign out? Your local data will remain saved.')){
-      switchPage('page-home');
-    }
-  });
-}
-
-// Export profile data
-const exportBtn = document.getElementById('prof-export');
-if(exportBtn){
-  exportBtn.addEventListener('click', ()=>{
-    const data = {
-      profile: profileData,
-      zones: zones,
-      exportDate: new Date().toISOString()
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'plantvision-export.json'; a.click();
-    URL.revokeObjectURL(url);
-  });
-}
-
-// Load on init
-loadProfile();
+// Profile page: profile.js (plantProfile)
 
 // ====== NOTIFICATION SYSTEM ======
 const notifPanel = document.getElementById('notif-panel');
@@ -1494,7 +1721,8 @@ const resObserver = new MutationObserver((mutations) => {
       const species = document.getElementById('r-species')?.textContent || 'Unknown';
       const conf = document.getElementById('r-conf')?.textContent || '—';
       const health = document.getElementById('r-hp')?.textContent || '—';
-      pushNotification('scan', '🔬', `Scan Complete — ${species}`, `Health score: ${health}, Confidence: ${conf}. Analysis saved to scan log.`);
+      const risk = document.getElementById('r-risk')?.textContent || '—';
+      pushNotification('scan', '🔬', `Scan Complete — ${species}`, `Health: ${health}, Risk: ${risk}, Confidence: ${conf}.`);
     }
   });
 });
@@ -1503,20 +1731,26 @@ resObserver.observe(resModal, {attributes:true, attributeFilter:['class']});
 // --- Periodic sensor threshold alerts ---
 let lastSensorAlert = Date.now();
 function checkSensorAlerts(){
+  const cfg = window.plantVisionSettings && typeof window.plantVisionSettings.get === 'function'
+    ? window.plantVisionSettings.get() : null;
+  if(cfg && !cfg.notifications) return;
   if(Date.now() - lastSensorAlert < 60000) return; // Max 1 alert per minute
+  const soilTh = cfg ? cfg.soilMoistureAlertLow : 25;
+  const tempTh = cfg ? cfg.tempAlertC : 32;
+  const phMin = cfg ? cfg.phMin : 5.5;
   const allDevs = getAllDevices();
   allDevs.forEach(d => {
     const data = deviceSensorData[d.uid];
     if(!data) return;
-    if(data.soil < 25){
+    if(data.soil < soilTh){
       pushNotification('alert', '💧', `Low Soil Moisture — ${d.name}`, `Zone ${d.zoneId.toUpperCase()} sensor reads ${data.soil}% soil moisture. Plants may need watering.`);
       lastSensorAlert = Date.now();
     }
-    if(data.temp > 32){
+    if(data.temp > tempTh){
       pushNotification('alert', '🌡️', `High Temperature Alert — ${d.name}`, `Zone ${d.zoneId.toUpperCase()} reports ${data.temp}°C. Consider ventilation or shade.`);
       lastSensorAlert = Date.now();
     }
-    if(data.ph < 5.5){
+    if(data.ph < phMin){
       pushNotification('sensor', '⚗️', `Low pH Warning — ${d.name}`, `Zone ${d.zoneId.toUpperCase()} soil pH at ${data.ph}. Optimal range is 6.0–7.0.`);
       lastSensorAlert = Date.now();
     }
@@ -1584,58 +1818,111 @@ setInterval(() => {
   el.textContent = h + 'h ' + m + 'm';
 }, 10000);
 
-// ====== HOME ENV STRIP (backend /sensor/latest + demo fallback) ======
-const ENV_DEMO = { temp: '24.2', hum: '62', lux: 1842, soil: '54' };
+// ====== ZONE SENSORS (backend /sensor/latest + demo fallback) ======
+const ENV_DEMO = {
+  air_temperature: 25.2,
+  air_humidity: 73,
+  light_lux: 780,
+  soil_temperature: 28.2,
+  soil_humidity: 46,
+  soil_ph: 6.1,
+  soil_ec: 1.6,
+};
 let liveSensorReading = null;
 
-async function updateEnvStrip(){
-  const getEl = id => document.getElementById(id);
+function resolveSensorDisplayValues(){
+  if(liveSensorReading){
+    return {
+      air_temperature: Number(liveSensorReading.air_temperature).toFixed(1),
+      air_humidity: Math.round(liveSensorReading.air_humidity),
+      light_lux: Math.round(liveSensorReading.light_lux),
+      soil_temperature: Number(liveSensorReading.soil_temperature).toFixed(1),
+      soil_humidity: Math.round(liveSensorReading.soil_humidity),
+      soil_ph: Number(liveSensorReading.soil_ph).toFixed(1),
+      soil_ec: Number(liveSensorReading.soil_ec).toFixed(1),
+      isLive: true,
+    };
+  }
+  const avg = calcAverages();
+  if(avg.temp !== '--'){
+    return {
+      air_temperature: avg.temp,
+      air_humidity: avg.hum,
+      light_lux: Math.floor(700 + Math.random() * 300),
+      soil_temperature: avg.soilTemp !== '--' ? avg.soilTemp : ENV_DEMO.soil_temperature,
+      soil_humidity: avg.soil,
+      soil_ph: avg.ph,
+      soil_ec: avg.ec !== '--' ? avg.ec : ENV_DEMO.soil_ec,
+      isLive: false,
+    };
+  }
+  return { ...ENV_DEMO, isLive: false };
+}
+
+let lastZoneSensorKey = '';
+
+function applyZoneSensorDisplay(values){
+  const set = (id, text) => {
+    const el = document.getElementById(id);
+    if(el && el.textContent !== String(text)) el.textContent = text;
+  };
+  const key = [
+    values.air_temperature, values.air_humidity, values.light_lux,
+    values.soil_temperature, values.soil_humidity, values.soil_ph, values.soil_ec,
+    values.isLive,
+  ].join('|');
+  if(key === lastZoneSensorKey) return;
+  lastZoneSensorKey = key;
+  set('zs-air-temp', values.air_temperature);
+  set('zs-air-hum', values.air_humidity);
+  set('zs-light', values.light_lux);
+  set('zs-soil-temp', values.soil_temperature);
+  set('zs-soil-hum', values.soil_humidity);
+  set('zs-ph', values.soil_ph);
+  set('zs-ec', values.soil_ec);
+  set('env-s-temp', values.air_temperature + '°C');
+  set('env-s-hum', values.air_humidity + '%');
+  set('env-s-lux', values.light_lux + ' lx');
+  set('env-s-soil', values.soil_humidity + '%');
+  const liveEl = document.getElementById('zone-sensor-live');
+  if(liveEl){
+    liveEl.textContent = values.isLive ? '● LIVE' : '● DEMO';
+    liveEl.classList.toggle('is-demo', !values.isLive);
+  }
+}
+
+async function updateEnvStrip(force){
   if(typeof fetchSensorLatest === 'function' && window.PLANT_API_BASE){
     try {
       const data = await fetchSensorLatest();
       if(data.source === 'live' && data.reading){
         liveSensorReading = data.reading;
+        if(window.plantVisionSettings && typeof window.plantVisionSettings.refreshStatus === 'function' && force){
+          window.plantVisionSettings.refreshStatus();
+        }
       }
     } catch (_) {
       /* keep last live reading or fall back to demo */
     }
   }
-
-  let temp, hum, lux, soil;
-  if(liveSensorReading){
-    temp = Number(liveSensorReading.air_temperature).toFixed(1);
-    hum = Math.round(liveSensorReading.air_humidity);
-    lux = Math.round(liveSensorReading.light_lux);
-    if(liveSensorReading.soil_humidity != null){
-      soil = Math.round(liveSensorReading.soil_humidity);
-    } else {
-      soil = Number(liveSensorReading.soil_ec).toFixed(1);
-    }
-  } else {
-    const avg = calcAverages();
-    if(avg.temp !== '--'){
-      temp = avg.temp;
-      hum = avg.hum;
-      soil = avg.soil;
-      lux = Math.floor(1400 + Math.random() * 800);
-    } else {
-      temp = ENV_DEMO.temp;
-      hum = ENV_DEMO.hum;
-      lux = ENV_DEMO.lux;
-      soil = ENV_DEMO.soil;
-    }
-  }
-
-  if(getEl('env-s-temp')) getEl('env-s-temp').textContent = temp + '°C';
-  if(getEl('env-s-hum')) getEl('env-s-hum').textContent = hum + '%';
-  if(getEl('env-s-lux')) getEl('env-s-lux').textContent = lux + ' lx';
-  if(getEl('env-s-soil')){
-    const useEc = liveSensorReading && liveSensorReading.soil_humidity == null;
-    getEl('env-s-soil').textContent = useEc ? soil + ' mS' : soil + '%';
-  }
+  applyZoneSensorDisplay(resolveSensorDisplayValues());
 }
-setInterval(updateEnvStrip, 5000);
-setTimeout(updateEnvStrip, 1500);
+
+let sensorPollTimer = null;
+function getSensorPollMs(){
+  const cfg = window.plantVisionSettings && typeof window.plantVisionSettings.get === 'function'
+    ? window.plantVisionSettings.get() : null;
+  const sec = cfg && cfg.sensorPollSec ? cfg.sensorPollSec : 5;
+  return Math.max(3000, sec * 1000);
+}
+function restartSensorPolling(){
+  if(sensorPollTimer) clearInterval(sensorPollTimer);
+  updateEnvStrip(true);
+  sensorPollTimer = setInterval(() => updateEnvStrip(false), getSensorPollMs());
+}
+window.plantSensorRefresh = (force) => updateEnvStrip(Boolean(force));
+restartSensorPolling();
+window.addEventListener('plantvision:settings-changed', () => restartSensorPolling());
 
 // ====== QUICK ACTION BUTTONS ======
 const actAddZone = document.getElementById('act-add-zone');

@@ -1,34 +1,146 @@
-# Python
+# =============================================================================
+# PlantVision / Plant AI MVP — team-safe .gitignore
+# FastAPI backend · Node mobile web · YOLOv8 · local simulation
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Python / backend
+# -----------------------------------------------------------------------------
 __pycache__/
-*.pyc
-venv/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+*.cover
+.hypothesis/
+
 .venv/
+venv/
+env/
+ENV/
+.env.bak
+
+logs/
+*.log
+tmp/
+temp/
+
+# -----------------------------------------------------------------------------
+# Secrets / environment (keep .env.example for onboarding)
+# -----------------------------------------------------------------------------
 .env
 .env.*
+!.env.example
 
-# Backend runtime uploads
+# -----------------------------------------------------------------------------
+# Backend runtime (user uploads, scan images)
+# -----------------------------------------------------------------------------
 backend/uploads/
 
-# YOLO training outputs
-runs/
-ultralytics_runs/
-artifacts/train_runs/
+# -----------------------------------------------------------------------------
+# AI / model weights & exports (do NOT ignore backend/models/ Python package)
+# -----------------------------------------------------------------------------
+*.pt
+*.pth
+*.onnx
+*.engine
+*.tflite
+*.mlmodel
 
-# Raw import folders
+# Versioned checkpoints under artifacts (keep .gitkeep + registry.json)
+artifacts/models/**
+!artifacts/models/.gitkeep
+!artifacts/models/**/.gitkeep
+
+artifacts/train_runs/
+ultralytics_runs/
+checkpoints/
+
+# -----------------------------------------------------------------------------
+# Datasets / training outputs
+# -----------------------------------------------------------------------------
+# Bulk imports & Roboflow exports (keep dataset/README, templates, yolov8 scaffolding)
 dataset/_imports/
+dataset/cucumber/
+
+datasets/
+data/
+
+runs/
+outputs/
+output/
+wandb/
+mlruns/
+
+*.zip
+*.rar
+*.7z
+*.tar.gz
+
+# -----------------------------------------------------------------------------
+# Node / frontend (mobile-app static server)
+# Keep package-lock.json for reproducible team installs
+# -----------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+dist/
+build/
+coverage/
+.nyc_output/
+.parcel-cache/
+.cache/
+
+# Auto-generated local app state
+frontend/mobile-app/data/appdata.json
+
+# Legacy / misc import staging
 frontend/_imports/
 
-# Downloaded / generated model weights
-*.pt
+# -----------------------------------------------------------------------------
+# Local runtime / cache / exports
+# -----------------------------------------------------------------------------
+*.sqlite
+*.sqlite3
+*.db
+cache/
+local_cache/
+exports/
+reports/
+screenshots/
+*.json.bak
 
-# OS / editor
-.DS_Store
-Thumbs.db
+# -----------------------------------------------------------------------------
+# IDE / OS
+# -----------------------------------------------------------------------------
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
 
-# Node (frontend static server)
-node_modules/
-
-# Local firmware secrets
+# -----------------------------------------------------------------------------
+# Firmware (device secrets — use config.example.h)
+# -----------------------------------------------------------------------------
 firmware/esp32/config.h

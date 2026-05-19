@@ -23,7 +23,7 @@
 #define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
 #define API_BASE_URL "http://192.168.1.10:8000"
 #define DEVICE_ID "esp32_001"
-#define PLANT_ID "cucumber_001"
+#define ZONE_ID "zone_alpha"
 #define USE_MOCK_SENSORS 1
 #define SEND_INTERVAL_MS 30000
 #define DHT_PIN 4
@@ -87,8 +87,9 @@ bool postSensorReading(const SensorSample &s) {
   }
 
   StaticJsonDocument<512> doc;
+  doc["user_id"] = "demo_user";
   doc["device_id"] = DEVICE_ID;
-  doc["plant_id"] = PLANT_ID;
+  doc["zone_id"] = ZONE_ID;
   doc["air_temperature"] = s.air_temperature;
   doc["air_humidity"] = s.air_humidity;
   doc["light_lux"] = s.light_lux;

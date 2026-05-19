@@ -4,6 +4,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from schemas.health import PlantHealthScore
+
 
 class SurvivalSensorInput(BaseModel):
     """Legacy survival/analyze sensor block (soil moisture + climate)."""
@@ -22,13 +24,18 @@ SensorInput = SurvivalSensorInput
 
 
 class VisionResult(BaseModel):
+    user_id: str = Field(default="demo_user", description="Client user id (no auth yet)")
+    zone_id: str = Field(default="zone_alpha", description="Growing zone / greenhouse section")
     disease: str
     confidence: float = Field(ge=0, le=1)
     stress_hint: str = ""
+    class_name: str = Field(default="", description="Normalized class slug for multi-class readiness")
+    disease_type: str = Field(default="unknown", description="Taxonomy type e.g. healthy, powdery_mildew")
     model_name: str = "unknown"
     model_version: str = "unknown"
     accepted: bool = True
     inference_ms: float = 0.0
+    health: PlantHealthScore | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

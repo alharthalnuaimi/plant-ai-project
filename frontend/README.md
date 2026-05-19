@@ -20,13 +20,15 @@ Not React Native, Flutter, or Expo — runs in the browser (desktop or mobile).
 
 ## Prerequisites
 
-1. **FastAPI backend running** with YOLO weights:
+1. **FastAPI backend running** with YOLO weights (CMD on Windows):
 
-```powershell
-$env:YOLO_WEIGHTS_PATH = "D:\plant-ai-project\artifacts\models\cucumber_yolov8.pt"
-cd D:\plant-ai-project\backend
+```cmd
+set YOLO_WEIGHTS_PATH=D:\plant-ai-project\artifacts\models\cucumber_yolov8.pt
+cd /d D:\plant-ai-project\backend
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+PowerShell alternative: `$env:YOLO_WEIGHTS_PATH = "D:\plant-ai-project\artifacts\models\cucumber_yolov8.pt"` then the same `uvicorn` line.
 
 2. Confirm API docs: http://127.0.0.1:8000/docs  
    If this does not open, fix the backend before testing the frontend.
@@ -54,8 +56,8 @@ Config file: `mobile-app/config.js`
 
 ### Option A — Node static server (recommended, same as original project)
 
-```bash
-cd D:\plant-ai-project\frontend\mobile-app
+```cmd
+cd /d D:\plant-ai-project\frontend\mobile-app
 node server.js
 ```
 

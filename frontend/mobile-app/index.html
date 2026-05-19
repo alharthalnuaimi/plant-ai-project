@@ -104,7 +104,7 @@
 
             <!-- ===== PAGE: HOME ===== -->
             <div class="page page-home active" id="page-home">
-            <div class="grid-layout">
+            <div class="grid-layout home-dashboard">
 
                 <!-- Scanner Card -->
                 <section class="scanner-card an" style="--d:.15s">
@@ -155,6 +155,7 @@
                     </div>
                 </section>
 
+                <aside class="dashboard-aside">
                 <!-- Stats Row -->
                 <div class="stats-row an" style="--d:.25s">
                     <div class="stat-card">
@@ -186,25 +187,67 @@
                     </div>
                 </div>
 
+                <!-- Zone sensor card (7 live readings) -->
+                <section class="zone-sensor-card an" style="--d:.3s">
+                    <div class="zone-sensor-head">
+                        <span class="env-strip-label">ZONE SENSORS</span>
+                        <span class="zone-sensor-live mono" id="zone-sensor-live">● LIVE</span>
+                    </div>
+                    <div class="env-sensor-rows">
+                        <div class="env-grid env-grid-3 env-sensor-row-env">
+                            <div class="env-item">
+                                <span class="env-val mono" id="zs-air-temp">25.2</span>
+                                <span class="env-lbl">AIR °C</span>
+                            </div>
+                            <div class="env-item">
+                                <span class="env-val mono" id="zs-air-hum">73</span>
+                                <span class="env-lbl">HUMID %</span>
+                            </div>
+                            <div class="env-item">
+                                <span class="env-val mono" id="zs-light">780</span>
+                                <span class="env-lbl">LIGHT LUX</span>
+                            </div>
+                        </div>
+                        <div class="env-grid env-grid-4 env-sensor-row-soil">
+                            <div class="env-item">
+                                <span class="env-val mono" id="zs-soil-temp">28.2</span>
+                                <span class="env-lbl">SOIL °C</span>
+                            </div>
+                            <div class="env-item">
+                                <span class="env-val mono" id="zs-soil-hum">46</span>
+                                <span class="env-lbl">SOIL %</span>
+                            </div>
+                            <div class="env-item">
+                                <span class="env-val mono" id="zs-ph">6.1</span>
+                                <span class="env-lbl">PH</span>
+                            </div>
+                            <div class="env-item">
+                                <span class="env-val mono" id="zs-ec">1.6</span>
+                                <span class="env-lbl">EC MS</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 <!-- Live Environment Strip -->
-                <div class="env-strip an" style="--d:.3s">
+                <div class="env-strip an" style="--d:.32s">
                     <span class="env-strip-label">LIVE ENVIRONMENT</span>
                     <div class="env-strip-items">
                         <div class="env-strip-item">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 00-5 0v11.26a4.5 4.5 0 105 0z"/></svg>
-                            <span class="env-strip-val mono" id="env-s-temp">24.2°C</span>
+                            <span class="env-strip-val mono" id="env-s-temp">25.2°C</span>
                         </div>
                         <div class="env-strip-item">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z"/></svg>
-                            <span class="env-strip-val mono" id="env-s-hum">62%</span>
+                            <span class="env-strip-val mono" id="env-s-hum">73%</span>
                         </div>
                         <div class="env-strip-item">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                            <span class="env-strip-val mono" id="env-s-lux">1842 lx</span>
+                            <span class="env-strip-val mono" id="env-s-lux">780 lx</span>
                         </div>
                         <div class="env-strip-item">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                            <span class="env-strip-val mono" id="env-s-soil">54%</span>
+                            <span class="env-strip-val mono" id="env-s-soil">46%</span>
                         </div>
                     </div>
                 </div>
@@ -233,6 +276,8 @@
                         </button>
                     </div>
                 </div>
+
+                </aside>
 
                 <!-- Log Card -->
                 <section class="log-card an" style="--d:.45s">
@@ -280,91 +325,83 @@
             <div class="page page-data" id="page-data">
                 <div class="page-header an" style="--d:.1s">
                     <h2 class="page-title">Analytics Dashboard</h2>
-                    <p class="page-desc mono">Real-time diagnostic metrics &amp; historical data</p>
+                    <p class="page-desc mono">Real-time diagnostic metrics &amp; historical data · <span id="analytics-live-tag" class="mono" style="color:var(--sage)">● Live</span></p>
                 </div>
                 <div class="data-grid an" style="--d:.2s">
                     <div class="d-card d-card-wide">
                         <div class="d-card-head"><span class="d-card-label">SCAN ACTIVITY</span><span class="d-card-tag mono">Last 7 days</span></div>
-                        <div class="chart-area">
-                            <div class="chart-bars">
-                                <div class="chart-col"><div class="chart-bar" style="--h:45%"></div><span class="chart-day">Mon</span></div>
-                                <div class="chart-col"><div class="chart-bar" style="--h:72%"></div><span class="chart-day">Tue</span></div>
-                                <div class="chart-col"><div class="chart-bar" style="--h:58%"></div><span class="chart-day">Wed</span></div>
-                                <div class="chart-col"><div class="chart-bar" style="--h:90%"></div><span class="chart-day">Thu</span></div>
-                                <div class="chart-col"><div class="chart-bar" style="--h:35%"></div><span class="chart-day">Fri</span></div>
-                                <div class="chart-col"><div class="chart-bar" style="--h:65%"></div><span class="chart-day">Sat</span></div>
-                                <div class="chart-col"><div class="chart-bar chart-bar-today" style="--h:80%"></div><span class="chart-day">Sun</span></div>
+                        <div class="chart-area chart-area-split">
+                            <div class="chart-bars" id="chart-bars-live"></div>
+                            <div class="chart-line-wrap">
+                                <span class="chart-line-label">Confidence trend</span>
+                                <canvas id="confidence-chart" class="chart-line-canvas" height="120"></canvas>
                             </div>
                         </div>
                     </div>
                     <div class="d-card">
                         <div class="d-card-head"><span class="d-card-label">DETECTION RATE</span></div>
-                        <div class="d-ring-wrap">
+                        <div class="d-ring-wrap d-ring-metric">
+                            <svg class="d-ring" viewBox="0 0 120 120" aria-hidden="true">
+                                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--b1)" stroke-width="8"/>
+                                <circle id="ring-detection" cx="60" cy="60" r="50" fill="none" stroke="var(--sage)" stroke-width="8" stroke-dasharray="314" stroke-dashoffset="80" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+                            </svg>
+                            <div class="d-ring-val d-ring-val-stack">
+                                <span class="d-ring-num metric-num" id="metric-detection">—</span>
+                                <span class="d-ring-lbl metric-lbl" id="metric-detection-sub">Issue detection</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-card">
+                        <div class="d-card-head"><span class="d-card-label">AVG CONFIDENCE</span></div>
+                        <div class="d-ring-wrap d-ring-metric">
                             <svg class="d-ring" viewBox="0 0 120 120">
                                 <circle cx="60" cy="60" r="50" fill="none" stroke="var(--b1)" stroke-width="8"/>
-                                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--sage)" stroke-width="8" stroke-dasharray="272" stroke-dashoffset="40" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+                                <circle id="ring-confidence" cx="60" cy="60" r="50" fill="none" stroke="var(--olive)" stroke-width="8" stroke-dasharray="314" stroke-dashoffset="40" stroke-linecap="round" transform="rotate(-90 60 60)"/>
                             </svg>
-                            <div class="d-ring-val"><span class="d-ring-num">87%</span><span class="d-ring-lbl">Accuracy</span></div>
+                            <div class="d-ring-val d-ring-val-stack"><span class="d-ring-num metric-num" id="d-ring-num">—</span><span class="d-ring-lbl metric-lbl" id="d-ring-lbl">From scans</span></div>
                         </div>
                     </div>
                     <div class="d-card">
                         <div class="d-card-head"><span class="d-card-label">TOP DISEASES</span></div>
-                        <div class="d-list">
-                            <div class="d-list-item"><span class="d-list-name">Leaf Spot</span><span class="d-list-val">34%</span><div class="d-list-bar"><div class="d-list-fill" style="--w:34%"></div></div></div>
-                            <div class="d-list-item"><span class="d-list-name">Powdery Mildew</span><span class="d-list-val">28%</span><div class="d-list-bar"><div class="d-list-fill df-warn" style="--w:28%"></div></div></div>
-                            <div class="d-list-item"><span class="d-list-name">Root Rot</span><span class="d-list-val">18%</span><div class="d-list-bar"><div class="d-list-fill df-crit" style="--w:18%"></div></div></div>
-                            <div class="d-list-item"><span class="d-list-name">Blight</span><span class="d-list-val">12%</span><div class="d-list-bar"><div class="d-list-fill" style="--w:12%"></div></div></div>
-                            <div class="d-list-item"><span class="d-list-name">Anthracnose</span><span class="d-list-val">5%</span><div class="d-list-bar"><div class="d-list-fill df-warn" style="--w:5%"></div></div></div>
-                            <div class="d-list-item"><span class="d-list-name">Mosaic Virus</span><span class="d-list-val">3%</span><div class="d-list-bar"><div class="d-list-fill df-crit" style="--w:3%"></div></div></div>
+                        <div class="d-list" id="disease-list-live">
+                            <div class="d-list-item"><span class="d-list-name">Loading…</span><span class="d-list-val">—</span><div class="d-list-bar"><div class="d-list-fill" style="--w:0%"></div></div></div>
                         </div>
                     </div>
 
-                    <!-- Species Distribution -->
+                    <!-- Scan outcomes -->
                     <div class="d-card">
-                        <div class="d-card-head"><span class="d-card-label">SPECIES DISTRIBUTION</span></div>
-                        <div class="d-ring-wrap">
-                            <svg class="d-ring" viewBox="0 0 120 120">
-                                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--b1)" stroke-width="8"/>
-                                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--sage)" stroke-width="8" stroke-dasharray="110 204" stroke-dashoffset="0" stroke-linecap="round" transform="rotate(-90 60 60)"/>
-                                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--gold)" stroke-width="8" stroke-dasharray="75 239" stroke-dashoffset="-115" stroke-linecap="round" transform="rotate(-90 60 60)"/>
-                                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--olive)" stroke-width="8" stroke-dasharray="50 264" stroke-dashoffset="-195" stroke-linecap="round" transform="rotate(-90 60 60)"/>
-                                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--coral)" stroke-width="8" stroke-dasharray="30 284" stroke-dashoffset="-250" stroke-linecap="round" transform="rotate(-90 60 60)"/>
-                            </svg>
-                            <div class="d-ring-val"><span class="d-ring-num">12</span><span class="d-ring-lbl">Species</span></div>
-                        </div>
-                        <div class="species-legend">
-                            <span class="species-dot" style="--c:var(--sage)"></span> Monstera
-                            <span class="species-dot" style="--c:var(--gold)"></span> Pothos
-                            <span class="species-dot" style="--c:var(--olive)"></span> Basil
-                            <span class="species-dot" style="--c:var(--coral)"></span> Other
+                        <div class="d-card-head"><span class="d-card-label">SCAN OUTCOMES</span><span class="d-card-tag mono" id="outcomes-tag">Distribution</span></div>
+                        <div class="outcomes-list" id="outcomes-list-live">
+                            <div class="d-list-item d-list-placeholder"><span class="d-list-name">Loading…</span><span class="d-list-val">—</span></div>
                         </div>
                     </div>
 
-                    <!-- Model Performance -->
+                    <!-- Runtime model metrics -->
                     <div class="d-card">
-                        <div class="d-card-head"><span class="d-card-label">MODEL PERFORMANCE</span><span class="d-card-tag mono">v4.2.1</span></div>
-                        <div class="perf-grid">
+                        <div class="d-card-head"><span class="d-card-label">RUNTIME METRICS</span><span class="d-card-tag mono" id="perf-source-tag">Vision API</span></div>
+                        <div class="perf-grid perf-grid-runtime">
                             <div class="perf-item">
-                                <span class="perf-val mono">94.7%</span>
-                                <span class="perf-lbl">PRECISION</span>
-                                <div class="stat-bar"><div class="stat-fill sf-ok" style="--w:94.7%"></div></div>
+                                <span class="perf-val mono metric-num" id="perf-avg-conf">—</span>
+                                <span class="perf-lbl">AVG CONFIDENCE</span>
+                                <div class="stat-bar"><div class="stat-fill sf-ok" id="perf-bar-conf" style="--w:0%"></div></div>
                             </div>
                             <div class="perf-item">
-                                <span class="perf-val mono">91.2%</span>
-                                <span class="perf-lbl">RECALL</span>
-                                <div class="stat-bar"><div class="stat-fill sf-ok" style="--w:91.2%"></div></div>
+                                <span class="perf-val mono metric-num" id="perf-pass-rate">—</span>
+                                <span class="perf-lbl">PASS RATE</span>
+                                <div class="stat-bar"><div class="stat-fill sf-ok" id="perf-bar-pass" style="--w:0%"></div></div>
                             </div>
                             <div class="perf-item">
-                                <span class="perf-val mono">92.9%</span>
-                                <span class="perf-lbl">F1 SCORE</span>
-                                <div class="stat-bar"><div class="stat-fill sf-ok" style="--w:92.9%"></div></div>
+                                <span class="perf-val mono metric-num" id="perf-latency">—</span>
+                                <span class="perf-lbl">INFERENCE</span>
+                                <div class="stat-bar"><div class="stat-fill sf-warn" id="perf-bar-lat" style="--w:0%"></div></div>
                             </div>
                             <div class="perf-item">
-                                <span class="perf-val mono">3.8s</span>
-                                <span class="perf-lbl">LATENCY</span>
-                                <div class="stat-bar"><div class="stat-fill sf-warn" style="--w:38%"></div></div>
+                                <span class="perf-val mono metric-num" id="perf-scans">—</span>
+                                <span class="perf-lbl">TOTAL SCANS</span>
+                                <div class="stat-bar"><div class="stat-fill sf-ok" id="perf-bar-scans" style="--w:0%"></div></div>
                             </div>
                         </div>
+                        <p class="perf-note mono" id="perf-note">Measured from /predict responses</p>
                     </div>
 
                     <!-- System Metrics (redesigned) -->
@@ -380,7 +417,7 @@
                                     <span class="smc-val mono" id="sm-scans">28</span>
                                     <span class="smc-lbl">Total Scans</span>
                                 </div>
-                                <span class="smc-trend smc-up">↑ 12%</span>
+                                <span class="smc-trend smc-hidden" aria-hidden="true"></span>
                             </div>
                             <div class="sys-metric-card">
                                 <div class="smc-ring">
@@ -391,7 +428,7 @@
                                     <span class="smc-val mono" id="sm-time">4.2<small>s</small></span>
                                     <span class="smc-lbl">Avg Scan Time</span>
                                 </div>
-                                <span class="smc-trend smc-down">↓ 0.3s</span>
+                                <span class="smc-trend smc-hidden" aria-hidden="true"></span>
                             </div>
                             <div class="sys-metric-card">
                                 <div class="smc-ring">
@@ -400,9 +437,9 @@
                                 </div>
                                 <div class="smc-info">
                                     <span class="smc-val mono" id="sm-species">12</span>
-                                    <span class="smc-lbl">Species Found</span>
+                                    <span class="smc-lbl">Scans Today</span>
                                 </div>
-                                <span class="smc-trend smc-up">+3 new</span>
+                                <span class="smc-trend smc-hidden" aria-hidden="true"></span>
                             </div>
                             <div class="sys-metric-card">
                                 <div class="smc-ring">
@@ -413,7 +450,7 @@
                                     <span class="smc-val mono" id="sm-conf">96.4<small>%</small></span>
                                     <span class="smc-lbl">Avg Confidence</span>
                                 </div>
-                                <span class="smc-trend smc-up">↑ 1.2%</span>
+                                <span class="smc-trend smc-hidden" aria-hidden="true"></span>
                             </div>
                             <div class="sys-metric-card">
                                 <div class="smc-ring">
@@ -424,7 +461,7 @@
                                     <span class="smc-val mono" id="sm-zones">4</span>
                                     <span class="smc-lbl">Active Zones</span>
                                 </div>
-                                <span class="smc-trend smc-neutral">— steady</span>
+                                <span class="smc-trend smc-hidden" aria-hidden="true"></span>
                             </div>
                             <div class="sys-metric-card">
                                 <div class="smc-ring">
@@ -435,7 +472,7 @@
                                     <span class="smc-val mono" id="sm-devices">7</span>
                                     <span class="smc-lbl">Connected Devices</span>
                                 </div>
-                                <span class="smc-trend smc-up">+2 online</span>
+                                <span class="smc-trend smc-hidden" aria-hidden="true"></span>
                             </div>
                         </div>
                     </div>
@@ -447,6 +484,7 @@
                             <div class="env-trend-item">
                                 <div class="env-trend-head">
                                     <span class="env-trend-name">Temperature</span>
+                                    <canvas id="spark-temp" class="env-spark" width="72" height="22"></canvas>
                                     <span class="env-trend-val mono" id="trend-temp">24.2°C</span>
                                 </div>
                                 <div class="env-trend-bar-wrap">
@@ -458,6 +496,7 @@
                             <div class="env-trend-item">
                                 <div class="env-trend-head">
                                     <span class="env-trend-name">Humidity</span>
+                                    <canvas id="spark-hum" class="env-spark" width="72" height="22"></canvas>
                                     <span class="env-trend-val mono" id="trend-hum">62%</span>
                                 </div>
                                 <div class="env-trend-bar-wrap">
@@ -469,6 +508,8 @@
                             <div class="env-trend-item">
                                 <div class="env-trend-head">
                                     <span class="env-trend-name">Soil pH</span>
+                                    <canvas id="spark-ph" class="env-spark" width="72" height="22"></canvas>
+                                    <canvas id="spark-ec" class="env-spark env-spark-ec" width="72" height="22"></canvas>
                                     <span class="env-trend-val mono" id="trend-ph">6.5</span>
                                 </div>
                                 <div class="env-trend-bar-wrap">
@@ -480,268 +521,448 @@
                         </div>
                     </div>
 
+                    <!-- Live Event Feed -->
+                    <div class="d-card">
+                        <div class="d-card-head"><span class="d-card-label">LIVE EVENT FEED</span><span class="d-card-tag mono">Control center</span></div>
+                        <div class="event-feed-list" id="event-feed-list"></div>
+                    </div>
+
+                    <!-- AI Insights -->
+                    <div class="d-card d-card-wide">
+                        <div class="d-card-head"><span class="d-card-label">AI INSIGHTS</span><span class="d-card-tag mono" id="ai-insights-source">● Live</span></div>
+                        <div class="ai-insights-panel" id="ai-insights-panel"></div>
+                    </div>
+
+                    <!-- Zone Health -->
+                    <div class="d-card d-card-wide">
+                        <div class="d-card-head"><span class="d-card-label">ZONE HEALTH</span><span class="d-card-tag mono" id="zone-health-tag">Live sensors</span></div>
+                        <div class="zone-health-grid" id="zone-health-grid"></div>
+                    </div>
+
                     <!-- Scan History Table -->
                     <div class="d-card d-card-wide">
-                        <div class="d-card-head"><span class="d-card-label">SCAN HISTORY</span><span class="d-card-tag mono">Recent 5</span></div>
+                        <div class="d-card-head"><span class="d-card-label">SCAN HISTORY</span><span class="d-card-tag mono" id="scan-history-tag">Recent</span></div>
                         <div class="scan-table">
                             <div class="scan-table-head">
-                                <span>ID</span><span>Species</span><span>Result</span><span>Confidence</span><span>Time</span>
+                                <span>ID</span><span>Zone / Result</span><span>Status</span><span>Conf</span><span>Time</span>
                             </div>
-                            <div class="scan-table-row">
-                                <span class="mono">#4821</span><span>Monstera deliciosa</span><span class="entry-tag et-ok" style="font-size:8px">PASS</span><span class="mono">96.4%</span><span class="mono">2m ago</span>
-                            </div>
-                            <div class="scan-table-row">
-                                <span class="mono">#4820</span><span>Leaf Spot Fungus</span><span class="entry-tag et-warn" style="font-size:8px">WARN</span><span class="mono">87.1%</span><span class="mono">15m ago</span>
-                            </div>
-                            <div class="scan-table-row">
-                                <span class="mono">#4819</span><span>Pothos Aureum</span><span class="entry-tag et-ok" style="font-size:8px">PASS</span><span class="mono">99.1%</span><span class="mono">1h ago</span>
-                            </div>
-                            <div class="scan-table-row">
-                                <span class="mono">#4818</span><span>Basil — Early Blight</span><span class="entry-tag et-warn" style="font-size:8px">WARN</span><span class="mono">82.5%</span><span class="mono">3h ago</span>
-                            </div>
-                            <div class="scan-table-row">
-                                <span class="mono">#4817</span><span>Ficus elastica</span><span class="entry-tag et-ok" style="font-size:8px">PASS</span><span class="mono">97.8%</span><span class="mono">6h ago</span>
-                            </div>
+                            <div id="scan-table-body"></div>
                         </div>
                     </div>
                 </div>
             </div><!-- /page-data -->
 
-            <!-- ===== PAGE: GARDEN ===== -->
+            <!-- ===== PAGE: GARDEN (Live Command Center) ===== -->
             <div class="page page-garden" id="page-garden">
                 <div class="page-header an" style="--d:.1s">
-                    <h2 class="page-title">Garden Map</h2>
-                    <p class="page-desc mono">Monitor plant locations & zone health status</p>
+                    <h2 class="page-title">Garden Command Center</h2>
+                    <p class="page-desc mono">Live zone map · devices · alerts · <span id="garden-live-tag" class="garden-live-tag mono">● Live</span> <span id="garden-mode-badge" class="garden-mode-badge mono" hidden>Simulation Mode</span> <span id="garden-polled-at" class="mono garden-polled-at">—</span></p>
+                </div>
+                <div class="garden-summary-row an" style="--d:.15s">
+                    <div class="garden-sum-card garden-sum-ok" data-sum="healthy">
+                        <span class="garden-sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2C20 17.5 12 22 12 22z"/><path d="M9 12l2 2 4-4"/></svg></span>
+                        <div class="garden-sum-body"><span class="garden-sum-val mono" id="garden-sum-healthy" data-value="0">0</span><span class="garden-sum-lbl">Healthy Zones</span></div>
+                    </div>
+                    <div class="garden-sum-card garden-sum-warn" data-sum="warning">
+                        <span class="garden-sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+                        <div class="garden-sum-body"><span class="garden-sum-val mono" id="garden-sum-warn" data-value="0">0</span><span class="garden-sum-lbl">Warning</span></div>
+                    </div>
+                    <div class="garden-sum-card garden-sum-crit" data-sum="critical">
+                        <span class="garden-sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+                        <div class="garden-sum-body"><span class="garden-sum-val mono" id="garden-sum-crit" data-value="0">0</span><span class="garden-sum-lbl">Critical</span></div>
+                    </div>
+                    <div class="garden-sum-card garden-sum-off" data-sum="offline">
+                        <span class="garden-sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 12.55a8 8 0 0113.3-6"/><path d="M12 20v-8"/><line x1="2" y1="2" x2="22" y2="22"/></svg></span>
+                        <div class="garden-sum-body"><span class="garden-sum-val mono" id="garden-sum-offline" data-value="0">0</span><span class="garden-sum-lbl">Offline Devices</span></div>
+                    </div>
                 </div>
                 <div class="garden-layout an" style="--d:.2s">
-                    <div class="map-card">
-                        <div class="map-header"><span class="d-card-label">ZONE MAP</span><span class="d-card-tag mono" id="zone-counter">4 Zones Active</span></div>
+                    <div class="map-card garden-map-card">
+                        <div class="map-header">
+                            <span class="d-card-label">ZONE MAP</span>
+                            <span class="d-card-tag mono" id="zone-counter">—</span>
+                            <button type="button" class="garden-show-all-btn" id="garden-show-all" hidden>Show all zones</button>
+                        </div>
                         <div class="map-search-wrap">
                             <svg class="map-search-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                            <input type="text" class="map-search" id="map-search" placeholder="Search location (city, address...)" autocomplete="off">
-                            <button class="map-search-btn" id="map-search-btn">Go</button>
+                            <input type="text" class="map-search" id="map-search" placeholder="Search zone or device…" autocomplete="off">
                         </div>
-                        <div id="leaflet-map" class="leaflet-container-wrap"></div>
-                        <div class="poi-strip" id="poi-strip">
-                            <span class="poi-strip-label">NEARBY</span>
-                            <button class="poi-btn" data-cat="food">🍽️ Food</button>
-                            <button class="poi-btn" data-cat="education">🎓 Education</button>
-                            <button class="poi-btn" data-cat="health">🏥 Health</button>
-                            <button class="poi-btn" data-cat="parks">🌳 Parks</button>
-                            <button class="poi-btn" data-cat="shops">🛒 Shops</button>
-                            <button class="poi-btn" data-cat="fuel">⛽ Fuel</button>
-                            <button class="poi-btn" data-cat="hotel">🏨 Hotels</button>
-                            <button class="poi-btn" data-cat="atm">🏦 ATMs</button>
-                            <button class="poi-btn poi-btn-clear" id="poi-clear" style="display:none">✕ Clear</button>
-                        </div>
-                        <div class="poi-status" id="poi-status"></div>
-                        <div class="zone-list" id="zone-list">
-                            <!-- Rendered dynamically by JS -->
-                        </div>
+                        <div id="leaflet-map" class="leaflet-container-wrap garden-map-canvas"></div>
+                        <div class="zone-list" id="zone-list"></div>
                         <button class="zone-add-btn" id="zone-add-btn">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                             Add Zone
                         </button>
+                        <div class="garden-activity-card">
+                            <div class="d-card-head"><span class="d-card-label">ZONE ACTIVITY</span><span class="d-card-tag mono">Live feed</span></div>
+                            <div class="garden-activity-list" id="garden-activity-list"></div>
+                        </div>
                     </div>
                     <div class="garden-sidebar">
-                        <div class="d-card">
-                            <div class="d-card-head"><span class="d-card-label">DEVICES & SENSORS</span><span class="d-card-tag mono" id="device-counter">Live</span></div>
-                            <div id="device-panel">
-                                <!-- Rendered dynamically per-zone devices -->
-                            </div>
+                        <div class="d-card garden-devices-card">
+                            <div class="d-card-head"><span class="d-card-label">DEVICES &amp; SENSORS</span><span class="d-card-tag mono" id="device-counter">—</span></div>
+                            <div class="garden-device-panel" id="device-panel"></div>
                         </div>
-                        <div class="d-card">
-                            <div class="d-card-head"><span class="d-card-label">RECENT ALERTS</span></div>
-                            <div class="alert-list">
-                                <div class="alert-item alert-warn"><span class="alert-ico">!</span><div><span class="alert-msg">Zone B basil needs water</span><span class="alert-time mono">2h ago</span></div></div>
-                                <div class="alert-item alert-crit"><span class="alert-ico">✕</span><div><span class="alert-msg">Zone D fungus detected</span><span class="alert-time mono">4h ago</span></div></div>
-                                <div class="alert-item alert-ok"><span class="alert-ico">✓</span><div><span class="alert-msg">Zone A scan complete</span><span class="alert-time mono">6h ago</span></div></div>
-                            </div>
+                        <div class="d-card garden-alerts-card">
+                            <div class="d-card-head"><span class="d-card-label">LIVE ALERTS</span><span class="d-card-tag mono">Recent</span></div>
+                            <div class="garden-alert-list alert-list" id="garden-alert-list"></div>
                         </div>
                     </div>
                 </div>
             </div><!-- /page-garden -->
 
-            <!-- ===== PAGE: SETTINGS ===== -->
+
+            <!-- ===== PAGE: SETTINGS (Control Center) ===== -->
             <div class="page page-settings" id="page-settings">
                 <div class="page-header an" style="--d:.1s">
-                    <h2 class="page-title">Settings</h2>
-                    <p class="page-desc mono">Configure system preferences & calibration</p>
+                    <h2 class="page-title">Control Center</h2>
+                    <p class="page-desc mono">Live system status · scanner · sensors · session · <span id="settings-live-tag" class="mono" style="color:var(--sage)">● Checking…</span></p>
                 </div>
-                <div class="settings-grid an" style="--d:.2s">
-                    <div class="set-card">
-                        <div class="d-card-head"><span class="d-card-label">GENERAL</span></div>
-                        <div class="set-group">
-                            <div class="set-row"><div class="set-info"><span class="set-name">AI Model</span><span class="set-desc">Neural engine version</span></div><span class="set-val mono">v4.2.1</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Language</span><span class="set-desc">Interface language</span></div><span class="set-val">English</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Auto-Scan</span><span class="set-desc">Automatic specimen detection</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-autoscan" checked><label for="t-autoscan" class="toggle-lbl"></label></div></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Notifications</span><span class="set-desc">Alert &amp; scan notifications</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-notif" checked><label for="t-notif" class="toggle-lbl"></label></div></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Sound Effects</span><span class="set-desc">Scan completion sounds</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-sound"><label for="t-sound" class="toggle-lbl"></label></div></div>
+                <div class="settings-grid settings-control-grid an" style="--d:.2s">
+
+                    <div class="set-card set-card-wide set-status-card">
+                        <div class="d-card-head"><span class="d-card-label">SYSTEM STATUS</span><span class="d-card-tag mono" id="status-polled-at">—</span></div>
+                        <div class="status-grid" id="status-grid">
+                            <div class="status-item" data-status-key="backend">
+                                <span class="status-dot" id="st-dot-backend"></span>
+                                <div class="status-body">
+                                    <span class="status-name">Backend API</span>
+                                    <span class="status-val mono" id="st-val-backend">Checking…</span>
+                                </div>
+                            </div>
+                            <div class="status-item" data-status-key="yolo">
+                                <span class="status-dot" id="st-dot-yolo"></span>
+                                <div class="status-body">
+                                    <span class="status-name">YOLO Model</span>
+                                    <span class="status-val mono" id="st-val-yolo">Checking…</span>
+                                </div>
+                            </div>
+                            <div class="status-item" data-status-key="sensor">
+                                <span class="status-dot" id="st-dot-sensor"></span>
+                                <div class="status-body">
+                                    <span class="status-name">Sensor Node</span>
+                                    <span class="status-val mono" id="st-val-sensor">Checking…</span>
+                                </div>
+                            </div>
+                            <div class="status-item" data-status-key="analytics">
+                                <span class="status-dot" id="st-dot-analytics"></span>
+                                <div class="status-body">
+                                    <span class="status-name">Analytics Service</span>
+                                    <span class="status-val mono" id="st-val-analytics">Checking…</span>
+                                </div>
+                            </div>
+                            <div class="status-item" data-status-key="camera">
+                                <span class="status-dot" id="st-dot-camera"></span>
+                                <div class="status-body">
+                                    <span class="status-name">Camera Permission</span>
+                                    <span class="status-val mono" id="st-val-camera">Checking…</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="status-heartbeats mono">
+                            <span id="hb-sensor">Last sensor: —</span>
+                            <span id="hb-scan">Last scan: —</span>
+                            <span id="hb-analytics">Analytics: —</span>
                         </div>
                     </div>
+
                     <div class="set-card">
-                        <div class="d-card-head"><span class="d-card-label">APPEARANCE</span></div>
+                        <div class="d-card-head"><span class="d-card-label">SCANNER</span><span class="d-card-tag mono">Live controls</span></div>
                         <div class="set-group">
-                            <div class="set-row"><div class="set-info"><span class="set-name">Theme</span><span class="set-desc">Light or dark interface</span></div><span class="set-val">Dark</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Compact Mode</span><span class="set-desc">Reduce spacing and card sizes</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-compact"><label for="t-compact" class="toggle-lbl"></label></div></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Animations</span><span class="set-desc">UI transition effects</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-anim" checked><label for="t-anim" class="toggle-lbl"></label></div></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Particle Background</span><span class="set-desc">Floating ambient particles</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-particles" checked><label for="t-particles" class="toggle-lbl"></label></div></div>
+                            <div class="set-row set-row-slider">
+                                <div class="set-info"><span class="set-name">Confidence Threshold</span><span class="set-desc">UI pass gate for scan results</span></div>
+                                <div class="set-control"><input type="range" class="set-range" id="set-conf-threshold" min="50" max="99" step="1"><span class="set-val mono" id="set-conf-val">85%</span></div>
+                            </div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Auto Scan</span><span class="set-desc">Future: continuous specimen detect</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="set-autoscan"><label for="set-autoscan" class="toggle-lbl"></label></div></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">HUD Overlay</span><span class="set-desc">Grid &amp; reticle on scanner / camera</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="set-hud" checked><label for="set-hud" class="toggle-lbl"></label></div></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Sound Effects</span><span class="set-desc">Scan completion tone</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="set-sound" checked><label for="set-sound" class="toggle-lbl"></label></div></div>
+                            <div class="set-row">
+                                <div class="set-info"><span class="set-name">Resolution</span><span class="set-desc">Camera capture size</span></div>
+                                <select class="set-select mono" id="set-resolution"><option value="720">720p</option><option value="1080" selected>1080p</option><option value="1440">1440p</option></select>
+                            </div>
+                            <div class="set-row">
+                                <div class="set-info"><span class="set-name">Flash Mode</span><span class="set-desc">Torch when supported</span></div>
+                                <select class="set-select mono" id="set-flash"><option value="off">Off</option><option value="auto" selected>Auto</option><option value="on">On</option></select>
+                            </div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Multi-Angle</span><span class="set-desc">MVP — multi capture (coming)</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="set-multiangle"><label for="set-multiangle" class="toggle-lbl"></label></div></div>
                         </div>
                     </div>
+
                     <div class="set-card">
-                        <div class="d-card-head"><span class="d-card-label">SCANNER</span></div>
+                        <div class="d-card-head"><span class="d-card-label">SENSOR CONFIGURATION</span><span class="d-card-tag mono">ESP32 / zone</span></div>
                         <div class="set-group">
-                            <div class="set-row"><div class="set-info"><span class="set-name">Resolution</span><span class="set-desc">Camera capture quality</span></div><span class="set-val mono">2048px</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">HUD Overlay</span><span class="set-desc">Show scan grid &amp; reticle</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-hud" checked><label for="t-hud" class="toggle-lbl"></label></div></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Confidence Threshold</span><span class="set-desc">Min detection confidence</span></div><span class="set-val mono">85%</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Flash Mode</span><span class="set-desc">Camera flash behavior</span></div><span class="set-val">Auto</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Multi-Angle</span><span class="set-desc">Capture from multiple angles</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-multiangle"><label for="t-multiangle" class="toggle-lbl"></label></div></div>
+                            <div class="set-row">
+                                <div class="set-info"><span class="set-name">Polling Interval</span><span class="set-desc">/sensor/latest refresh</span></div>
+                                <select class="set-select mono" id="set-poll-interval"><option value="3">3s</option><option value="5" selected>5s</option><option value="10">10s</option><option value="30">30s</option></select>
+                            </div>
+                            <div class="set-row set-row-slider">
+                                <div class="set-info"><span class="set-name">Temp Alert</span><span class="set-desc">High °C notification</span></div>
+                                <div class="set-control"><input type="range" class="set-range" id="set-temp-alert" min="26" max="40" step="1"><span class="set-val mono" id="set-temp-val">32°C</span></div>
+                            </div>
+                            <div class="set-row set-row-slider">
+                                <div class="set-info"><span class="set-name">Humidity Alert (low)</span><span class="set-desc">Below % triggers alert</span></div>
+                                <div class="set-control"><input type="range" class="set-range" id="set-hum-low" min="10" max="50" step="1"><span class="set-val mono" id="set-hum-low-val">30%</span></div>
+                            </div>
+                            <div class="set-row set-row-slider">
+                                <div class="set-info"><span class="set-name">Soil Moisture Alert</span><span class="set-desc">Low % threshold</span></div>
+                                <div class="set-control"><input type="range" class="set-range" id="set-soil-alert" min="10" max="45" step="1"><span class="set-val mono" id="set-soil-val">25%</span></div>
+                            </div>
+                            <div class="set-row set-row-slider">
+                                <div class="set-info"><span class="set-name">pH Range</span><span class="set-desc">Alert outside min–max</span></div>
+                                <div class="set-control set-control-ph">
+                                    <div class="set-ph-range" id="set-ph-range" aria-label="pH alert range">
+                                        <div class="set-ph-track" aria-hidden="true"><div class="set-ph-fill" id="set-ph-fill"></div></div>
+                                        <input type="range" class="set-range set-ph-slider" id="set-ph-min" min="4" max="9" step="0.1" value="5.5" aria-label="Minimum pH">
+                                        <input type="range" class="set-range set-ph-slider" id="set-ph-max" min="4" max="9" step="0.1" value="7.5" aria-label="Maximum pH">
+                                    </div>
+                                    <span class="set-val mono" id="set-ph-val">5.5–7.5</span>
+                                </div>
+                            </div>
+                            <div class="set-row set-row-slider">
+                                <div class="set-info"><span class="set-name">EC Warning</span><span class="set-desc">High mS/cm threshold</span></div>
+                                <div class="set-control"><input type="range" class="set-range" id="set-ec-alert" min="1" max="5" step="0.1"><span class="set-val mono" id="set-ec-val">3.0</span></div>
+                            </div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Auto-Calibrate</span><span class="set-desc">MVP placeholder — sensor baseline</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="set-autocalib" checked><label for="set-autocalib" class="toggle-lbl"></label></div></div>
+                            <div class="set-row set-row-action">
+                                <button type="button" class="set-action-btn" id="btn-sensor-reconnect">Reconnect sensor</button>
+                            </div>
                         </div>
                     </div>
+
                     <div class="set-card">
-                        <div class="d-card-head"><span class="d-card-label">SENSOR CALIBRATION</span></div>
-                        <div class="set-group">
-                            <div class="set-row"><div class="set-info"><span class="set-name">Reading Interval</span><span class="set-desc">Sensor polling frequency</span></div><span class="set-val mono">5s</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Temp Alert</span><span class="set-desc">High temperature threshold</span></div><span class="set-val mono">32°C</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Moisture Alert</span><span class="set-desc">Low soil moisture threshold</span></div><span class="set-val mono">25%</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">pH Alert Range</span><span class="set-desc">Acceptable pH bounds</span></div><span class="set-val mono">5.5–7.5</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Auto-Calibrate</span><span class="set-desc">Self-calibrate on startup</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-autocalib" checked><label for="t-autocalib" class="toggle-lbl"></label></div></div>
+                        <div class="d-card-head"><span class="d-card-label">DEVICE / SESSION</span><span class="d-card-tag mono">MVP identity</span></div>
+                        <div class="set-group set-group-fields">
+                            <label class="set-field"><span class="set-field-lbl mono">User ID</span><input type="text" class="set-input mono" id="set-user-id" autocomplete="off"></label>
+                            <label class="set-field"><span class="set-field-lbl mono">Zone ID</span><input type="text" class="set-input mono" id="set-zone-id" autocomplete="off"></label>
+                            <label class="set-field"><span class="set-field-lbl mono">Device ID</span><input type="text" class="set-input mono" id="set-device-id" autocomplete="off"></label>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Backend API</span><span class="set-desc">FastAPI base URL</span></div><span class="set-val mono set-val-trunc" id="set-api-url">—</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Session</span><span class="set-desc">Browser session state</span></div><span class="set-val mono" id="set-session-state">Active</span></div>
                         </div>
                     </div>
+
                     <div class="set-card">
-                        <div class="d-card-head"><span class="d-card-label">DATA &amp; STORAGE</span></div>
+                        <div class="d-card-head"><span class="d-card-label">INTERFACE</span><span class="d-card-tag mono">Display</span></div>
                         <div class="set-group">
-                            <div class="set-row"><div class="set-info"><span class="set-name">Local Storage</span><span class="set-desc">Cached scan data</span></div><span class="set-val mono">142 MB</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Cloud Sync</span><span class="set-desc">Sync data across devices</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-sync"><label for="t-sync" class="toggle-lbl"></label></div></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Export Format</span><span class="set-desc">Report file format</span></div><span class="set-val mono">PDF</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Auto-Backup</span><span class="set-desc">Daily automatic backups</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-backup" checked><label for="t-backup" class="toggle-lbl"></label></div></div>
-                        </div>
-                        <button class="set-danger" id="btn-clear">Clear All Data</button>
-                    </div>
-                    <div class="set-card">
-                        <div class="d-card-head"><span class="d-card-label">SECURITY</span></div>
-                        <div class="set-group">
-                            <div class="set-row"><div class="set-info"><span class="set-name">Session</span><span class="set-desc">Current device session</span></div><span class="set-val mono" style="color:var(--sage)">Active</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Two-Factor Auth</span><span class="set-desc">Extra login protection</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-2fa"><label for="t-2fa" class="toggle-lbl"></label></div></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">API Key</span><span class="set-desc">External integrations</span></div><span class="set-val mono" style="font-size:10px">pv_k...x7f2</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Password</span><span class="set-desc">Update account password</span></div><button class="profile-edit-btn" style="width:auto;padding:6px 14px;font-size:10px">Update</button></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Notifications</span><span class="set-desc">In-app alert toasts</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="set-notif" checked><label for="set-notif" class="toggle-lbl"></label></div></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Animations</span><span class="set-desc">Page entrance effects</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="set-anim" checked><label for="set-anim" class="toggle-lbl"></label></div></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Particle Background</span><span class="set-desc">Ambient canvas particles</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="set-particles" checked><label for="set-particles" class="toggle-lbl"></label></div></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Compact Mode</span><span class="set-desc">Tighter dashboard spacing</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="set-compact"><label for="set-compact" class="toggle-lbl"></label></div></div>
                         </div>
                     </div>
+
                     <div class="set-card">
-                        <div class="d-card-head"><span class="d-card-label">ABOUT</span></div>
+                        <div class="d-card-head"><span class="d-card-label">ABOUT</span><span class="d-card-tag mono" id="about-env-mode">—</span></div>
                         <div class="set-group">
-                            <div class="set-row"><div class="set-info"><span class="set-name">Version</span><span class="set-desc">Application version</span></div><span class="set-val mono">6.0.0</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Build</span><span class="set-desc">Build identifier</span></div><span class="set-val mono">#2026.05</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">License</span><span class="set-desc">Software license type</span></div><span class="set-val">Pro</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">Uptime</span><span class="set-desc">System running time</span></div><span class="set-val mono" id="set-uptime">0h 0m</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Frontend</span><span class="set-desc">PlantVision UI</span></div><span class="set-val mono">6.0.0</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Backend uptime</span><span class="set-desc">API process</span></div><span class="set-val mono" id="about-backend-uptime">—</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">YOLO model</span><span class="set-desc">Vision weights</span></div><span class="set-val mono set-val-trunc" id="about-yolo-model">—</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Model file</span><span class="set-desc">Resolved weights path</span></div><span class="set-val mono set-val-trunc" id="about-model-file">—</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Sensor firmware</span><span class="set-desc">From last reading metadata</span></div><span class="set-val mono" id="about-sensor-fw">—</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">App session</span><span class="set-desc">This browser tab</span></div><span class="set-val mono" id="set-uptime">0h 0m</span></div>
                         </div>
+                    </div>
+
+                    <div class="set-card">
+                        <div class="d-card-head"><span class="d-card-label">LOCAL DATA</span><span class="d-card-tag mono">Browser cache</span></div>
+                        <div class="set-group">
+                            <div class="set-row"><div class="set-info"><span class="set-name">Storage estimate</span><span class="set-desc">localStorage keys (MVP)</span></div><span class="set-val mono" id="set-storage-size">—</span></div>
+                        </div>
+                        <p class="set-hint mono">Clears zones, notifications, and profile cache — not scanner settings.</p>
+                        <button type="button" class="set-danger" id="btn-clear">Clear cached app data</button>
                     </div>
                 </div>
             </div><!-- /page-settings -->
 
-            <!-- ===== PAGE: PROFILE ===== -->
+
+<!-- ===== PAGE: PROFILE (Operator Command) ===== -->
             <div class="page" id="page-profile">
                 <div class="page-header an" style="--d:.1s">
-                    <h2 class="page-title">My Profile</h2>
-                    <p class="page-desc mono">Manage your account & preferences</p>
+                    <h2 class="page-title">Operator Profile</h2>
+                    <p class="page-desc mono">Local MVP session · <span id="prof-live-tag" class="prof-live-tag mono">● Live</span> <span id="prof-polled-at" class="mono prof-polled-at">—</span></p>
                 </div>
-                <div class="profile-layout an" style="--d:.2s">
-                    <!-- Left: Profile Card -->
-                    <div class="profile-card-main">
-                        <div class="profile-avatar" id="profile-avatar-display">PV</div>
-                        <div class="profile-name" id="profile-display-name">PlantVision User</div>
-                        <div class="profile-role">PRO RESEARCHER</div>
-                        <div class="profile-email" id="profile-display-email">user@plantvision.ai</div>
-                        <div class="profile-stats">
-                            <div class="profile-stat"><span class="profile-stat-val" id="prof-scan-count">47</span><span class="profile-stat-lbl">Scans</span></div>
-                            <div class="profile-stat"><span class="profile-stat-val" id="prof-zone-count">4</span><span class="profile-stat-lbl">Zones</span></div>
-                            <div class="profile-stat"><span class="profile-stat-val" id="prof-device-count">7</span><span class="profile-stat-lbl">Devices</span></div>
+                <div class="prof-top-grid an" style="--d:.12s">
+                    <div class="prof-hero-card">
+                        <div class="prof-hero-head">
+                            <div class="prof-avatar" id="profile-avatar-display">DO</div>
+                            <div class="prof-hero-meta">
+                                <h3 class="prof-hero-name">Demo Operator</h3>
+                                <span class="prof-session-badge psb-local" id="prof-session-mode">Local Session</span>
+                                <p class="prof-hero-sub mono">PlantVision Operator · Local MVP Session</p>
+                            </div>
                         </div>
-                        <button class="profile-edit-btn" id="profile-edit-btn">Edit Profile</button>
-                        <div class="profile-joined">Member since May 2026</div>
+                        <dl class="prof-id-grid mono">
+                            <div><dt>User</dt><dd id="prof-display-user">demo_user</dd></div>
+                            <div><dt>Zone</dt><dd id="prof-display-zone">Zone Alpha</dd></div>
+                            <div><dt>Device</dt><dd id="prof-display-device">esp32_001</dd></div>
+                            <div><dt>Active</dt><dd id="prof-last-active">Session active now</dd></div>
+                        </dl>
+                        <div class="prof-health-block">
+                            <div class="prof-health-ring-wrap">
+                                <svg class="prof-health-svg" viewBox="0 0 120 120" aria-hidden="true">
+                                    <circle class="prof-health-track" cx="60" cy="60" r="52"/>
+                                    <circle class="prof-health-ring phr-ok" id="prof-health-ring" cx="60" cy="60" r="52"/>
+                                </svg>
+                                <div class="prof-health-center">
+                                    <span class="prof-health-lbl">PLANT HEALTH</span>
+                                    <span class="prof-health-val mono" id="prof-health-val">—</span>
+                                </div>
+                            </div>
+                            <div class="prof-health-stats">
+                                <div><span class="prof-h-lbl">Disease risk</span><span class="prof-h-val" id="prof-h-risk">—</span></div>
+                                <div><span class="prof-h-lbl">Environment</span><span class="prof-h-val" id="prof-h-stress">—</span></div>
+                                <div><span class="prof-h-lbl">Survival chance</span><span class="prof-h-val mono" id="prof-h-survival">—</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="prof-ai-card set-card">
+                        <div class="d-card-head"><span class="d-card-label">AI ASSISTANT SUMMARY</span><span class="d-card-tag mono" id="prof-ai-tag">Live</span></div>
+                        <div class="prof-ai-live" id="prof-ai-chips"></div>
+                        <div id="prof-ai-body">
+                        <dl class="prof-ai-rows">
+                            <div><dt>Latest scan</dt><dd id="prof-ai-scan">—</dd></div>
+                            <div><dt>Zone</dt><dd id="prof-ai-zone">—</dd></div>
+                            <div><dt>Environment</dt><dd id="prof-ai-env">—</dd></div>
+                        </dl>
+                        <div class="prof-ai-rec-block" id="prof-ai-rec-block">
+                            <span class="prof-ai-rec-ico" aria-hidden="true">✦</span>
+                            <p id="prof-ai-rec" class="prof-ai-rec">Run a scan to generate recommendations.</p>
+                        </div>
+                        <span class="prof-ai-time mono" id="prof-ai-time">—</span>
+                        </div>
+                        <div class="prof-ai-empty" id="prof-ai-empty" hidden>
+                            <span class="prof-ai-empty-ico">✦</span>
+                            <p>No scan data yet — run a plant scan to activate AI insights.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="prof-metrics-row an" style="--d:.16s">
+                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">🔬</span><span class="prof-metric-val mono" id="prof-metric-scans">0</span><span class="prof-metric-lbl">Total Scans</span><span class="prof-metric-trend" id="prof-trend-scans"></span></div>
+                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">◎</span><span class="prof-metric-val mono" id="prof-metric-conf">—</span><span class="prof-metric-lbl">Avg Confidence</span><span class="prof-metric-trend" id="prof-trend-conf"></span></div>
+                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">🌿</span><span class="prof-metric-val mono" id="prof-metric-zones">—</span><span class="prof-metric-lbl">Active Zones</span><span class="prof-metric-trend" id="prof-trend-zones"></span></div>
+                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">📡</span><span class="prof-metric-val mono" id="prof-metric-devices">—</span><span class="prof-metric-lbl">Connected Devices</span><span class="prof-metric-trend live" id="prof-trend-devices"></span></div>
+                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">🧬</span><span class="prof-metric-val" id="prof-metric-disease">—</span><span class="prof-metric-lbl">Latest Result</span></div>
+                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">💧</span><span class="prof-metric-val mono" id="prof-metric-sensor-ts">—</span><span class="prof-metric-lbl">Last Sensor</span></div>
+                </div>
+                <div class="prof-mid-grid an" style="--d:.2s">
+                    <div class="set-card prof-diag-card">
+                        <div class="d-card-head"><span class="d-card-label">SYSTEM DIAGNOSTICS</span></div>
+                        <div class="prof-diag-grid">
+                            <div class="prof-diag-item"><span class="prof-diag-dot pd-off" id="prof-diag-api"></span><span>Backend API</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-api">—</span></div>
+                            <div class="prof-diag-item"><span class="prof-diag-dot pd-off" id="prof-diag-yolo"></span><span>YOLO Model</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-yolo">—</span></div>
+                            <div class="prof-diag-item"><span class="prof-diag-dot pd-off" id="prof-diag-analytics"></span><span>Analytics</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-analytics">—</span></div>
+                            <div class="prof-diag-item"><span class="prof-diag-dot pd-off" id="prof-diag-camera"></span><span>Camera</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-camera">—</span></div>
+                            <div class="prof-diag-item"><span class="prof-diag-dot pd-off" id="prof-diag-sensor"></span><span>Sensor Feed</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-sensor">—</span></div>
+                            <div class="prof-diag-item"><span class="prof-diag-dot pd-off" id="prof-diag-health"></span><span>Health Engine</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-health">—</span></div>
+                        </div>
+                    </div>
+                    <div class="set-card">
+                        <div class="d-card-head"><span class="d-card-label">RECENT ACTIVITY</span><span class="d-card-tag mono">/analytics/events</span></div>
+                        <div class="prof-activity-list" id="prof-activity-list"></div>
+                    </div>
+                </div>
+                <div class="prof-bottom-grid an" style="--d:.24s">
+                    <div class="set-card">
+                        <div class="d-card-head"><span class="d-card-label">SESSION &amp; RUNTIME</span></div>
+                        <div class="prof-session-fields">
+                            <label class="profile-field-label">User ID</label>
+                            <input type="text" class="profile-field-input mono" id="prof-session-user">
+                            <label class="profile-field-label">Zone ID</label>
+                            <input type="text" class="profile-field-input mono" id="prof-session-zone">
+                            <label class="profile-field-label">Device ID</label>
+                            <input type="text" class="profile-field-input mono" id="prof-session-device">
+                        </div>
+                        <dl class="prof-runtime-rows mono prof-runtime-primary">
+                            <div><dt>Session</dt><dd id="prof-runtime-session">Local MVP</dd></div>
+                            <div><dt>Camera</dt><dd id="prof-runtime-camera">—</dd></div>
+                            <div><dt>Last scan</dt><dd id="prof-runtime-lastscan">—</dd></div>
+                        </dl>
+                        <details class="prof-runtime-advanced mono">
+                            <summary>Advanced runtime</summary>
+                            <dl class="prof-runtime-rows">
+                                <div><dt>Backend URL</dt><dd id="prof-runtime-api">—</dd></div>
+                                <div><dt>Uptime</dt><dd id="prof-runtime-uptime">—</dd></div>
+                                <div><dt>Analytics</dt><dd id="prof-runtime-analytics">—</dd></div>
+                                <div><dt>Model</dt><dd id="prof-runtime-model">—</dd></div>
+                            </dl>
+                        </details>
+                        <button type="button" class="profile-edit-btn prof-link-btn" id="prof-goto-settings">Open Control Center →</button>
+                    </div>
+                                        <div class="set-card prof-prefs-card">
+                        <div class="d-card-head"><span class="d-card-label">PREFERENCES</span><span class="d-card-tag mono">Synced with Settings</span></div>
+                        <div class="prof-pref-sections">
+                            <div class="prof-pref-section">
+                                <h4 class="prof-pref-heading">Notifications</h4>
+                                <div class="prof-pref-grid">
+                                    <div class="prof-pref-row"><div class="set-info"><span class="set-name">Alerts</span><span class="set-desc">In-app notifications</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="prof-pref-notif" data-prof-setting="notifications"><label for="prof-pref-notif" class="toggle-lbl"></label></div></div>
+                                </div>
+                            </div>
+                            <div class="prof-pref-section">
+                                <h4 class="prof-pref-heading">Visual Effects</h4>
+                                <div class="prof-pref-grid">
+                                    <div class="prof-pref-row"><div class="set-info"><span class="set-name">Animations</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="prof-pref-anim" data-prof-setting="animations"><label for="prof-pref-anim" class="toggle-lbl"></label></div></div>
+                                    <div class="prof-pref-row"><div class="set-info"><span class="set-name">Particle background</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="prof-pref-particles" data-prof-setting="particles"><label for="prof-pref-particles" class="toggle-lbl"></label></div></div>
+                                    <div class="prof-pref-row"><div class="set-info"><span class="set-name">Compact mode</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="prof-pref-compact" data-prof-setting="compactMode"><label for="prof-pref-compact" class="toggle-lbl"></label></div></div>
+                                </div>
+                            </div>
+                            <div class="prof-pref-section">
+                                <h4 class="prof-pref-heading">Scanner Controls</h4>
+                                <div class="prof-pref-grid">
+                                    <div class="prof-pref-row"><div class="set-info"><span class="set-name">Sound effects</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="prof-pref-sound" data-prof-setting="soundEffects"><label for="prof-pref-sound" class="toggle-lbl"></label></div></div>
+                                    <div class="prof-pref-row"><div class="set-info"><span class="set-name">HUD overlay</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="prof-pref-hud" data-prof-setting="hudOverlay"><label for="prof-pref-hud" class="toggle-lbl"></label></div></div>
+                                    <div class="prof-pref-row"><div class="set-info"><span class="set-name">Auto scan</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="prof-pref-autoscan" data-prof-setting="autoScan"><label for="prof-pref-autoscan" class="toggle-lbl"></label></div></div>
+                                    <div class="prof-pref-row"><div class="set-info"><span class="set-name">Scanner resolution</span></div><select class="profile-field-input" id="prof-pref-resolution" data-prof-setting="resolution"><option value="720">720p</option><option value="1080" selected>1080p</option><option value="1440">1440p</option></select></div>
+                                    <div class="prof-pref-row"><div class="set-info"><span class="set-name">Camera flash</span></div><select class="profile-field-input" id="prof-pref-flash" data-prof-setting="flashMode"><option value="auto">Auto</option><option value="on">On</option><option value="off">Off</option></select></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- Right: Details & Activity -->
-                    <div class="profile-right">
-                        <!-- Account Details -->
-                        <div class="set-card">
-                            <div class="d-card-head"><span class="d-card-label">ACCOUNT DETAILS</span></div>
-                            <div style="display:flex;flex-direction:column;gap:12px">
-                                <div class="profile-field-row">
-                                    <div class="profile-field">
-                                        <label class="profile-field-label">First Name</label>
-                                        <input type="text" class="profile-field-input" id="prof-fname" value="Plant" placeholder="First name">
-                                    </div>
-                                    <div class="profile-field">
-                                        <label class="profile-field-label">Last Name</label>
-                                        <input type="text" class="profile-field-input" id="prof-lname" value="Researcher" placeholder="Last name">
-                                    </div>
-                                </div>
-                                <div class="profile-field">
-                                    <label class="profile-field-label">Email Address</label>
-                                    <input type="email" class="profile-field-input" id="prof-email" value="user@plantvision.ai" placeholder="Email">
-                                </div>
-                                <div class="profile-field-row">
-                                    <div class="profile-field">
-                                        <label class="profile-field-label">Organization</label>
-                                        <input type="text" class="profile-field-input" id="prof-org" value="PlantVision Lab" placeholder="Organization">
-                                    </div>
-                                    <div class="profile-field">
-                                        <label class="profile-field-label">Location</label>
-                                        <input type="text" class="profile-field-input" id="prof-location" value="Baghdad, Iraq" placeholder="Location">
-                                    </div>
-                                </div>
-                                <button class="profile-save-btn" id="profile-save-btn">Save Changes</button>
-                            </div>
+<div class="set-card">
+                        <div class="d-card-head"><span class="d-card-label">LOCAL TOOLS</span></div>
+                        <div class="set-group">
+                            <div class="set-row"><div class="set-info"><span class="set-name">Export session data</span><span class="set-desc">Download JSON snapshot of this MVP session</span></div><button type="button" class="profile-edit-btn" style="width:auto;padding:8px 14px;font-size:10px" id="prof-export-session">Export</button></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Clear local cache</span><span class="set-desc">Zones, notifications, chat position</span></div><button type="button" class="profile-edit-btn" style="width:auto;padding:8px 14px;font-size:10px" id="prof-clear-cache">Clear</button></div>
                         </div>
-
-                        <!-- Preferences -->
-                        <div class="set-card">
-                            <div class="d-card-head"><span class="d-card-label">PREFERENCES</span></div>
-                            <div class="set-group">
-                                <div class="set-row"><div class="set-info"><span class="set-name">Email Alerts</span><span class="set-desc">Receive critical zone alerts via email</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-email-alerts" checked><label for="t-email-alerts" class="toggle-lbl"></label></div></div>
-                                <div class="set-row"><div class="set-info"><span class="set-name">Weekly Report</span><span class="set-desc">Automated health summary every Monday</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-weekly" checked><label for="t-weekly" class="toggle-lbl"></label></div></div>
-                                <div class="set-row"><div class="set-info"><span class="set-name">Data Sharing</span><span class="set-desc">Contribute anonymized data to research</span></div><div class="toggle-wrap"><input type="checkbox" class="toggle" id="t-datashare"><label for="t-datashare" class="toggle-lbl"></label></div></div>
-                            </div>
-                        </div>
-
-                        <!-- Recent Activity -->
-                        <div class="set-card">
-                            <div class="d-card-head"><span class="d-card-label">RECENT ACTIVITY</span></div>
-                            <div class="profile-activity">
-                                <div class="profile-act-item">
-                                    <div class="profile-act-ico act-scan">🔬</div>
-                                    <div><span class="profile-act-text">Scanned Monstera deliciosa — Healthy</span><span class="profile-act-time">2 hours ago</span></div>
-                                </div>
-                                <div class="profile-act-item">
-                                    <div class="profile-act-ico act-zone">🌿</div>
-                                    <div><span class="profile-act-text">Added ESP32-D3 to Zone D (Greenhouse)</span><span class="profile-act-time">5 hours ago</span></div>
-                                </div>
-                                <div class="profile-act-item">
-                                    <div class="profile-act-ico act-alert">⚠️</div>
-                                    <div><span class="profile-act-text">Alert triggered: Zone B soil moisture low</span><span class="profile-act-time">1 day ago</span></div>
-                                </div>
-                                <div class="profile-act-item">
-                                    <div class="profile-act-ico act-scan">🔬</div>
-                                    <div><span class="profile-act-text">Scanned Basil — Early blight detected</span><span class="profile-act-time">2 days ago</span></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Danger Zone -->
-                        <div class="set-card">
-                            <div class="d-card-head"><span class="d-card-label">ACCOUNT ACTIONS</span></div>
-                            <div class="set-group">
-                                <div class="set-row"><div class="set-info"><span class="set-name">Export My Data</span><span class="set-desc">Download all your scans, zones, and reports</span></div><button class="profile-edit-btn" style="width:auto;padding:8px 16px;font-size:10px" id="prof-export">Export</button></div>
-                            </div>
-                            <button class="profile-logout" id="prof-logout">Sign Out</button>
-                        </div>
+                        <button type="button" class="set-danger" id="prof-reset-demo">Reset Demo Session</button>
                     </div>
                 </div>
             </div><!-- /page-profile -->
 
+
+
         </div>
 
+    </div>
+
+    <!-- Scan source: camera or upload -->
+    <div class="ov" id="scan-source-modal">
+        <div class="modal scan-source-modal">
+            <h3 class="m-t">Scan plant</h3>
+            <p class="m-d">Take a photo or upload an image</p>
+            <div class="scan-source-btns">
+                <button type="button" class="rb rb1" id="scan-opt-camera">Take photo</button>
+                <button type="button" class="rb rb2" id="scan-opt-upload">Upload image</button>
+                <button type="button" class="m-cancel" id="scan-opt-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Camera capture -->
+    <div class="ov" id="camera-modal">
+        <div class="modal cam-modal">
+            <h3 class="m-t">Camera</h3>
+            <div class="cam-preview-wrap">
+                <video id="cam-preview" class="cam-preview" autoplay playsinline muted></video>
+                <canvas id="cam-canvas" class="cam-canvas" hidden></canvas>
+                <div class="cam-hud" id="cam-hud" aria-hidden="true"></div>
+            </div>
+            <p class="cam-hint m-d" id="cam-hint">Point at a leaf, then capture</p>
+            <div class="cam-btns">
+                <button type="button" class="rb rb2" id="cam-cancel">Cancel</button>
+                <button type="button" class="rb rb1" id="cam-capture">Capture</button>
+                <button type="button" class="rb rb1" id="cam-use" hidden>Use photo</button>
+            </div>
+        </div>
     </div>
 
     <!-- Scan Modal -->
@@ -764,12 +985,13 @@
             <div class="r-ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
             <h3 class="m-t" id="r-title">Specimen Healthy</h3>
             <p class="m-species mono" id="r-species">Monstera deliciosa</p>
-            <div class="r-grid">
+            <div class="r-grid r-grid-4">
                 <div class="rg"><span class="rg-v rg-hl" id="r-conf">96.4%</span><span class="rg-l">CONF</span></div>
-                <div class="rg"><span class="rg-v rg-hl" id="r-hp">9.2/10</span><span class="rg-l">HEALTH</span></div>
-                <div class="rg"><span class="rg-v" id="r-risk">Low</span><span class="rg-l">RISK</span></div>
-                <div class="rg"><span class="rg-v" id="r-water">Moderate</span><span class="rg-l">H₂O</span></div>
+                <div class="rg"><span class="rg-v rg-hl" id="r-hp">—</span><span class="rg-l">HEALTH</span></div>
+                <div class="rg"><span class="rg-v" id="r-risk">—</span><span class="rg-l">RISK</span></div>
+                <div class="rg"><span class="rg-v mono" id="r-surv">—</span><span class="rg-l">SURVIVE</span></div>
             </div>
+            <p class="r-rec mono" id="r-rec">—</p>
             <div class="r-btns">
                 <button class="rb rb1" id="r-save">Export Report</button>
                 <button class="rb rb2" id="r-dismiss">Dismiss</button>
@@ -842,8 +1064,24 @@
                     <span class="chat-time mono">Just now</span>
                 </div>
             </div>
+            <div class="chat-cam-panel" id="chat-cam-panel" aria-hidden="true">
+                <p class="chat-cam-title">Plant scan</p>
+                <div class="chat-cam-preview-wrap">
+                    <video id="chat-cam-preview" class="chat-cam-preview" autoplay playsinline muted></video>
+                    <canvas id="chat-cam-canvas" class="chat-cam-canvas" hidden></canvas>
+                </div>
+                <p class="chat-cam-hint" id="chat-cam-hint">Point at a leaf, then capture</p>
+                <div class="chat-cam-btns">
+                    <button type="button" class="chat-cam-btn chat-cam-btn-ghost" id="chat-cam-cancel">Cancel</button>
+                    <button type="button" class="chat-cam-btn chat-cam-btn-primary" id="chat-cam-capture">Capture</button>
+                    <button type="button" class="chat-cam-btn chat-cam-btn-primary" id="chat-cam-use" hidden>Use photo</button>
+                </div>
+            </div>
             <div class="chat-input-wrap">
                 <input type="text" class="chat-input" id="chat-input" placeholder="Ask about plant health..." autocomplete="off">
+                <button type="button" class="chat-cam" id="chat-cam-btn" aria-label="Scan with camera">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                </button>
                 <button class="chat-send" id="chat-send" aria-label="Send">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 </button>
@@ -860,8 +1098,15 @@
     </nav>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <div id="pv-toast-root" class="pv-toast-root" aria-live="polite"></div>
+
     <script src="config.js"></script>
     <script src="api.js"></script>
+    <script src="analytics.js"></script>
+    <script src="garden.js"></script>
+    <script src="settings.js"></script>
+    <script src="assistant.js"></script>
+    <script src="profile.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

@@ -34,13 +34,20 @@ async def survival(req: SurvivalRequest) -> SurvivalResponse:
 
 @router.post("/survival/from-latest-sensor")
 async def survival_from_latest(vision: VisionResult) -> SurvivalResponse:
-    from services.sensor_store import get_latest
+    from services.sensor_store import DEFAULT_DEVICE_ID, get_latest
 
-    latest = get_latest()
+    latest = get_latest(
+        user_id=vision.user_id,
+        zone_id=vision.zone_id,
+        device_id=DEFAULT_DEVICE_ID,
+    )
     if latest is None:
         raise HTTPException(
             status_code=400,
-            detail="No sensor data yet; POST /sensor first or use /survival with full body.",
+            detail=(
+                "No sensor data for this user/zone/device yet; "
+                "POST /sensor first or use /survival with full body."
+            ),
         )
     req = SurvivalRequest(
         vision=vision,
@@ -48,7 +55,7 @@ async def survival_from_latest(vision: VisionResult) -> SurvivalResponse:
             soil_moisture=latest.soil_humidity,
             temperature=latest.air_temperature,
             humidity=latest.air_humidity,
-            species=latest.plant_id,
+            species=latest.zone_id,
         ),
     )
     return await survival(req)

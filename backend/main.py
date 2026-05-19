@@ -4,14 +4,18 @@ Plant health MVP API: vision → structured signals → rule-based survival → 
 
 from __future__ import annotations
 
+import time
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.errors import AppError
 from core.observability import wire_observability
+from routes.analytics import router as analytics_router
 from routes.chat import router as chat_router
 from routes.dataset_meta import router as dataset_meta_router
+from routes.health_route import router as health_router
 from routes.predict import router as predict_router
 from routes.sensor import router as sensor_router
 from routes.survival import router as survival_router
@@ -31,11 +35,15 @@ app.add_middleware(
 )
 wire_observability(app)
 
+_APP_STARTED_AT = time.time()
+
+app.include_router(analytics_router)
 app.include_router(predict_router)
 app.include_router(sensor_router)
 app.include_router(survival_router)
 app.include_router(chat_router)
 app.include_router(dataset_meta_router)
+app.include_router(health_router)
 
 
 @app.exception_handler(HTTPException)
@@ -67,4 +75,7 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
 
 @app.get("/health")
 async def health() -> dict:
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "uptime_sec": int(time.time() - _APP_STARTED_AT),
+    }
