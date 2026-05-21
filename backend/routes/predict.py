@@ -57,7 +57,19 @@ async def predict(
     dest = UPLOAD_DIR / fname
     dest.write_bytes(data)
 
-    pred = run_vision_prediction(data)
+    # Run inference. If a real model is configured but throws (e.g. corrupt
+    # weights at runtime), translate that into a 503 so the UI can show a
+    # clean "Vision engine unavailable" banner instead of a 500 stacktrace.
+    try:
+        pred = run_vision_prediction(data)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=503,
+            detail=f"Vision engine failed: {type(exc).__name__}",
+        ) from exc
+
     meta = dict(pred.metadata)
     meta["saved_path"] = str(dest.relative_to(UPLOAD_DIR.parent))
     meta["user_id"] = uid

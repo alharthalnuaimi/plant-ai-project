@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import time
+from datetime import datetime
+
 from fastapi import APIRouter, Query
 
 from schemas.sensors import SensorInput, SensorLatestResponse, SensorReading
@@ -14,6 +17,25 @@ from services.sensor_store import (
 )
 
 router = APIRouter(tags=["sensor"])
+
+
+def _age_seconds(iso_ts: str) -> float | None:
+    try:
+        return time.time() - datetime.fromisoformat(iso_ts.replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError):
+        return None
+
+
+def _freshness_label(age: float | None) -> str:
+    """Mirror analytics_store._freshness (live ≤30s, stale ≤300s, else offline)."""
+
+    if age is None:
+        return "offline"
+    if age <= 30:
+        return "live"
+    if age <= 300:
+        return "stale"
+    return "offline"
 
 
 @router.post("/sensor", response_model=SensorReading)
@@ -32,5 +54,14 @@ async def sensor_latest(
 ) -> SensorLatestResponse:
     reading = get_latest(user_id=user_id, zone_id=zone_id, device_id=device_id)
     if reading is None:
-        return SensorLatestResponse(ok=True, source="none", reading=None)
-    return SensorLatestResponse(ok=True, source="live", reading=reading)
+        return SensorLatestResponse(
+            ok=True, source="none", reading=None, age_seconds=None, freshness="none"
+        )
+    age = _age_seconds(reading.timestamp)
+    return SensorLatestResponse(
+        ok=True,
+        source="live",
+        reading=reading,
+        age_seconds=round(age, 2) if age is not None else None,
+        freshness=_freshness_label(age),
+    )

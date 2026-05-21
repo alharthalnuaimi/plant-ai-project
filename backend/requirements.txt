@@ -9,5 +9,8 @@ numpy>=1.26.0
 httpx>=0.26.0
 pyyaml>=6.0.0
 
+# Phase 2 — local Supabase / Postgres persistence
+asyncpg>=0.29.0
+
 # Optional: real YOLOv8 plant/disease detection (install when you have weights)
 # ultralytics>=8.0.0

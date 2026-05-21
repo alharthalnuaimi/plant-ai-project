@@ -595,9 +595,14 @@
 
     const liveTag = document.getElementById("analytics-live-tag");
     if (liveTag) {
-      const label = isLive ? "● Live" : "● Demo";
+      const sensorCtx = window.plantSensor && window.plantSensor.last ? window.plantSensor.last() : null;
+      let label;
+      if (sensorCtx && sensorCtx.mode === "stale") label = "● Sensor Stale";
+      else if (sensorCtx && sensorCtx.mode === "live" && (s.total_scans || 0) === 0) label = "● Sensor Live";
+      else if (isLive) label = "● Live";
+      else label = "● Demo";
       if (liveTag.textContent !== label) liveTag.textContent = label;
-      liveTag.style.color = isLive ? "var(--sage)" : "var(--t3)";
+      liveTag.style.color = (label.includes("Live") || label.includes("Stale")) ? "var(--sage)" : "var(--t3)";
     }
 
     ensureActivityBars(s.activity_by_day);
@@ -623,6 +628,14 @@
     refreshInFlight = true;
 
     try {
+      // Prime unified sensor context first; analytics promotes itself to
+      // Live whenever a fresh sensor reading exists, even before any scans.
+      let sensorCtx = null;
+      if (window.plantSensor && typeof window.plantSensor.get === "function") {
+        try { sensorCtx = await window.plantSensor.get(force); } catch (_) {}
+      }
+      const sensorLive = sensorCtx && (sensorCtx.mode === "live" || sensorCtx.mode === "stale");
+
       const [sumRes, histRes, evRes, zoneRes, insRes] = await Promise.all([
         fetchJson("/analytics/summary"),
         fetchJson("/analytics/history?limit=12"),
@@ -638,11 +651,18 @@
         return;
       }
 
-      const summary = sumRes.ok ? sumRes.data : null;
+      let summary = sumRes.ok ? sumRes.data : null;
       const history = histRes.ok ? histRes.data : null;
       const events = evRes.ok ? evRes.data : null;
       const zones = zoneRes.ok ? zoneRes.data : null;
       const insightsRes = insRes.ok ? insRes.data : null;
+
+      // Promote summary.source to "live" when a fresh sensor reading exists.
+      // (Backend reports "demo" until a scan happens; we want Live indicator
+      // to flip on real sensor data too.)
+      if (summary && sensorLive && summary.source !== "live") {
+        summary = { ...summary, source: "live" };
+      }
       const isLive = summary && summary.source === "live";
 
       log("refreshed", {

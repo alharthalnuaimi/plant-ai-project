@@ -144,3 +144,27 @@ ehthumbs.db
 # Firmware (device secrets — use config.example.h)
 # -----------------------------------------------------------------------------
 firmware/esp32/config.h
+
+# -----------------------------------------------------------------------------
+# Pre-push safety net (catches stragglers from the IGNORE spec)
+# -----------------------------------------------------------------------------
+
+# Any *.env filename suffix (e.g. local.env, prod.env) — complements .env / .env.*
+*.env
+
+# Blanket uploads dir (in addition to backend/uploads/)
+uploads/
+
+# Generic temp / backup files (broadens *.json.bak above)
+*.tmp
+*.bak
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Windows OS junk — uppercase variant (case-sensitive filesystems)
+Desktop.ini
+
+# NOTE: artifacts/registry.json and artifacts/models/.gitkeep are intentionally
+# kept tracked above as deployment config. Actual model weights (*.pt, *.pth,
+# *.onnx, *.engine, *.tflite, *.mlmodel) are already ignored globally.

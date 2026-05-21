@@ -33,10 +33,14 @@
     return new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
-  function sessionMode(summary, backendOk) {
+  function sessionMode(summary, backendOk, sensorCtx) {
     if (!backendOk) return { label: "Offline", cls: "off" };
-    if (summary && summary.source === "demo") return { label: "Simulation", cls: "sim" };
+    // Live sensor wins over scan-only/demo source — fixes "still in
+    // Simulation after POST /sensor" bug.
+    if (sensorCtx && sensorCtx.mode === "live") return { label: "Live", cls: "live" };
+    if (sensorCtx && sensorCtx.mode === "stale") return { label: "Stale Sensor", cls: "warn" };
     if (summary && summary.total_scans > 0) return { label: "Live", cls: "live" };
+    if (summary && summary.source === "demo") return { label: "Simulation", cls: "sim" };
     return { label: "Local Session", cls: "local" };
   }
 
@@ -315,21 +319,33 @@
     const cam = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
     setDiag("camera", cam ? "ok" : "warn", cam ? "Available" : "Limited");
 
+    // Use the unified sensor context so this matches Home/Garden exactly.
     let sensorLbl = "No feed";
     let sensorSt = "warn";
-    try {
-      if (typeof fetchSensorLatest === "function") {
-        const res = await fetchSensorLatest();
-        if (res && res.reading) {
-          sensorSt = res.source === "live" ? "ok" : "sim";
-          sensorLbl = res.source === "live" ? "Live" : "Demo stream";
+    if (window.plantSensor && typeof window.plantSensor.get === "function") {
+      try {
+        const ctx = await window.plantSensor.get();
+        if (ctx && ctx.reading) {
+          if (ctx.freshness === "live") {
+            sensorSt = "ok";
+            sensorLbl = "Live";
+          } else if (ctx.freshness === "stale") {
+            sensorSt = "warn";
+            sensorLbl = "Stale";
+          } else {
+            sensorSt = "off";
+            sensorLbl = "Offline";
+          }
           const ts = $("prof-metric-sensor-ts");
-          if (ts) ts.textContent = fmtAgo(_parseTs(res.reading.timestamp));
+          if (ts) ts.textContent = fmtAgo(_parseTs(ctx.reading.timestamp));
+        } else if (ctx && ctx.reason === "offline") {
+          sensorSt = "off";
+          sensorLbl = "Offline";
         }
+      } catch (_) {
+        sensorSt = "off";
+        sensorLbl = "Offline";
       }
-    } catch (_) {
-      sensorSt = "off";
-      sensorLbl = "Offline";
     }
     setDiag("sensor", sensorSt, sensorLbl);
     setDiag("health", backendOk ? "ok" : "off", backendOk ? "Active" : "Offline");
@@ -374,10 +390,13 @@
       ]);
     } catch (_) {}
 
-    try {
-      const sr = await fetchSensorLatest();
-      sensor = sr?.reading || null;
-    } catch (_) {}
+    let sensorCtx = null;
+    if (window.plantSensor && typeof window.plantSensor.get === "function") {
+      try {
+        sensorCtx = await window.plantSensor.get();
+        sensor = sensorCtx && sensorCtx.reading ? sensorCtx.reading : null;
+      } catch (_) {}
+    }
 
     const lastScan =
       window.plantAssistant && window.plantAssistant.getContext
@@ -393,13 +412,19 @@
           }
         : null);
 
-    const mode = sessionMode(summary, backendOk);
+    const mode = sessionMode(summary, backendOk, sensorCtx);
     if (modeEl) {
       modeEl.textContent = mode.label;
       modeEl.className = "prof-session-badge psb-" + mode.cls;
     }
     if (tag) {
-      tag.textContent = mode.cls === "live" ? "● Live" : mode.cls === "sim" ? "◆ Simulation" : "○ " + mode.label;
+      tag.textContent = mode.cls === "live"
+        ? "● Live"
+        : mode.cls === "warn"
+          ? "● Stale"
+          : mode.cls === "sim"
+            ? "◆ Simulation"
+            : "○ " + mode.label;
     }
     if (polled) polled.textContent = "Updated " + fmtTime(Math.floor(Date.now() / 1000));
 

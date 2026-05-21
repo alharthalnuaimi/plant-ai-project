@@ -82,26 +82,99 @@ function clearScanTimer(){
   if(timer){ clearInterval(timer); timer = null; }
 }
 
+// Cinematic processing stages — used to drive the scan-line label so the
+// modal feels like it is doing real work (purely cosmetic; real /predict
+// runs in parallel and resolves whenever the backend is done).
+const SCAN_STAGES = [
+  { upTo: 22,  label: 'Image preprocessing',     tag: 'PREPROCESS' },
+  { upTo: 48,  label: 'Leaf texture analysis',   tag: 'TEXTURE'    },
+  { upTo: 78,  label: 'Disease classification',  tag: 'CLASSIFY'   },
+  { upTo: 100, label: 'Health score calculation',tag: 'HEALTH'     },
+];
+
+function setScanStageLabel(text){
+  const el = document.getElementById('scan-process-stage');
+  if(!el || el.textContent === text) return;
+  el.classList.add('is-changing');
+  setTimeout(() => {
+    el.textContent = text;
+    el.classList.remove('is-changing');
+  }, 140);
+}
+
 function runProgressAnimation(onComplete){
   scanModal.classList.add('active');
   let p = 0;
+  let stageIdx = 0;
   mFill.style.width = '0%';
-  mLbl.textContent = 'UPLOAD… 0%';
+  mLbl.textContent = 'PREPROCESS · 0%';
+  setScanStageLabel(SCAN_STAGES[0].label);
   clearScanTimer();
-  timer = setInterval(()=>{
+  timer = setInterval(() => {
     p += Math.random() * 2.5 + 0.8;
     if(p >= 100){
       p = 100;
       clearScanTimer();
       mFill.style.width = '100%';
-      mLbl.textContent = 'INFERENCE…';
+      mLbl.textContent = 'INFERENCE COMPLETE';
+      setScanStageLabel('Finalising results');
       if(onComplete) onComplete();
-    } else {
-      mFill.style.width = p + '%';
-      const ph = p < 30 ? 'UPLOAD…' : p < 60 ? 'VISION…' : 'ANALYZE…';
-      mLbl.textContent = `${ph} ${Math.floor(p)}%`;
+      return;
     }
+    mFill.style.width = p + '%';
+    // Advance through cinematic stages as % grows.
+    while(stageIdx < SCAN_STAGES.length - 1 && p > SCAN_STAGES[stageIdx].upTo){
+      stageIdx += 1;
+      setScanStageLabel(SCAN_STAGES[stageIdx].label);
+    }
+    mLbl.textContent = `${SCAN_STAGES[stageIdx].tag} · ${Math.floor(p)}%`;
   }, 80);
+}
+
+function _isHealthyDisease(name){
+  const n = String(name || '').toLowerCase();
+  return n === 'healthy' || n.includes('no disease') || n.includes('no_disease');
+}
+
+function _resolveResultTone(result, userOk){
+  const healthPct = result?.health?.plant_health;
+  const risk = String(result?.health?.disease_risk || '').toLowerCase();
+  if(!userOk) return 'warn';
+  if(_isHealthyDisease(result?.disease)){
+    if(typeof healthPct === 'number' && healthPct < 50) return 'crit';
+    if(typeof healthPct === 'number' && healthPct < 75) return 'warn';
+    return 'ok';
+  }
+  if(risk === 'high' || risk === 'critical') return 'crit';
+  if(risk === 'moderate' || risk === 'medium') return 'warn';
+  if(typeof healthPct === 'number'){
+    if(healthPct < 50) return 'crit';
+    if(healthPct < 75) return 'warn';
+  }
+  return 'warn';
+}
+
+function _setResultIcon(tone){
+  const wrap = document.getElementById('r-ico');
+  if(!wrap) return;
+  // Re-trigger entry animation by toggling the class.
+  wrap.style.animation = 'none';
+  void wrap.offsetWidth;
+  wrap.style.animation = '';
+  const svgs = {
+    ok:  '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    warn:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    crit:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+  };
+  wrap.innerHTML = svgs[tone] || svgs.ok;
+}
+
+function _resultHeadline(result, tone, userOk){
+  if(!userOk) return 'Low Confidence';
+  if(_isHealthyDisease(result?.disease)) return 'Healthy Plant';
+  if(tone === 'crit') return 'Critical Detection';
+  if(tone === 'warn') return 'Disease Detected';
+  return 'Analysis Complete';
 }
 
 function showPredictResult(result){
@@ -122,9 +195,14 @@ function showPredictResult(result){
   const survEl = document.getElementById('r-surv');
   const recEl = document.getElementById('r-rec');
   const waterEl = document.getElementById('r-water');
+  const card = document.getElementById('res-modal-card');
+
+  const tone = _resolveResultTone(result, userOk);
+  if(card) card.setAttribute('data-tone', tone);
+  _setResultIcon(tone);
 
   const classLabel = result.class_name || result.disease_type || '';
-  if(titleEl) titleEl.textContent = userOk ? 'Analysis Complete' : 'Low Confidence';
+  if(titleEl) titleEl.textContent = _resultHeadline(result, tone, userOk);
   if(speciesEl) speciesEl.textContent = classLabel ? `Cucumber · ${disease} (${classLabel})` : `Cucumber · ${disease}`;
   if(confEl) confEl.textContent = confPct;
   if(hpEl) hpEl.textContent = health ? health.plant_health + '%' : (userOk ? '—' : 'Low conf.');
@@ -159,6 +237,9 @@ function showPredictResult(result){
   if (window.plantProfile && typeof window.plantProfile.refresh === 'function') {
     window.plantProfile.refresh(false);
   }
+  if (window.plantHome && typeof window.plantHome.refresh === 'function') {
+    window.plantHome.refresh();
+  }
 }
 
 function showScanError(message){
@@ -166,8 +247,17 @@ function showScanError(message){
   scanModal.classList.remove('active');
   const titleEl = document.getElementById('r-title');
   const speciesEl = document.getElementById('r-species');
+  const recEl = document.getElementById('r-rec');
+  const card = document.getElementById('res-modal-card');
+  if(card) card.setAttribute('data-tone', 'crit');
+  _setResultIcon('crit');
   if(titleEl) titleEl.textContent = 'Scan Failed';
-  if(speciesEl) speciesEl.textContent = message;
+  if(speciesEl) speciesEl.textContent = '—';
+  ['r-conf','r-hp','r-risk','r-surv'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.textContent = '—';
+  });
+  if(recEl) recEl.textContent = message || 'Could not complete the scan. Please try again.';
   resModal.classList.add('active');
 }
 
@@ -303,19 +393,78 @@ camCaptureBtn?.addEventListener('click', captureCameraPhoto);
 camUseBtn?.addEventListener('click', useCameraPhoto);
 camCancelBtn?.addEventListener('click', closeCameraModal);
 
-// Backend health indicator (optional)
-(async function checkApiOnLoad(){
-  const sysAi = document.getElementById('sys-ai');
-  if(!sysAi || typeof checkBackendHealth !== 'function') return;
-  const h = await checkBackendHealth();
-  if(h.ok){
-    sysAi.textContent = 'API OK';
-    sysAi.style.color = 'var(--sage)';
-  } else {
-    sysAi.textContent = 'API offline';
-    sysAi.style.color = 'var(--coral)';
+// Backend health indicator (chip-style status)
+function setSysChip(id, state, text){
+  const chip = document.getElementById(id);
+  if(!chip) return;
+  chip.classList.remove('sys-chip-ok','sys-chip-warn','sys-chip-crit','sys-chip-ai');
+  chip.classList.add('sys-chip-' + (state || 'ok'));
+  const t = chip.querySelector('.sys-chip-text');
+  if(t && text) t.textContent = text;
+}
+
+function setSidebarMini(state, label, tip){
+  const el = document.getElementById('sidebar-ai-mini');
+  if(!el) return;
+  el.classList.remove('offline','warn');
+  if(state === 'offline') el.classList.add('offline');
+  else if(state === 'warn') el.classList.add('warn');
+  if(tip) el.setAttribute('data-tip', tip);
+  const txt = el.querySelector('.sidebar-mini-text');
+  if(txt && label) txt.textContent = label;
+}
+
+async function refreshApiChip(){
+  if(typeof checkBackendHealth !== 'function') return;
+  try {
+    const h = await checkBackendHealth();
+    if(h.ok){
+      setSysChip('sys-chip-ai', 'ai', 'AI Ready');
+      const aiText = document.getElementById('sys-ai');
+      if(aiText) aiText.textContent = 'AI Ready';
+      setSysChip('sys-chip-net', 'ok', 'System Online');
+      setSidebarMini('online', 'AI', 'AI Core ready');
+    } else {
+      setSysChip('sys-chip-ai', 'crit', 'AI Offline');
+      const aiText = document.getElementById('sys-ai');
+      if(aiText) aiText.textContent = 'AI Offline';
+      setSysChip('sys-chip-net', 'warn', 'Reconnecting…');
+      setSidebarMini('offline', 'AI', 'AI Core offline');
+    }
+  } catch(_){
+    setSysChip('sys-chip-ai', 'crit', 'AI Offline');
+    setSysChip('sys-chip-net', 'warn', 'Reconnecting…');
+    setSidebarMini('offline', 'AI', 'AI Core offline');
   }
-})();
+
+  // Phase 2 — reflect DB persistence state on the sidebar mini
+  if(typeof fetchDbHealth === 'function'){
+    try {
+      const dbInfo = await fetchDbHealth();
+      if(dbInfo){
+        if(dbInfo.persistence_backend === 'postgres'){
+          if(dbInfo.postgres_reachable){
+            setSidebarMini('online', 'DB', 'Persistence ready (Supabase)');
+          } else {
+            setSidebarMini('warn', 'DB', 'Persistence offline — using memory');
+          }
+        }
+      }
+    } catch(_) { /* offline */ }
+  }
+}
+refreshApiChip();
+setInterval(refreshApiChip, 30000);
+
+// Network online/offline browser events
+window.addEventListener('offline', ()=>setSysChip('sys-chip-net','crit','Offline'));
+window.addEventListener('online', ()=>{ setSysChip('sys-chip-net','ok','System Online'); refreshApiChip(); });
+
+// Show FPS chip only if ?debug=1 in URL
+if(new URLSearchParams(window.location.search).has('debug')){
+  const fpsChip = document.getElementById('sys-chip-fps');
+  if(fpsChip) fpsChip.hidden = false;
+}
 
 document.getElementById('m-cancel').addEventListener('click',()=>{ clearScanTimer(); scanModal.classList.remove('active'); });
 document.getElementById('r-dismiss').addEventListener('click',()=> resModal.classList.remove('active'));
@@ -354,6 +503,9 @@ function switchPage(targetId){
   }
   if(window.plantProfile && typeof window.plantProfile.onNavigate === 'function'){
     window.plantProfile.onNavigate(targetId);
+  }
+  if(window.plantHome && typeof window.plantHome.onNavigate === 'function'){
+    window.plantHome.onNavigate(targetId);
   }
   // Sync sidebar active
   document.querySelectorAll('.sidebar-btn:not(.theme-toggle)').forEach(n=>n.classList.remove('active'));
@@ -459,7 +611,99 @@ function statusClass(s){
   return 'crit';
 }
 
-function saveZones(){ localStorage.setItem('pv-zones', JSON.stringify(zones)); syncToServer('zones', zones); }
+function saveZones(){
+  localStorage.setItem('pv-zones', JSON.stringify(zones));
+  syncToServer('zones', zones);
+  syncZonesToBackend();
+}
+
+// ====== Phase 2 — persist zones/devices to FastAPI/Supabase ======
+function _zoneStatusToBackend(s){
+  const v = (s || '').toLowerCase();
+  if(v.includes('crit')) return 'CRITICAL';
+  if(v.includes('risk') || v.includes('warn')) return 'WARNING';
+  if(v.includes('offline')) return 'OFFLINE';
+  return 'HEALTHY';
+}
+function _zoneStatusFromBackend(s){
+  const v = (s || '').toUpperCase();
+  if(v === 'CRITICAL') return 'Critical';
+  if(v === 'WARNING') return 'At Risk';
+  if(v === 'OFFLINE') return 'Offline';
+  return 'Healthy';
+}
+function _zoneToBackend(z){
+  return {
+    slug: z.zone_id || z.id,
+    name: z.name || 'Untitled Zone',
+    status: _zoneStatusToBackend(z.status),
+    latitude: typeof z.lat === 'number' ? z.lat : null,
+    longitude: typeof z.lng === 'number' ? z.lng : null,
+    plants_count: typeof z.plants === 'number' ? z.plants : 0,
+  };
+}
+async function syncZonesToBackend(){
+  if(typeof saveZone !== 'function') return;
+  for(const z of zones){
+    try { await saveZone(_zoneToBackend(z)); } catch(_) { /* offline */ }
+    if(Array.isArray(z.devices) && typeof saveDevice === 'function'){
+      for(const d of z.devices){
+        const slug = d.device_id || (d.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        if(!slug) continue;
+        try {
+          await saveDevice({
+            slug,
+            device_name: d.name || slug,
+            zone_slug: z.zone_id || z.id,
+            ip_address: d.ip || null,
+            status: 'OFFLINE',
+            metadata: {},
+          });
+        } catch(_) { /* offline */ }
+      }
+    }
+  }
+}
+async function hydrateZonesFromBackend(){
+  if(typeof fetchZones !== 'function') return false;
+  const res = await fetchZones();
+  if(!res || !res.ok || !Array.isArray(res.zones) || res.zones.length === 0) return false;
+  if(res.source !== 'postgres') return false;
+  const backendZones = res.zones;
+  let devicesByZone = {};
+  if(typeof fetchDevices === 'function'){
+    try {
+      const dr = await fetchDevices();
+      if(dr && dr.ok && Array.isArray(dr.devices)){
+        for(const d of dr.devices){
+          const k = d.zone_slug || '';
+          if(!devicesByZone[k]) devicesByZone[k] = [];
+          devicesByZone[k].push({
+            name: d.device_name || d.slug,
+            device_id: d.slug,
+            ip: d.ip_address || '',
+          });
+        }
+      }
+    } catch(_) { /* offline */ }
+  }
+  zones = backendZones.map(z => {
+    const slug = z.slug;
+    const local = (Array.isArray(zones) ? zones : []).find(x => (x.zone_id || x.id) === slug);
+    return {
+      id: local ? local.id : slug,
+      zone_id: slug,
+      lat: z.latitude != null ? z.latitude : (local ? local.lat : 33.31),
+      lng: z.longitude != null ? z.longitude : (local ? local.lng : 44.36),
+      name: z.name,
+      plants: z.plants_count || 0,
+      status: _zoneStatusFromBackend(z.status),
+      devices: devicesByZone[slug] || (local ? local.devices : []) || [],
+    };
+  });
+  localStorage.setItem('pv-zones', JSON.stringify(zones));
+  return true;
+}
 
 function renderZoneChips(){
   const list = document.getElementById('zone-list');
@@ -513,11 +757,30 @@ const zmCoords = document.getElementById('zm-coords');
 const zmCoordsText = document.getElementById('zm-coords-text');
 const zmSave = document.getElementById('zm-save');
 const zmCancel = document.getElementById('zm-cancel');
+const zmCancelBtn = document.getElementById('zm-cancel-btn');
 const zmDelete = document.getElementById('zm-delete');
+const zmNameError = document.getElementById('zm-name-error');
+const zmStatusDot = document.getElementById('zm-status-dot');
+const zmDeviceCount = document.getElementById('zm-device-count');
+
+function syncZmStatusDot(){
+  if(!zmStatusDot || !zmStatus) return;
+  zmStatusDot.setAttribute('data-status', zmStatus.value);
+}
+if(zmStatus) zmStatus.addEventListener('change', syncZmStatusDot);
+if(zmName) zmName.addEventListener('input', ()=>{
+  zmName.classList.remove('zm-input-error');
+  if(zmNameError) zmNameError.hidden = true;
+});
 
 function openZoneModal(zoneId){
   editingZone = zoneId ? zones.find(z=>z.id===zoneId) : null;
   pendingLatLng = null;
+  if(zmName){
+    zmName.classList.remove('zm-input-error');
+    if(zmNameError) zmNameError.hidden = true;
+  }
+  if(zmCoords) zmCoords.classList.remove('zm-coords-error');
   if(editingZone){
     zmTitle.textContent = 'Edit Zone ' + editingZone.id.toUpperCase();
     zmDesc.textContent = 'Modify zone details or click map to move';
@@ -532,7 +795,7 @@ function openZoneModal(zoneId){
     renderModalDevices(editingZone.devices||[]);
   } else {
     zmTitle.textContent = 'Add New Zone';
-    zmDesc.textContent = 'Fill in details, then click map to set location';
+    zmDesc.textContent = 'Fill in details, then click the map to set location';
     zmName.value = '';
     zmStatus.value = 'Healthy';
     zmPlants.value = 1;
@@ -540,8 +803,9 @@ function openZoneModal(zoneId){
     zmCoords.classList.remove('has-coords');
     zmDelete.style.display = 'none';
     zmSave.textContent = 'Save Zone';
-    renderModalDevices([{name:'',ip:''}]);
+    renderModalDevices([{name:'',device_id:'',ip:''}]);
   }
+  syncZmStatusDot();
   mapClickMode = true;
   zoneModal.classList.add('active');
   // Reset delete button state
@@ -549,6 +813,7 @@ function openZoneModal(zoneId){
   zmDelete.textContent = 'Delete Zone';
   zmDelete.style.background = '';
   clearTimeout(zmDelete._resetTimer);
+  setTimeout(()=>{ if(zmName && !editingZone) zmName.focus(); }, 150);
 }
 
 function closeZoneModal(){
@@ -562,12 +827,22 @@ function closeZoneModal(){
   zmDelete.style.background = '';
 }
 
-zmCancel.addEventListener('click', closeZoneModal);
+if(zmCancel) zmCancel.addEventListener('click', closeZoneModal);
+if(zmCancelBtn) zmCancelBtn.addEventListener('click', closeZoneModal);
 
 zmSave.addEventListener('click', ()=>{
   const name = zmName.value.trim();
-  if(!name){ zmName.style.borderColor='var(--coral)'; return; }
-  if(!pendingLatLng){ zmCoordsText.textContent='\u26a0 Click map first!'; return; }
+  if(!name){
+    zmName.classList.add('zm-input-error');
+    if(zmNameError) zmNameError.hidden = false;
+    zmName.focus();
+    return;
+  }
+  if(!pendingLatLng){
+    zmCoords.classList.add('zm-coords-error');
+    zmCoordsText.textContent='\u26a0 Click the map to choose a location';
+    return;
+  }
   const devices = getModalDevices();
   if(editingZone){
     editingZone.name = name;
@@ -726,6 +1001,7 @@ function initMap(){
       pendingLatLng = {lat:e.latlng.lat, lng:e.latlng.lng};
       zmCoordsText.textContent = e.latlng.lat.toFixed(4)+', '+e.latlng.lng.toFixed(4);
       zmCoords.classList.add('has-coords');
+      zmCoords.classList.remove('zm-coords-error');
     } else if(window.plantGarden && typeof window.plantGarden.hasSelection === 'function' && window.plantGarden.hasSelection()){
       window.plantGarden.clearSelection();
     } else {
@@ -816,7 +1092,7 @@ function initMapSearch(){
       const data = await resp.json();
       resultsDiv.innerHTML = '';
       if(!Array.isArray(data) || data.length === 0){
-        resultsDiv.innerHTML = '<div class="map-sr-item map-sr-empty"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>No results for "' + q + '"</div>';
+        resultsDiv.innerHTML = '<div class="map-sr-item map-sr-empty"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>No matching location found for "' + q + '"</div>';
         resultsDiv.classList.add('active');
         return;
       }
@@ -1005,7 +1281,7 @@ function initPOI(){
 const mapObs = new MutationObserver(()=>{
   const pg = document.getElementById('page-garden');
   if(pg && pg.classList.contains('active')){
-    setTimeout(()=>{ initMap(); if(gardenMap) gardenMap.invalidateSize(); initPOI(); },100);
+    setTimeout(()=>{ initMap(); if(gardenMap) gardenMap.invalidateSize(); initPOI(); initMapSearch(); },100);
   }
 });
 mapObs.observe(document.querySelector('.content'),{subtree:true,attributes:true,attributeFilter:['class']});
@@ -1028,103 +1304,134 @@ const chatBody = document.getElementById('chat-body');
 const chatInput = document.getElementById('chat-input');
 const chatSend = document.getElementById('chat-send');
 
-// Draggable chat widget + click to toggle
-let chatDragging = false;
-let chatStartX, chatStartY, chatOrigLeft, chatOrigTop;
-let chatMoved = false;
+/**
+ * Chat FAB interaction model (fixes left-click bug).
+ *
+ * Previous implementation toggled `open` on both `mouseup` and the synthetic
+ * `click`, cancelling each other out, so only right-click (no synthetic click)
+ * appeared to work. The new model:
+ *   - pointerdown captures the pointer and records start position
+ *   - pointermove past DRAG_THRESHOLD upgrades the gesture to a drag
+ *   - pointerup either toggles (no drag) or persists position (drag)
+ *   - native `click` is suppressed only when an actual drag happened
+ *   - `contextmenu` is suppressed on the FAB so right-click never opens the
+ *     browser menu over the widget
+ */
+const DRAG_THRESHOLD = 6;
+let chatDragState = null; // {startX,startY,origLeft,origTop,moved,pointerId}
 
-function getChatPos(){
-  const r = chatWidget.getBoundingClientRect();
-  return {left: r.left, top: r.top};
+function clampToViewport(left, top){
+  const w = chatWidget.offsetWidth || 60;
+  const h = chatWidget.offsetHeight || 60;
+  return {
+    left: Math.max(8, Math.min(window.innerWidth - w - 8, left)),
+    top: Math.max(8, Math.min(window.innerHeight - h - 8, top)),
+  };
 }
 
-function onChatDragStart(clientX, clientY){
-  chatDragging = true;
-  chatMoved = false;
-  chatWidget.classList.add('dragging');
-  const pos = getChatPos();
-  chatStartX = clientX;
-  chatStartY = clientY;
-  // Switch from bottom/right to top/left for free positioning
-  chatWidget.style.left = pos.left + 'px';
-  chatWidget.style.top = pos.top + 'px';
-  chatWidget.style.right = 'auto';
-  chatWidget.style.bottom = 'auto';
-  chatOrigLeft = pos.left;
-  chatOrigTop = pos.top;
+function toggleChat(force){
+  const next = typeof force === 'boolean' ? force : !chatWidget.classList.contains('open');
+  chatWidget.classList.toggle('open', next);
+  chatFab.setAttribute('aria-expanded', String(next));
+  chatFab.setAttribute('aria-label', next ? 'Close AI Chat' : 'Open AI Chat');
 }
 
-function onChatDragMove(clientX, clientY){
-  if(!chatDragging) return;
-  const dx = clientX - chatStartX;
-  const dy = clientY - chatStartY;
-  if(Math.abs(dx)>4 || Math.abs(dy)>4) chatMoved = true;
-  let newLeft = chatOrigLeft + dx;
-  let newTop = chatOrigTop + dy;
-  // Clamp to viewport
-  newLeft = Math.max(0, Math.min(window.innerWidth - 60, newLeft));
-  newTop = Math.max(0, Math.min(window.innerHeight - 60, newTop));
-  chatWidget.style.left = newLeft + 'px';
-  chatWidget.style.top = newTop + 'px';
+function onFabPointerDown(e){
+  if(e.button != null && e.button !== 0 && e.pointerType === 'mouse') return;
+  const rect = chatWidget.getBoundingClientRect();
+  chatDragState = {
+    startX: e.clientX,
+    startY: e.clientY,
+    origLeft: rect.left,
+    origTop: rect.top,
+    moved: false,
+    pointerId: e.pointerId,
+  };
+  try { chatFab.setPointerCapture(e.pointerId); } catch(_) {}
 }
 
-function onChatDragEnd(){
-  if(!chatDragging) return;
-  chatDragging = false;
-  chatWidget.classList.remove('dragging');
-  // Save position
-  localStorage.setItem('pv-chat-pos', JSON.stringify({
-    left: chatWidget.style.left,
-    top: chatWidget.style.top
-  }));
-}
-
-// Mouse events
-chatFab.addEventListener('mousedown', e=>{
-  e.preventDefault();
-  onChatDragStart(e.clientX, e.clientY);
-});
-document.addEventListener('mousemove', e=>{ onChatDragMove(e.clientX, e.clientY); });
-document.addEventListener('mouseup', ()=>{
-  if(chatDragging){
-    onChatDragEnd();
-    if(!chatMoved) chatWidget.classList.toggle('open');
+function onFabPointerMove(e){
+  if(!chatDragState || e.pointerId !== chatDragState.pointerId) return;
+  const dx = e.clientX - chatDragState.startX;
+  const dy = e.clientY - chatDragState.startY;
+  if(!chatDragState.moved && Math.abs(dx) + Math.abs(dy) < DRAG_THRESHOLD) return;
+  if(!chatDragState.moved){
+    chatDragState.moved = true;
+    chatWidget.classList.add('dragging');
+    chatWidget.style.right = 'auto';
+    chatWidget.style.bottom = 'auto';
   }
-});
+  const next = clampToViewport(chatDragState.origLeft + dx, chatDragState.origTop + dy);
+  chatWidget.style.left = next.left + 'px';
+  chatWidget.style.top = next.top + 'px';
+}
 
-// Touch events
-chatFab.addEventListener('touchstart', e=>{
-  const t = e.touches[0];
-  onChatDragStart(t.clientX, t.clientY);
-}, {passive:true});
-document.addEventListener('touchmove', e=>{
-  if(!chatDragging) return;
-  const t = e.touches[0];
-  onChatDragMove(t.clientX, t.clientY);
-}, {passive:false});
-document.addEventListener('touchend', ()=>{
-  if(chatDragging){
-    onChatDragEnd();
-    if(!chatMoved) chatWidget.classList.toggle('open');
+function onFabPointerUp(e){
+  if(!chatDragState || e.pointerId !== chatDragState.pointerId) return;
+  const wasDrag = chatDragState.moved;
+  try { chatFab.releasePointerCapture(e.pointerId); } catch(_) {}
+  chatDragState = null;
+  if(wasDrag){
+    chatWidget.classList.remove('dragging');
+    localStorage.setItem('pv-chat-pos', JSON.stringify({
+      left: chatWidget.style.left,
+      top: chatWidget.style.top,
+    }));
   }
-});
+}
 
-// Click fallback (for non-drag clicks)
+chatFab.addEventListener('pointerdown', onFabPointerDown);
+chatFab.addEventListener('pointermove', onFabPointerMove);
+chatFab.addEventListener('pointerup', onFabPointerUp);
+chatFab.addEventListener('pointercancel', onFabPointerUp);
+
 chatFab.addEventListener('click', e=>{
-  if(!chatMoved && !chatDragging){
-    chatWidget.classList.toggle('open');
+  // Suppress click only when a real drag occurred
+  if(chatWidget.classList.contains('dragging')){
+    e.preventDefault();
+    e.stopPropagation();
+    return;
   }
-  chatMoved = false;
+  toggleChat();
 });
 
-// Restore saved position
-const savedChatPos = JSON.parse(localStorage.getItem('pv-chat-pos') || 'null');
-if(savedChatPos){
-  chatWidget.style.left = savedChatPos.left;
-  chatWidget.style.top = savedChatPos.top;
-  chatWidget.style.right = 'auto';
-  chatWidget.style.bottom = 'auto';
+chatFab.addEventListener('contextmenu', e=>{ e.preventDefault(); });
+chatFab.addEventListener('keydown', e=>{
+  if(e.key === 'Enter' || e.key === ' '){
+    e.preventDefault();
+    toggleChat();
+  }
+});
+
+const chatCloseBtn = document.getElementById('chat-close');
+if(chatCloseBtn){
+  chatCloseBtn.addEventListener('click', e=>{
+    e.stopPropagation();
+    toggleChat(false);
+  });
 }
+
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape' && chatWidget.classList.contains('open')){
+    toggleChat(false);
+  }
+});
+
+// Restore saved position (validated against current viewport)
+try {
+  const saved = JSON.parse(localStorage.getItem('pv-chat-pos') || 'null');
+  if(saved && saved.left && saved.top){
+    const left = parseInt(saved.left, 10);
+    const top = parseInt(saved.top, 10);
+    if(Number.isFinite(left) && Number.isFinite(top)){
+      const next = clampToViewport(left, top);
+      chatWidget.style.left = next.left + 'px';
+      chatWidget.style.top = next.top + 'px';
+      chatWidget.style.right = 'auto';
+      chatWidget.style.bottom = 'auto';
+    }
+  }
+} catch(_){}
 
 const botResponses = [
   {k:['hello','hi','hey'], r:"Hello! How can I help with your plants today? 🌱"},
@@ -1164,6 +1471,269 @@ function addMsg(text, isUser){
   chatBody.appendChild(div);
   chatBody.scrollTop = chatBody.scrollHeight;
 }
+
+function addRichMsg(card){
+  const div = document.createElement('div');
+  div.className = 'chat-msg chat-msg-bot';
+  const now = new Date();
+  const time = now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
+  const rows = (card.rows || []).map(r => {
+    const tone = r.tone ? ' ' + r.tone : '';
+    return `<div class="chat-bubble-row"><strong>${escapeChatHtml(r.label)}</strong><span class="chat-bubble-val${tone}">${escapeChatHtml(r.value)}</span></div>`;
+  }).join('');
+  const foot = card.foot ? `<div class="chat-bubble-foot">${escapeChatHtml(card.foot)}</div>` : '';
+  const title = card.title ? `<div class="chat-bubble-title">${escapeChatHtml(card.title)}</div>` : '';
+  div.innerHTML = `<div class="chat-bubble chat-bubble-rich"><div class="chat-bubble-card">${title}${rows}${foot}</div></div><span class="chat-time mono">${time}</span>`;
+  chatBody.appendChild(div);
+  chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+function buildQuickActionCard(qa){
+  const ctxState = (window.plantAssistant && typeof window.plantAssistant.getContext === 'function') ? window.plantAssistant.getContext() : {};
+  const scan = ctxState.lastScan;
+  const health = ctxState.lastHealth || (scan && scan.health);
+  const sensor = ctxState.lastSensor;
+  const summary = ctxState.summary;
+  const fmtPct = v => (v == null || Number.isNaN(v)) ? '—' : Math.round(v) + '%';
+  const fmtConf = c => (c == null) ? '—' : ((c * 100).toFixed(1) + '%');
+  const toneFromHealth = v => v == null ? '' : (v >= 75 ? 'ok' : v >= 50 ? 'warn' : 'crit');
+
+  if(qa === 'health'){
+    const rows = [];
+    if(health){
+      rows.push({ label: 'Plant Health', value: fmtPct(health.plant_health), tone: toneFromHealth(health.plant_health) });
+      rows.push({ label: 'Disease Risk', value: String(health.disease_risk || '—').toUpperCase(), tone: (health.disease_risk === 'high' ? 'crit' : health.disease_risk === 'medium' ? 'warn' : 'ok') });
+      rows.push({ label: 'Survival', value: fmtPct(health.survival_chance), tone: toneFromHealth(health.survival_chance) });
+    } else {
+      rows.push({ label: 'Plant Health', value: 'No data yet', tone: '' });
+    }
+    return { title: 'Plant Health', rows, foot: health && health.recommendation ? health.recommendation : 'Run a scan to populate the live health score.' };
+  }
+  if(qa === 'scan'){
+    if(!scan){
+      return { title: 'Latest Scan', rows: [{ label: 'Status', value: 'No scan yet', tone: '' }], foot: 'Open Home or tap the camera in chat to scan a plant.' };
+    }
+    const tone = scan.status === 'CRITICAL' ? 'crit' : scan.status === 'WARN' ? 'warn' : 'ok';
+    return {
+      title: 'Latest Scan',
+      rows: [
+        { label: 'Disease', value: scan.disease || 'unknown', tone },
+        { label: 'Confidence', value: fmtConf(scan.confidence), tone: '' },
+        { label: 'Status', value: scan.status || 'PASS', tone },
+      ],
+      foot: (scan.health && scan.health.recommendation) || 'Inspect the affected leaf and re-scan after applying treatment.',
+    };
+  }
+  if(qa === 'zones'){
+    const zHealthy = (summary && summary.active_zones) || (ctxState.events ? new Set(ctxState.events.map(e => e.zone_id).filter(Boolean)).size : 0);
+    const total = summary && summary.total_scans;
+    return {
+      title: 'Zone Status',
+      rows: [
+        { label: 'Active Zones', value: String(zHealthy || 1), tone: zHealthy ? 'ok' : '' },
+        { label: 'Total Scans', value: total != null ? String(total) : '—', tone: '' },
+        { label: 'Pass Rate', value: summary ? fmtPct(summary.pass_rate) : '—', tone: summary && summary.pass_rate >= 70 ? 'ok' : 'warn' },
+      ],
+      foot: 'Visit Garden Command Center for zone-by-zone telemetry.',
+    };
+  }
+  if(qa === 'sensors'){
+    if(!sensor){
+      return { title: 'Sensor Summary', rows: [{ label: 'Stream', value: 'Awaiting live data', tone: '' }], foot: 'Toggle simulation off in Settings → Sensors to bind a live ESP32.' };
+    }
+    const freshness = ctxState.sensorFreshness || 'live';
+    const ageSec = ctxState.sensorAgeSec;
+    const freshTone = freshness === 'live' ? 'ok' : freshness === 'stale' ? 'warn' : 'crit';
+    const freshLabel = freshness === 'live'
+      ? (ageSec != null ? 'LIVE · ' + Math.max(0, Math.floor(ageSec)) + 's' : 'LIVE')
+      : freshness === 'stale'
+        ? 'STALE'
+        : 'OFFLINE';
+    return {
+      title: 'Sensor Summary · ' + (sensor.device_id || 'sensor'),
+      rows: [
+        { label: 'Stream', value: freshLabel, tone: freshTone },
+        { label: 'Air Temp', value: sensor.air_temperature + '°C', tone: sensor.air_temperature > 32 ? 'crit' : sensor.air_temperature > 28 ? 'warn' : 'ok' },
+        { label: 'Humidity', value: sensor.air_humidity + '%', tone: sensor.air_humidity < 35 ? 'warn' : 'ok' },
+        { label: 'Light', value: Math.round(sensor.light_lux) + ' lx', tone: '' },
+        { label: 'Soil Temp', value: sensor.soil_temperature + '°C', tone: '' },
+        { label: 'Soil Moisture', value: sensor.soil_humidity + '%', tone: sensor.soil_humidity < 28 ? 'crit' : sensor.soil_humidity < 35 ? 'warn' : 'ok' },
+        { label: 'pH', value: String(sensor.soil_ph), tone: (sensor.soil_ph < 5.8 || sensor.soil_ph > 7.5) ? 'warn' : 'ok' },
+        { label: 'EC', value: sensor.soil_ec + ' mS', tone: sensor.soil_ec > 3.0 ? 'warn' : sensor.soil_ec < 1.0 ? 'warn' : 'ok' },
+      ],
+      foot: freshness === 'live'
+        ? 'Readings refreshed in real time from ' + (sensor.device_id || 'esp32_001') + '.'
+        : freshness === 'stale'
+          ? 'No new reading in the last 30 seconds — last value still shown.'
+          : 'Sensor offline for more than 5 minutes.',
+    };
+  }
+  if(qa === 'advice'){
+    const rec = (health && health.recommendation) || (scan && scan.health && scan.health.recommendation);
+    return {
+      title: 'Recommended Action',
+      rows: [
+        { label: 'Priority', value: health ? (health.disease_risk === 'high' ? 'HIGH' : health.disease_risk === 'medium' ? 'MED' : 'LOW') : 'LOW', tone: health && health.disease_risk === 'high' ? 'crit' : health && health.disease_risk === 'medium' ? 'warn' : 'ok' },
+        { label: 'Source', value: scan ? 'Latest scan' : 'Sensor baseline', tone: '' },
+      ],
+      foot: rec || 'Run a scan first; I’ll tailor advice to disease class and environment stress.',
+    };
+  }
+  return null;
+}
+
+function handleChatQuickAction(qa){
+  const labelMap = {
+    health: 'Plant Health',
+    scan: 'Latest Scan',
+    zones: 'Zone Status',
+    sensors: 'Sensor Summary',
+    advice: 'What Should I Do?',
+  };
+  addMsg(labelMap[qa] || qa, true);
+  showTyping();
+  setTimeout(async () => {
+    if(window.plantAssistant && typeof window.plantAssistant.refreshContext === 'function'){
+      try { await window.plantAssistant.refreshContext(); } catch(_) { /* offline */ }
+    }
+    removeChatTyping();
+    const card = buildQuickActionCard(qa);
+    if(card) addRichMsg(card);
+    else addMsg('No data available yet.', false);
+  }, 420 + Math.random() * 280);
+}
+
+document.querySelectorAll('.chat-qa-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const qa = btn.getAttribute('data-qa');
+    if(qa) handleChatQuickAction(qa);
+  });
+});
+
+// Quick-action strip — premium horizontal command rail.
+//
+//   - Keeps edge fade masks in sync with scroll position
+//     (toggles data-edge on the wrap: "none" | "start" | "end" | "both")
+//   - Converts vertical mouse wheel to horizontal scroll while hovering
+//     the strip (so desktop users without a horizontal-capable trackpad
+//     can still browse the chips). Only preventDefault when the strip
+//     can actually scroll in that direction, so vertical chat scroll is
+//     never blocked at the edges.
+//   - Click-and-drag horizontal scroll for desktop pointers, with a
+//     small movement threshold so a real click on a chip still fires.
+//   - Native touch swipe (mobile) keeps working via overflow-x:auto +
+//     -webkit-overflow-scrolling:touch — no JS needed.
+(function initQuickActionsScroll(){
+  const strip = document.getElementById('chat-quick-actions');
+  if(!strip) return;
+  const wrap = strip.parentElement;
+  if(!wrap || !wrap.classList.contains('chat-qa-wrap')) return;
+
+  function updateEdges(){
+    const max = strip.scrollWidth - strip.clientWidth;
+    if(max <= 1){ wrap.setAttribute('data-edge', 'none'); return; }
+    const left = strip.scrollLeft;
+    const right = max - left;
+    const showStart = right > 4;   // can still scroll right → fade right edge
+    const showEnd = left > 4;      // can still scroll left  → fade left edge
+    let state = 'none';
+    if(showStart && showEnd) state = 'both';
+    else if(showStart) state = 'start';
+    else if(showEnd) state = 'end';
+    wrap.setAttribute('data-edge', state);
+  }
+
+  strip.addEventListener('scroll', updateEdges, { passive: true });
+  window.addEventListener('resize', updateEdges);
+  // Re-evaluate when the chat panel opens (strip dimensions become known).
+  const chatPanel = document.getElementById('chat-panel');
+  if(chatPanel){
+    const obs = new MutationObserver(() => updateEdges());
+    obs.observe(chatPanel, { attributes: true, attributeFilter: ['class'] });
+  }
+  requestAnimationFrame(updateEdges);
+  setTimeout(updateEdges, 250);
+
+  // --- Mouse wheel → horizontal scroll ----------------------------------
+  strip.addEventListener('wheel', (e) => {
+    const max = strip.scrollWidth - strip.clientWidth;
+    if(max <= 1) return;
+    // Prefer the explicit horizontal axis when the user already provides one
+    // (Mac touchpad horizontal swipe, shift+wheel, etc.). Otherwise fall back
+    // to the vertical axis so a normal mouse wheel becomes horizontal scroll.
+    const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if(horizontal === 0) return;
+    const atStart = strip.scrollLeft <= 0;
+    const atEnd = strip.scrollLeft >= max - 1;
+    // Only hijack the wheel when the strip can actually scroll in the
+    // requested direction — keeps the chat message column scrollable
+    // at the edges.
+    if(horizontal > 0 && atEnd) return;
+    if(horizontal < 0 && atStart) return;
+    e.preventDefault();
+    strip.scrollLeft += horizontal;
+  }, { passive: false });
+
+  // --- Click and drag horizontal scroll (desktop) -----------------------
+  const DRAG_THRESHOLD = 4; // px before we consider it a drag, not a click
+  let pointerId = null;
+  let startX = 0;
+  let startScroll = 0;
+  let dragging = false;
+  let armed = false;
+
+  function onPointerDown(e){
+    // Ignore non-primary pointers, right/middle clicks, and touch (native
+    // scroll feels better there).
+    if(e.button !== undefined && e.button !== 0) return;
+    if(e.pointerType === 'touch') return;
+    pointerId = e.pointerId;
+    startX = e.clientX;
+    startScroll = strip.scrollLeft;
+    dragging = false;
+    armed = true;
+  }
+
+  function onPointerMove(e){
+    if(!armed || e.pointerId !== pointerId) return;
+    const dx = e.clientX - startX;
+    if(!dragging){
+      if(Math.abs(dx) < DRAG_THRESHOLD) return;
+      const max = strip.scrollWidth - strip.clientWidth;
+      if(max <= 1) return;          // nothing to drag
+      dragging = true;
+      strip.classList.add('is-dragging');
+      try { strip.setPointerCapture(pointerId); } catch(_) {}
+    }
+    e.preventDefault();
+    strip.scrollLeft = startScroll - dx;
+  }
+
+  function onPointerUp(e){
+    if(e.pointerId !== pointerId) return;
+    const wasDragging = dragging;
+    armed = false;
+    dragging = false;
+    pointerId = null;
+    strip.classList.remove('is-dragging');
+    try { strip.releasePointerCapture?.(e.pointerId); } catch(_) {}
+    if(wasDragging){
+      // Swallow the synthetic click that would otherwise fire on the chip
+      // we happen to release over.
+      const swallow = (ev) => {
+        ev.stopPropagation();
+        ev.preventDefault();
+      };
+      strip.addEventListener('click', swallow, { capture: true, once: true });
+      setTimeout(() => strip.removeEventListener('click', swallow, true), 0);
+    }
+  }
+
+  strip.addEventListener('pointerdown', onPointerDown);
+  strip.addEventListener('pointermove', onPointerMove);
+  strip.addEventListener('pointerup', onPointerUp);
+  strip.addEventListener('pointercancel', onPointerUp);
+})();
 
 function removeChatTyping(){
   const typing = document.getElementById('chat-typing');
@@ -1341,28 +1911,59 @@ chatCamCancelBtn?.addEventListener('click', e => { e.stopPropagation(); closeCha
 const zmDeviceList = document.getElementById('zm-device-list');
 const zmAddDevice = document.getElementById('zm-add-device');
 
+function escapeAttr(s){
+  return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 function renderModalDevices(devices){
   zmDeviceList.innerHTML = '';
-  devices.forEach((d,i)=>{
+  devices.forEach((d)=>{
     const row = document.createElement('div');
     row.className = 'zm-device-row';
-    row.innerHTML = `<input type="text" class="zm-input zm-dev-name" placeholder="Device name" value="${d.name||''}">`+
-      `<input type="text" class="zm-input zm-device-ip" placeholder="IP address" value="${d.ip||''}">`+
-      `<button class="zm-device-rm" type="button" title="Remove">\u2715</button>`;
-    row.querySelector('.zm-device-rm').addEventListener('click',()=>{ row.remove(); });
+    const name = escapeAttr(d.name || '');
+    const did = escapeAttr(d.device_id || '');
+    const ip = escapeAttr(d.ip || '');
+    row.innerHTML =
+      '<div class="zm-device-grid">'+
+        '<label class="zm-device-field">'+
+          '<span class="zm-device-flbl">Sensor Name</span>'+
+          '<input type="text" class="zm-input zm-dev-name" placeholder="ESP32-A1" value="'+name+'" autocomplete="off">'+
+        '</label>'+
+        '<label class="zm-device-field">'+
+          '<span class="zm-device-flbl">Device ID</span>'+
+          '<input type="text" class="zm-input zm-dev-id mono" placeholder="esp32_001" value="'+did+'" autocomplete="off">'+
+        '</label>'+
+        '<label class="zm-device-field">'+
+          '<span class="zm-device-flbl">IP Address</span>'+
+          '<input type="text" class="zm-input zm-dev-ip mono" placeholder="192.168.1.10" value="'+ip+'" autocomplete="off">'+
+        '</label>'+
+      '</div>'+
+      '<button class="zm-device-rm" type="button" title="Remove device" aria-label="Remove device">\u2715</button>';
+    row.querySelector('.zm-device-rm').addEventListener('click',()=>{
+      row.remove();
+      updateZmDeviceCount();
+    });
     zmDeviceList.appendChild(row);
   });
+  updateZmDeviceCount();
+}
+
+function updateZmDeviceCount(){
+  if(!zmDeviceCount || !zmDeviceList) return;
+  const n = zmDeviceList.querySelectorAll('.zm-device-row').length;
+  zmDeviceCount.textContent = n + (n === 1 ? ' device' : ' devices');
 }
 
 function getModalDevices(){
   return Array.from(zmDeviceList.querySelectorAll('.zm-device-row')).map(r=>({
     name: r.querySelector('.zm-dev-name').value.trim(),
-    ip: r.querySelector('.zm-device-ip').value.trim()
-  })).filter(d=>d.name||d.ip);
+    device_id: r.querySelector('.zm-dev-id').value.trim(),
+    ip: r.querySelector('.zm-dev-ip').value.trim()
+  })).filter(d=>d.name||d.device_id||d.ip);
 }
 
-zmAddDevice.addEventListener('click',()=>{
-  renderModalDevices([...getModalDevices(),{name:'',ip:''}]);
+if(zmAddDevice) zmAddDevice.addEventListener('click',()=>{
+  renderModalDevices([...getModalDevices(),{name:'',device_id:'',ip:''}]);
 });
 
 // ====== DEVICE PANEL (SIDEBAR) ======
@@ -1493,12 +2094,23 @@ function calcAverages(){
   };
 }
 
+// Legacy device panel renderer only runs if garden.js failed to load.
+// garden.js owns the panel and handles live/demo state itself.
 if(!window.plantGarden) renderDevicePanel();
 
 // ====== SENSOR SIMULATION (PER-DEVICE) ======
-// Replace with real WebSocket/fetch to each ESP32 IP later
+// Legacy fallback only. garden.js drives the panel from /analytics/garden
+// when present. Real sensor data ALWAYS wins; we no longer overwrite the
+// DOM every 5s when garden.js is active (was causing the "demo placeholder
+// shows ESP32-A1 values" bug).
 function simulateSensors(){
   if(window.plantGarden) return;
+  // Skip if a live sensor reading is fresher than 30s — real data wins.
+  const ctx = window.plantSensor && typeof window.plantSensor.last === 'function'
+    ? window.plantSensor.last()
+    : null;
+  if(ctx && ctx.mode === 'live') return;
+
   zones.forEach(z=>{
     (z.devices||[]).forEach((d,i)=>{
       const uid = z.id+'_'+i;
@@ -1528,7 +2140,7 @@ function simulateSensors(){
     if(el) el.textContent = avg[k];
   });
 }
-simulateSensors();
+if(!window.plantGarden) simulateSensors();
 const sensorSimTimer = setInterval(simulateSensors, 5000);
 window._stopSensorSimulation = () => clearInterval(sensorSimTimer);
 
@@ -1764,6 +2376,17 @@ renderNotifications(false);
 // ====== LOAD FROM SERVER ON STARTUP ======
 // Hydrate app state from server so all devices share the same data
 (async function hydrateFromServer(){
+  // 1) Phase 2 — try the FastAPI/Supabase persistent store first.
+  try {
+    const hydrated = await hydrateZonesFromBackend();
+    if(hydrated){
+      renderZoneChips();
+      renderMapMarkers();
+      renderDevicePanel();
+      console.log('✓ Hydrated zones from Supabase');
+    }
+  } catch(_) { /* offline */ }
+
   const serverData = await loadFromServer();
   if(!serverData) return; // Offline or error — keep localStorage data
 
@@ -1792,7 +2415,8 @@ renderNotifications(false);
   if(serverData.profile){
     profileData = serverData.profile;
     localStorage.setItem('pv-profile', JSON.stringify(profileData));
-    loadProfile();
+    if(typeof loadProfile === 'function') loadProfile();
+    else if(window.plantProfile && typeof window.plantProfile.refresh === 'function') window.plantProfile.refresh(true);
   }
 
   // Notifications
@@ -1934,4 +2558,9 @@ if(actAddZone) actAddZone.addEventListener('click', () => {
 const actExport = document.getElementById('act-export');
 if(actExport) actExport.addEventListener('click', () => {
   document.getElementById('prof-export')?.click();
+});
+
+const actHistory = document.getElementById('act-history');
+if(actHistory) actHistory.addEventListener('click', () => {
+  switchPage('page-data');
 });

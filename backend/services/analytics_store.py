@@ -58,6 +58,7 @@ def _scan_outcomes_from_scans(scans: list[dict[str, Any]]) -> list[dict[str, Any
 from schemas.contracts import VisionResult
 from schemas.sensors import SensorReading
 from services import sensor_store
+from services import persistence
 
 _MAX_SCANS = 500
 _MAX_EVENTS = 120
@@ -121,6 +122,12 @@ def _push_event(
             "device_id": device_id,
         }
     )
+    persistence.persist_event(
+        event_type=event_type,
+        message=message,
+        zone_slug=zone_id,
+        device_slug=device_id,
+    )
 
 
 def _spark_key(user_id: str, zone_id: str) -> str:
@@ -178,11 +185,13 @@ def record_scan(result: VisionResult) -> ScanHistoryItem:
             f"Plant health score {result.health.plant_health}% — {result.health.recommendation[:80]}",
             zone_id=result.zone_id,
         )
+    persistence.persist_scan(result)
     return ScanHistoryItem(**item)
 
 
 def record_sensor(reading: SensorReading) -> None:
     _append_spark(reading.user_id, reading.zone_id, reading)
+    persistence.persist_sensor(reading)
     label = _zone_label(reading.zone_id)
     _push_event(
         "sensor",
@@ -507,12 +516,19 @@ def get_insights() -> list[AIInsight]:
 
 
 def _freshness(ts: float | None) -> str:
+    """Unified freshness rule (must match the frontend helper).
+
+    - live    : age <= 30 seconds
+    - stale   : 30 < age <= 300 seconds (5 minutes)
+    - offline : age > 300 seconds or no reading at all
+    """
+
     if ts is None:
         return "offline"
     age = _now() - ts
-    if age < 30:
+    if age <= 30:
         return "live"
-    if age < 120:
+    if age <= 300:
         return "stale"
     return "offline"
 

@@ -1,0 +1,84 @@
+# =====================================================================
+# PlantVision — Local Supabase / Postgres persistence (Phase 2)
+# ---------------------------------------------------------------------
+# Minimal Supabase-compatible local stack for MVP development:
+#   - postgres  : Supabase-flavored Postgres (extensions enabled)
+#   - studio    : Supabase Studio web UI (DB browser, optional)
+#   - meta      : pg-meta API powering Studio (optional)
+#
+# Start:   docker compose up -d
+# Stop:    docker compose down
+# Reset:   docker compose down -v   (wipes the DB volume)
+#
+# NOTE:
+#   * Local development only. No TLS. No auth.
+#   * Migrations live in ./supabase/migrations and are auto-applied on
+#     first boot (mounted into /docker-entrypoint-initdb.d).
+#   * To re-run migrations after the first boot, run:
+#       docker compose down -v && docker compose up -d
+# =====================================================================
+
+services:
+  postgres:
+    image: supabase/postgres:15.1.0.117
+    container_name: plantvision-db
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-54322}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plantvision_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-plantvision}
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters}
+      JWT_EXP: 3600
+    volumes:
+      - plantvision-db-data:/var/lib/postgresql/data
+      - ./supabase/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-plantvision}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    command:
+      - postgres
+      - -c
+      - "config_file=/etc/postgresql/postgresql.conf"
+
+  meta:
+    image: supabase/postgres-meta:v0.80.0
+    container_name: plantvision-meta
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: postgres
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: ${POSTGRES_DB:-plantvision}
+      PG_META_DB_USER: ${POSTGRES_USER:-postgres}
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD:-plantvision_dev}
+    ports:
+      - "${META_PORT:-54323}:8080"
+
+  studio:
+    image: supabase/studio:20240422-5cf8f30
+    container_name: plantvision-studio
+    restart: unless-stopped
+    depends_on:
+      - meta
+    ports:
+      - "${STUDIO_PORT:-54324}:3000"
+    environment:
+      STUDIO_PG_META_URL: http://meta:8080
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plantvision_dev}
+      DEFAULT_ORGANIZATION_NAME: PlantVision
+      DEFAULT_PROJECT_NAME: plantvision-local
+      SUPABASE_URL: http://localhost:${POSTGRES_PORT:-54322}
+      SUPABASE_PUBLIC_URL: http://localhost:${POSTGRES_PORT:-54322}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlLWRlbW8iLCJpYXQiOjE2NDE3NjkyMDAsImV4cCI6MTc5OTUzNTYwMH0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UtZGVtbyIsImlhdCI6MTY0MTc2OTIwMCwiZXhwIjoxNzk5NTM1NjAwfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q}
+
+volumes:
+  plantvision-db-data:
+    name: plantvision-db-data

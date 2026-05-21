@@ -57,6 +57,8 @@ class SensorLatestResponse(BaseModel):
     ok: bool = True
     source: Literal["live", "none"] = "live"
     reading: SensorReading | None = None
+    age_seconds: float | None = None
+    freshness: Literal["live", "stale", "offline", "none"] = "none"
 
 
 def utc_now_iso() -> str:

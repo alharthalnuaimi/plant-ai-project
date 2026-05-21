@@ -375,36 +375,68 @@
     if (!dashboard || !dashboard.devices) return null;
     const zoneDevs = dashboard.devices.filter((d) => d.zone_id === zid);
     if (!zoneDevs.length) return null;
+
+    // 1) Prefer an exact match by device_id (e.g. esp32_001) — this is the
+    //    authoritative identifier the backend uses.
+    const wantedId = (device.device_id || "").toLowerCase();
+    if (wantedId) {
+      const exact = zoneDevs.find((d) => (d.device_id || "").toLowerCase() === wantedId);
+      if (exact) return exact;
+    }
+
+    // 2) If the zone only has one device, that's it (single-sensor case).
     if (zoneDevs.length === 1) return zoneDevs[0];
-    const key = (device.name || device.device_id || "").toLowerCase();
-    return (
-      zoneDevs.find((d) => d.device_id.toLowerCase().includes(key.replace(/-/g, ""))) ||
-      zoneDevs[idx % zoneDevs.length] ||
-      zoneDevs[0]
-    );
+
+    // 3) Fuzzy fallback by friendly name (legacy demo data uses "ESP32-A1").
+    const friendly = (device.name || "").toLowerCase().replace(/[-_\s]/g, "");
+    if (friendly) {
+      const fuzzy = zoneDevs.find((d) =>
+        (d.device_id || "").toLowerCase().replace(/[-_\s]/g, "").includes(friendly)
+      );
+      if (fuzzy) return fuzzy;
+    }
+    return zoneDevs[idx % zoneDevs.length] || zoneDevs[0];
   }
 
   function patchSummary() {
     if (!dashboard) return;
     const s = dashboard.summary || {};
-    isSimulation = dashboard.source !== "live";
+
+    // Mode resolution — single source of truth via window.plantSensor.
+    // garden source == "live" OR fresh sensor context wins.
+    const sensorCtx = window.plantSensor && window.plantSensor.last ? window.plantSensor.last() : null;
+    const sensorIsLive = sensorCtx && (sensorCtx.mode === "live" || sensorCtx.mode === "stale");
+    const live = dashboard.source === "live" || sensorIsLive;
+    isSimulation = !live;
+
     const counts = resolveSummaryCounts(s);
     animateCounter(document.getElementById("garden-sum-healthy"), counts.healthy);
     animateCounter(document.getElementById("garden-sum-warn"), counts.warning);
     animateCounter(document.getElementById("garden-sum-crit"), counts.critical);
     animateCounter(document.getElementById("garden-sum-offline"), counts.offline_devices);
     updateSummaryCards(counts);
+
     const tag = document.getElementById("garden-live-tag");
     const badge = document.getElementById("garden-mode-badge");
-    const live = dashboard.source === "live";
+    const stale = sensorCtx && sensorCtx.mode === "stale";
     if (tag) {
-      tag.textContent = live ? "● Live" : "● Connected";
-      tag.classList.toggle("garden-live-on", live);
+      tag.textContent = stale ? "● Stale" : live ? "● Live" : "● Connected";
+      tag.classList.toggle("garden-live-on", live && !stale);
       tag.classList.toggle("garden-live-sim", !live);
     }
     if (badge) {
-      badge.hidden = live;
-      badge.textContent = "Simulation Mode";
+      // Honest wording: only show "Simulation Mode" if there's no sensor
+      // context at all; show "Stale Sensor" when a reading exists but old.
+      if (stale) {
+        badge.hidden = false;
+        badge.textContent = "Stale Sensor";
+      } else if (live) {
+        badge.hidden = true;
+        badge.textContent = "";
+      } else {
+        badge.hidden = false;
+        badge.textContent = "Simulation Mode";
+      }
     }
     const polled = document.getElementById("garden-polled-at");
     if (polled) polled.textContent = "Updated " + fmtTime(Math.floor(lastDataRefresh / 1000));
@@ -613,6 +645,18 @@
       const key = cv.getAttribute("data-series");
       drawSparkline(cv, reading?.sparklines?.[key] || []);
     });
+    // Keep the subtitle in sync when a backend reading binds to this card.
+    const sub = card.querySelector(".dev-acc-sub");
+    if (sub) {
+      const backendId = reading && reading.device_id ? reading.device_id : null;
+      const subParts = [
+        "Zone " + d.zoneId.toUpperCase(),
+        backendId || d.device_id || null,
+        d.ip || null,
+      ].filter(Boolean);
+      const next = subParts.join(" · ");
+      if (sub.textContent !== next) sub.textContent = next;
+    }
   }
 
   function createDeviceAccordion(d, reading) {
@@ -620,6 +664,14 @@
     const open = expandedDevice === uid;
     const fresh = reading ? reading.freshness : "offline";
     const prev = devicePreview(reading);
+    // Surface the live backend device_id (e.g. esp32_001) when bound so the
+    // showcase audience can verify which physical sensor the card represents.
+    const backendId = reading && reading.device_id ? reading.device_id : null;
+    const subParts = [
+      "Zone " + d.zoneId.toUpperCase(),
+      backendId || d.device_id || null,
+      d.ip || null,
+    ].filter(Boolean);
     const article = document.createElement("article");
     article.className = "dev-accordion" + (open ? " dev-accordion-open" : "");
     article.dataset.uid = uid;
@@ -631,7 +683,7 @@
             <span class="dev-name">${d.name || d.device_id || "Device"}</span>
             <span class="dev-health-badge dh-${prev.healthCls}">${prev.health}</span>
           </span>
-          <span class="dev-acc-sub mono">Zone ${d.zoneId.toUpperCase()} · ${d.ip || "—"}</span>
+          <span class="dev-acc-sub mono">${subParts.join(" · ")}</span>
           <span class="dev-acc-preview dip-${prev.insightTone === "off" ? "off" : prev.insightTone || "pass"}">${prev.insight}</span>
         </span>
         <span class="dev-fresh dev-fresh-${fresh}">—</span>
@@ -730,13 +782,21 @@
     const empty = panel.querySelector(".dev-no-devices");
     if (empty) empty.remove();
 
+    // First time garden.js owns the panel, wipe any legacy app.js demo
+    // cards (they use IDs like dv-a_0-temp; we use data-uid="<zone>_<idx>").
+    if (!panel.dataset.gardenOwned) {
+      panel.dataset.gardenOwned = "1";
+      panel.innerHTML = "";
+      deviceCardEls.clear();
+    }
+
     const existing = new Set();
     visible.forEach((d) => {
       existing.add(d.uid);
       let card = deviceCardEls.get(d.uid) || panel.querySelector(`[data-uid="${d.uid}"]`);
       const reading = deviceReading(
         (bridge().getZones?.() || []).find((z) => z.id === d.zoneId),
-        { device_id: d.name, name: d.name },
+        { device_id: d.device_id || d.name, name: d.name },
         parseInt(d.uid.split("_")[1], 10) || 0
       );
       if (!card) {
@@ -865,6 +925,13 @@
 
   async function refreshGarden(force) {
     if (typeof fetchGardenDashboard !== "function") return;
+
+    // Prime the unified sensor context so patchSummary() / patchDevicePanel()
+    // see fresh freshness data. Cached/coalesced inside api.js.
+    if (window.plantSensor && typeof window.plantSensor.get === "function") {
+      try { await window.plantSensor.get(force); } catch (_) {}
+    }
+
     if (typeof fetchAnalyticsHistory === "function") {
       try {
         const hist = await fetchAnalyticsHistory(50);
@@ -886,19 +953,15 @@
   }
 
   function wireSearch() {
-    const input = document.getElementById("map-search");
-    if (!input) return;
-    input.placeholder = "Search zone or device…";
-    const btn = document.getElementById("map-search-btn");
-    if (btn) btn.style.display = "none";
-    input.addEventListener("input", () => {
-      searchQuery = input.value.trim().toLowerCase();
-      patchMarkers();
-      patchZoneChips();
-      patchDevicePanel();
-      patchAlerts();
-      patchActivity();
-    });
+    /**
+     * The map search bar (#map-search) is a GEOGRAPHIC location search wired in
+     * app.js → initMapSearch() (Nominatim geocoding via /api/geocode).
+     * Zone / device / alert filtering would be a separate UI control if ever
+     * added. We intentionally leave searchQuery empty here so all garden
+     * markers, chips, devices, and alerts remain visible regardless of what
+     * the user types into the map search bar.
+     */
+    searchQuery = "";
   }
 
   function onNavigate(targetId) {

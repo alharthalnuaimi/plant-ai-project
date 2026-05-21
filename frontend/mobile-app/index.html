@@ -28,23 +28,33 @@
     <canvas id="particles"></canvas>
 
     <!-- Sidebar -->
-    <aside class="sidebar">
-        <div class="sidebar-logo">PV</div>
-        <nav class="sidebar-nav">
-            <button class="sidebar-btn active" id="n1" aria-label="Home">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+    <aside class="sidebar" aria-label="Primary navigation">
+        <div class="sidebar-logo" title="PlantVision" aria-label="PlantVision">
+            <span class="sidebar-logo-text">PV</span>
+            <span class="sidebar-logo-dot" aria-hidden="true"></span>
+        </div>
+        <div class="sidebar-divider" aria-hidden="true"></div>
+        <nav class="sidebar-nav" aria-label="Pages">
+            <button class="sidebar-btn active" id="n1" aria-label="Home" data-tip="Home">
+                <span class="sb-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></span>
             </button>
-            <button class="sidebar-btn" id="n2" aria-label="Data">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <button class="sidebar-btn" id="n2" aria-label="Analytics" data-tip="Analytics">
+                <span class="sb-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
             </button>
-            <button class="sidebar-btn" id="n3" aria-label="Garden">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2C20 17.5 12 22 12 22z"/></svg>
+            <button class="sidebar-btn" id="n3" aria-label="Garden" data-tip="Garden">
+                <span class="sb-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2C20 17.5 12 22 12 22z"/></svg></span>
             </button>
-            <button class="sidebar-btn" id="n4" aria-label="Config">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            <button class="sidebar-btn" id="n4" aria-label="Settings" data-tip="Settings">
+                <span class="sb-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></span>
             </button>
         </nav>
-
+        <div class="sidebar-foot" aria-hidden="false">
+            <div class="sidebar-mini-chip" id="sidebar-ai-mini" data-tip="AI Core ready" title="AI Core status">
+                <span class="sidebar-mini-dot"></span>
+                <span class="sidebar-mini-text mono">AI</span>
+            </div>
+            <span class="sidebar-version mono">v0.1</span>
+        </div>
     </aside>
 
     <!-- Main Content -->
@@ -52,23 +62,31 @@
         <!-- Topbar -->
         <header class="topbar">
             <div class="topbar-left">
-                <div>
+                <div class="topbar-brand">
                     <h1 class="topbar-title">PLANTVISION</h1>
-                    <p class="topbar-sub">Diagnostic System v4.2</p>
+                    <p class="topbar-sub mono">Plant Disease AI · v4.2</p>
                 </div>
             </div>
             <div class="topbar-right">
-                <button class="top-btn theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+                <div class="sys-strip" aria-label="System status">
+                    <div class="sys-chip sys-chip-ok" id="sys-chip-net" title="Network connection">
+                        <span class="sys-chip-dot"></span>
+                        <span class="sys-chip-text">System Online</span>
+                    </div>
+                    <div class="sys-chip sys-chip-ai" id="sys-chip-ai" title="AI Core status">
+                        <svg class="sys-chip-ico" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5"/></svg>
+                        <span class="sys-chip-text" id="sys-ai">AI Ready</span>
+                    </div>
+                    <div class="sys-chip sys-chip-fps" id="sys-chip-fps" title="Render FPS (debug)" hidden>
+                        <span class="sys-chip-text mono"><span id="sys-fps">60</span> fps</span>
+                    </div>
+                </div>
+                <button class="top-btn theme-toggle" id="theme-toggle" aria-label="Toggle theme" title="Toggle dark / light theme">
                     <svg class="ico-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
                     <svg class="ico-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
                 </button>
-                <div class="sys-strip">
-                    <div class="sys-item"><span class="sys-dot sys-dot-on"></span><span class="sys-lbl">Online</span></div>
-                    <div class="sys-item"><span class="sys-lbl">AI Core</span><span class="sys-val" id="sys-ai">Ready</span></div>
-                    <div class="sys-item"><span class="sys-lbl">FPS</span><span class="sys-val mono" id="sys-fps">60</span></div>
-                </div>
                 <div class="notif-anchor">
-                    <button class="top-btn" id="btn-bell" aria-label="Alerts">
+                    <button class="top-btn top-btn-bell" id="btn-bell" aria-label="Alerts" title="Alerts">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
                         <span class="notif-badge" id="notif-badge">3</span>
                     </button>
@@ -93,8 +111,8 @@
                         </div>
                     </div>
                 </div>
-                <button class="top-btn" id="btn-user" aria-label="Profile">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 00-16 0"/></svg>
+                <button class="top-btn top-btn-user" id="btn-user" aria-label="Operator Profile" title="Operator Profile">
+                    <span class="top-user-avatar" id="top-user-avatar" aria-hidden="true">PV</span>
                 </button>
             </div>
         </header>
@@ -109,8 +127,11 @@
                 <!-- Scanner Card -->
                 <section class="scanner-card an" style="--d:.15s">
                     <div class="scanner-header">
-                        <span class="scanner-label">SCAN MODULE</span>
-                        <span class="scanner-id mono">SN-4821</span>
+                        <div class="scanner-head-l">
+                            <span class="scanner-label">SCAN MODULE</span>
+                            <span class="home-mode-badge home-mode-sim" id="home-mode-badge" title="Toggle in Settings → Sensors">◆ Simulation</span>
+                        </div>
+                        <span class="scanner-id mono" id="home-scanner-id">SN-4821</span>
                     </div>
                     <div class="scanner-view">
                         <img src="scan_preview.png" alt="Scan" class="scanner-img">
@@ -139,16 +160,18 @@
                             </rect>
                             <defs><linearGradient id="sw"><stop stop-color="transparent"/><stop offset=".5" stop-color="rgba(140,168,140,.35)"/><stop offset="1" stop-color="transparent"/></linearGradient></defs>
                         </svg>
-                        <div class="s-chip s-chip-tl"><span class="s-rec"></span>REC</div>
+                        <div class="s-chip s-chip-tl"><span class="s-rec"></span>SCANNING</div>
                         <div class="s-chip s-chip-tr mono" id="s-conf">CONF 94.2%</div>
-                        <div class="s-chip s-chip-bl mono">ISO 400 · f/2.8</div>
+                        <div class="s-chip s-chip-bl mono">LEAF DETECT · CUCUMBER · 12 CLASSES</div>
+                        <div class="scanner-hud-label scanner-hud-label-tl mono">▲ TARGET LEAF</div>
+                        <div class="scanner-hud-label scanner-hud-label-br mono">DISEASE SCAN · v4.2</div>
                     </div>
                     <div class="scanner-foot">
-                        <div>
-                            <span class="scanner-meta-top">Neural Engine v4.2.1</span>
-                            <span class="scanner-meta-bot">● Standby — awaiting target</span>
+                        <div class="scanner-foot-info">
+                            <span class="scanner-meta-top" id="home-scan-meta-top">Neural Engine v4.2.1</span>
+                            <span class="scanner-meta-bot" id="home-scan-status">● Standby — awaiting target</span>
                         </div>
-                        <button class="scan-trigger" id="scan-trigger">
+                        <button class="scan-trigger" id="scan-trigger" title="Initialize plant scan">
                             <span class="scan-trigger-ring"></span>
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="3" y1="12" x2="7" y2="12"/><line x1="17" y1="12" x2="21" y2="12"/></svg>
                         </button>
@@ -156,34 +179,37 @@
                 </section>
 
                 <aside class="dashboard-aside">
-                <!-- Stats Row -->
-                <div class="stats-row an" style="--d:.25s">
-                    <div class="stat-card">
+                <!-- Stats Row (live from /analytics/garden) -->
+                <div class="stats-row an" style="--d:.25s" id="home-stats-row">
+                    <div class="stat-card stat-card-ok" data-stat="healthy">
+                        <span class="stat-live-dot" aria-hidden="true"></span>
                         <div class="stat-top">
-                            <span class="stat-num">24</span>
+                            <span class="stat-num mono" id="home-stat-healthy">—</span>
                             <span class="stat-badge sb-ok">OK</span>
                         </div>
-                        <span class="stat-label">Healthy</span>
-                        <span class="stat-trend st-up">↑ 12% this week</span>
-                        <div class="stat-bar"><div class="stat-fill sf-ok" style="--w:86%"></div></div>
+                        <span class="stat-label">Healthy Zones</span>
+                        <span class="stat-trend st-up" id="home-stat-healthy-sub">Awaiting sensor data</span>
+                        <div class="stat-bar"><div class="stat-fill sf-ok" id="home-stat-healthy-fill" style="--w:0%"></div></div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card stat-card-warn" data-stat="warning">
+                        <span class="stat-live-dot" aria-hidden="true"></span>
                         <div class="stat-top">
-                            <span class="stat-num">3</span>
+                            <span class="stat-num mono" id="home-stat-warn">—</span>
                             <span class="stat-badge sb-warn">!</span>
                         </div>
                         <span class="stat-label">At Risk</span>
-                        <span class="stat-trend st-up">↑ 2 new</span>
-                        <div class="stat-bar"><div class="stat-fill sf-warn" style="--w:11%"></div></div>
+                        <span class="stat-trend st-flat" id="home-stat-warn-sub">Monitoring</span>
+                        <div class="stat-bar"><div class="stat-fill sf-warn" id="home-stat-warn-fill" style="--w:0%"></div></div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card stat-card-crit" data-stat="critical">
+                        <span class="stat-live-dot" aria-hidden="true"></span>
                         <div class="stat-top">
-                            <span class="stat-num">1</span>
+                            <span class="stat-num mono" id="home-stat-crit">—</span>
                             <span class="stat-badge sb-crit">✕</span>
                         </div>
                         <span class="stat-label">Critical</span>
-                        <span class="stat-trend st-flat">— unchanged</span>
-                        <div class="stat-bar"><div class="stat-fill sf-crit" style="--w:4%"></div></div>
+                        <span class="stat-trend st-flat" id="home-stat-crit-sub">Monitoring</span>
+                        <div class="stat-bar"><div class="stat-fill sf-crit" id="home-stat-crit-fill" style="--w:0%"></div></div>
                     </div>
                 </div>
 
@@ -282,40 +308,20 @@
                 <!-- Log Card -->
                 <section class="log-card an" style="--d:.45s">
                     <div class="log-head">
-                        <h2 class="log-title">Scan Log</h2>
-                        <span class="log-count mono">3 entries</span>
+                        <div class="log-head-l">
+                            <h2 class="log-title">Scan Log</h2>
+                            <span class="log-pulse" id="home-log-pulse" hidden><span class="log-pulse-dot"></span><span class="log-pulse-text mono" id="home-log-pulse-text">Monitoring…</span></span>
+                        </div>
+                        <span class="log-count mono" id="home-log-count">— entries</span>
                     </div>
-                    <div class="log-grid">
-                        <article class="entry" id="e1">
-                            <div class="entry-thumb"><img src="healthy_leaf.png" alt="" class="entry-img"></div>
-                            <div class="entry-body">
-                                <div class="entry-r1">
-                                    <span class="entry-name">Monstera deliciosa</span>
-                                    <span class="entry-tag et-ok">PASS</span>
-                                </div>
-                                <span class="entry-sub mono">02m ago · 96.4% conf · ID#4821</span>
+                    <div class="log-grid" id="home-log-grid">
+                        <div class="home-log-empty" id="home-log-empty">
+                            <div class="home-log-empty-ico" aria-hidden="true">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                             </div>
-                        </article>
-                        <article class="entry" id="e2">
-                            <div class="entry-thumb entry-t-warn"><img src="diseased_leaf.png" alt="" class="entry-img"></div>
-                            <div class="entry-body">
-                                <div class="entry-r1">
-                                    <span class="entry-name">Leaf Spot Fungus</span>
-                                    <span class="entry-tag et-warn">WARN</span>
-                                </div>
-                                <span class="entry-sub mono">15m ago · 87.1% conf · ID#4820</span>
-                            </div>
-                        </article>
-                        <article class="entry" id="e3">
-                            <div class="entry-thumb"><img src="healthy_leaf.png" alt="" class="entry-img"></div>
-                            <div class="entry-body">
-                                <div class="entry-r1">
-                                    <span class="entry-name">Pothos Aureum</span>
-                                    <span class="entry-tag et-ok">PASS</span>
-                                </div>
-                                <span class="entry-sub mono">01h ago · 99.1% conf · ID#4819</span>
-                            </div>
-                        </article>
+                            <strong>No scans yet</strong>
+                            <span>Run a scan to see results land here in real time.</span>
+                        </div>
                     </div>
                 </section>
             </div><!-- grid-layout -->
@@ -585,7 +591,8 @@
                         </div>
                         <div class="map-search-wrap">
                             <svg class="map-search-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                            <input type="text" class="map-search" id="map-search" placeholder="Search zone or device…" autocomplete="off">
+                            <input type="text" class="map-search" id="map-search" placeholder="Search city, address, university or landmark…" autocomplete="off" aria-label="Search location on map">
+                            <button type="button" class="map-search-btn" id="map-search-btn">Go</button>
                         </div>
                         <div id="leaflet-map" class="leaflet-container-wrap garden-map-canvas"></div>
                         <div class="zone-list" id="zone-list"></div>
@@ -936,13 +943,44 @@
 
     <!-- Scan source: camera or upload -->
     <div class="ov" id="scan-source-modal">
-        <div class="modal scan-source-modal">
-            <h3 class="m-t">Scan plant</h3>
-            <p class="m-d">Take a photo or upload an image</p>
-            <div class="scan-source-btns">
-                <button type="button" class="rb rb1" id="scan-opt-camera">Take photo</button>
-                <button type="button" class="rb rb2" id="scan-opt-upload">Upload image</button>
-                <button type="button" class="m-cancel" id="scan-opt-cancel">Cancel</button>
+        <div class="modal scan-source-modal scan-source-modal-v2">
+            <div class="scan-source-glow" aria-hidden="true"></div>
+            <div class="scan-source-ico" aria-hidden="true">
+                <span class="scan-source-ico-ring"></span>
+                <span class="scan-source-ico-ring scan-source-ico-ring-2"></span>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 7V5a2 2 0 012-2h2"/>
+                    <path d="M17 3h2a2 2 0 012 2v2"/>
+                    <path d="M21 17v2a2 2 0 01-2 2h-2"/>
+                    <path d="M7 21H5a2 2 0 01-2-2v-2"/>
+                    <circle cx="12" cy="12" r="3.6"/>
+                    <path d="M12 8.4V6.2M12 17.8v-2.2M8.4 12H6.2M17.8 12h-2.2"/>
+                </svg>
+            </div>
+            <h3 class="m-t scan-source-title">Start Plant Scan</h3>
+            <p class="m-d scan-source-sub">Capture or upload a leaf image for AI diagnosis</p>
+            <div class="scan-source-btns scan-source-btns-v2">
+                <button type="button" class="scan-opt-btn scan-opt-btn-primary" id="scan-opt-camera">
+                    <span class="scan-opt-ico">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    </span>
+                    <span class="scan-opt-text">
+                        <span class="scan-opt-label">Take Photo</span>
+                        <span class="scan-opt-hint">Use device camera</span>
+                    </span>
+                    <span class="scan-opt-chev" aria-hidden="true">›</span>
+                </button>
+                <button type="button" class="scan-opt-btn" id="scan-opt-upload">
+                    <span class="scan-opt-ico">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    </span>
+                    <span class="scan-opt-text">
+                        <span class="scan-opt-label">Upload Image</span>
+                        <span class="scan-opt-hint">Pick from gallery</span>
+                    </span>
+                    <span class="scan-opt-chev" aria-hidden="true">›</span>
+                </button>
+                <button type="button" class="m-cancel scan-source-cancel" id="scan-opt-cancel">Cancel</button>
             </div>
         </div>
     </div>
@@ -965,33 +1003,71 @@
         </div>
     </div>
 
-    <!-- Scan Modal -->
+    <!-- Scan Modal (Processing) -->
     <div class="ov" id="scan-modal">
-        <div class="modal">
-            <div class="m-pulse"><div class="m-r"></div><div class="m-r mr2"></div><div class="m-r mr3"></div>
-                <div class="m-ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--sage)" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="3" y1="12" x2="7" y2="12"/><line x1="17" y1="12" x2="21" y2="12"/></svg></div>
+        <div class="modal scan-process-modal">
+            <div class="scan-stage" aria-hidden="true">
+                <div class="scan-stage-grid"></div>
+                <div class="scan-stage-line"></div>
+                <div class="m-pulse">
+                    <div class="m-r"></div>
+                    <div class="m-r mr2"></div>
+                    <div class="m-r mr3"></div>
+                    <div class="m-ico">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--sage)" stroke-width="1.8" stroke-linecap="round">
+                            <circle cx="12" cy="12" r="4"/>
+                            <line x1="12" y1="3" x2="12" y2="7"/>
+                            <line x1="12" y1="17" x2="12" y2="21"/>
+                            <line x1="3" y1="12" x2="7" y2="12"/>
+                            <line x1="17" y1="12" x2="21" y2="12"/>
+                        </svg>
+                    </div>
+                </div>
             </div>
-            <h3 class="m-t">Processing Specimen</h3>
-            <p class="m-d">Neural analysis in progress</p>
+            <h3 class="m-t scan-process-title">Processing Specimen</h3>
+            <p class="m-d scan-process-stage" id="scan-process-stage">Image preprocessing</p>
             <div class="m-track"><div class="m-fill" id="m-fill"></div></div>
-            <span class="m-lbl mono" id="m-lbl">INIT… 0%</span>
+            <span class="m-lbl mono" id="m-lbl">INIT · 0%</span>
             <button class="m-cancel" id="m-cancel">Abort</button>
         </div>
     </div>
 
     <!-- Result Modal -->
     <div class="ov" id="res-modal">
-        <div class="modal rm">
-            <div class="r-ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-            <h3 class="m-t" id="r-title">Specimen Healthy</h3>
-            <p class="m-species mono" id="r-species">Monstera deliciosa</p>
-            <div class="r-grid r-grid-4">
-                <div class="rg"><span class="rg-v rg-hl" id="r-conf">96.4%</span><span class="rg-l">CONF</span></div>
-                <div class="rg"><span class="rg-v rg-hl" id="r-hp">—</span><span class="rg-l">HEALTH</span></div>
-                <div class="rg"><span class="rg-v" id="r-risk">—</span><span class="rg-l">RISK</span></div>
-                <div class="rg"><span class="rg-v mono" id="r-surv">—</span><span class="rg-l">SURVIVE</span></div>
+        <div class="modal rm rm-v2" id="res-modal-card" data-tone="ok">
+            <div class="rm-glow" aria-hidden="true"></div>
+            <div class="r-ico" id="r-ico">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" id="r-ico-svg"><polyline points="20 6 9 17 4 12"/></svg>
             </div>
-            <p class="r-rec mono" id="r-rec">—</p>
+            <h3 class="m-t rm-headline" id="r-title">Specimen Healthy</h3>
+            <p class="m-species mono" id="r-species">Monstera deliciosa</p>
+            <div class="r-metrics" role="list">
+                <div class="r-metric" role="listitem">
+                    <span class="r-metric-lbl">Confidence</span>
+                    <span class="r-metric-val" id="r-conf">96.4%</span>
+                </div>
+                <div class="r-metric" role="listitem">
+                    <span class="r-metric-lbl">Plant Health</span>
+                    <span class="r-metric-val" id="r-hp">—</span>
+                </div>
+                <div class="r-metric" role="listitem">
+                    <span class="r-metric-lbl">Disease Risk</span>
+                    <span class="r-metric-val" id="r-risk">—</span>
+                </div>
+                <div class="r-metric" role="listitem">
+                    <span class="r-metric-lbl">Survival Chance</span>
+                    <span class="r-metric-val mono" id="r-surv">—</span>
+                </div>
+            </div>
+            <div class="r-advisory" id="r-advisory">
+                <div class="r-advisory-head">
+                    <span class="r-advisory-ico" aria-hidden="true">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.7c.9.7 1.4 1.8 1.4 2.9V18h5.2v-.4c0-1.1.5-2.2 1.4-2.9A7 7 0 0012 2z"/></svg>
+                    </span>
+                    <span class="r-advisory-title">AI Advisory</span>
+                </div>
+                <p class="r-advisory-body" id="r-rec">—</p>
+            </div>
             <div class="r-btns">
                 <button class="rb rb1" id="r-save">Export Report</button>
                 <button class="rb rb2" id="r-dismiss">Dismiss</button>
@@ -1002,45 +1078,70 @@
     <!-- Zone Modal -->
     <div class="ov" id="zone-modal">
         <div class="modal zm-modal">
-            <h3 class="m-t" id="zm-title">Add Zone</h3>
-            <p class="m-d" id="zm-desc">Click on the map to set the zone location</p>
-            <div class="zm-form">
-                <div class="zm-field">
-                    <label class="zm-label">Zone Name</label>
-                    <input type="text" class="zm-input" id="zm-name" placeholder="e.g. Herb Garden">
+            <header class="zm-head">
+                <div class="zm-head-ico" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
                 </div>
-                <div class="zm-row">
-                    <div class="zm-field zm-half">
-                        <label class="zm-label">Status</label>
-                        <select class="zm-select" id="zm-status">
-                            <option value="Healthy">Healthy</option>
-                            <option value="At Risk">At Risk</option>
-                            <option value="Critical">Critical</option>
-                        </select>
+                <div class="zm-head-text">
+                    <h3 class="zm-title" id="zm-title">Add New Zone</h3>
+                    <p class="zm-sub" id="zm-desc">Fill in details, then click the map to set location</p>
+                </div>
+                <button type="button" class="zm-close" id="zm-cancel" aria-label="Close">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </header>
+
+            <div class="zm-body">
+                <section class="zm-section">
+                    <h4 class="zm-section-title">ZONE DETAILS</h4>
+                    <div class="zm-form">
+                        <div class="zm-field">
+                            <label class="zm-label" for="zm-name">Zone Name</label>
+                            <input type="text" class="zm-input" id="zm-name" placeholder="e.g. Herb Garden">
+                            <span class="zm-error" id="zm-name-error" hidden>Please enter a zone name.</span>
+                        </div>
+                        <div class="zm-row">
+                            <div class="zm-field zm-half">
+                                <label class="zm-label" for="zm-status">Status</label>
+                                <div class="zm-select-wrap"><span class="zm-status-dot" id="zm-status-dot" data-status="Healthy"></span><select class="zm-select zm-select-has-dot" id="zm-status">
+                                    <option value="Healthy">Healthy</option>
+                                    <option value="At Risk">At Risk</option>
+                                    <option value="Critical">Critical</option>
+                                </select></div>
+                            </div>
+                            <div class="zm-field zm-half">
+                                <label class="zm-label" for="zm-plants">Plants</label>
+                                <input type="number" class="zm-input" id="zm-plants" placeholder="0" min="0" value="1">
+                            </div>
+                        </div>
+                        <div class="zm-coords" id="zm-coords">
+                            <span class="zm-coords-ico" aria-hidden="true">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                            </span>
+                            <div class="zm-coords-body">
+                                <span class="zm-coords-label">Location</span>
+                                <span class="zm-coords-text mono" id="zm-coords-text">Click map to set location</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="zm-field zm-half">
-                        <label class="zm-label">Plants</label>
-                        <input type="number" class="zm-input" id="zm-plants" placeholder="0" min="0" value="1">
-                    </div>
-                </div>
-                <div class="zm-coords" id="zm-coords">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                    <span id="zm-coords-text">Click map to set location</span>
-                </div>
-                <div class="zm-devices-section">
-                    <div class="zm-label" style="margin-bottom:8px">ESP32 Devices</div>
+                </section>
+
+                <section class="zm-section zm-section-devices">
+                    <h4 class="zm-section-title">ESP32 DEVICES <span class="zm-section-tag mono" id="zm-device-count">0</span></h4>
                     <div id="zm-device-list" class="zm-device-list"></div>
                     <button class="zm-add-device" id="zm-add-device" type="button">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                         Add Device
                     </button>
-                </div>
+                </section>
+
+                <button class="zm-delete" id="zm-delete" type="button" style="display:none">Delete Zone</button>
             </div>
-            <div class="r-btns" style="margin-top:20px">
-                <button class="rb rb1" id="zm-save">Save Zone</button>
-                <button class="rb rb2" id="zm-cancel">Cancel</button>
-            </div>
-            <button class="zm-delete" id="zm-delete" style="display:none">Delete Zone</button>
+
+            <footer class="zm-foot">
+                <button class="zm-btn zm-btn-ghost" id="zm-cancel-btn" type="button">Cancel</button>
+                <button class="zm-btn zm-btn-primary" id="zm-save" type="button">Save Zone</button>
+            </footer>
         </div>
     </div>
 
@@ -1051,16 +1152,19 @@
             <svg class="chat-fab-x" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             <span class="chat-fab-badge">AI</span>
         </button>
-        <div class="chat-panel" id="chat-panel">
+        <div class="chat-panel" id="chat-panel" role="dialog" aria-label="PlantVision AI Assistant">
             <div class="chat-head">
                 <div class="chat-head-info">
                     <div class="chat-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sage)" stroke-width="1.8"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-                    <div><span class="chat-head-name">PlantVision AI</span><span class="chat-head-status mono">● Online — Neural v4.2</span></div>
+                    <div class="chat-head-text"><span class="chat-head-name">PlantVision AI</span><span class="chat-head-status mono"><span class="chat-head-dot"></span>Online — Plant Vision v4.2</span></div>
                 </div>
+                <button type="button" class="chat-close" id="chat-close" aria-label="Close AI Chat">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
             </div>
             <div class="chat-body" id="chat-body">
                 <div class="chat-msg chat-msg-bot">
-                    <div class="chat-bubble">Hello! I'm your PlantVision AI assistant. Ask me about plant care, diseases, or scan results 🌿</div>
+                    <div class="chat-bubble">Hi — I'm your PlantVision assistant. Ask me about leaf diseases, watering, sensor readings, or use the camera to scan a plant.</div>
                     <span class="chat-time mono">Just now</span>
                 </div>
             </div>
@@ -1075,6 +1179,30 @@
                     <button type="button" class="chat-cam-btn chat-cam-btn-ghost" id="chat-cam-cancel">Cancel</button>
                     <button type="button" class="chat-cam-btn chat-cam-btn-primary" id="chat-cam-capture">Capture</button>
                     <button type="button" class="chat-cam-btn chat-cam-btn-primary" id="chat-cam-use" hidden>Use photo</button>
+                </div>
+            </div>
+            <div class="chat-qa-wrap" data-edge="both">
+                <div class="chat-quick-actions" id="chat-quick-actions" aria-label="Quick prompts" role="toolbar">
+                    <button type="button" class="chat-qa-chip" data-qa="health">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-11a5 5 0 019-3 5 5 0 019 3c0 6.5-7 11-7 11h-4z"/></svg>
+                        <span>Plant Health</span>
+                    </button>
+                    <button type="button" class="chat-qa-chip" data-qa="scan">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/><circle cx="12" cy="12" r="3.5"/></svg>
+                        <span>Latest Scan</span>
+                    </button>
+                    <button type="button" class="chat-qa-chip" data-qa="zones">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+                        <span>Zone Status</span>
+                    </button>
+                    <button type="button" class="chat-qa-chip" data-qa="sensors">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3-8 4 16 3-8h5"/></svg>
+                        <span>Sensor Summary</span>
+                    </button>
+                    <button type="button" class="chat-qa-chip chat-qa-chip-accent" data-qa="advice">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.7c.9.7 1.4 1.8 1.4 2.9V18h5.2v-.4c0-1.1.5-2.2 1.4-2.9A7 7 0 0012 2z"/></svg>
+                        <span>What Should I Do?</span>
+                    </button>
                 </div>
             </div>
             <div class="chat-input-wrap">
@@ -1107,6 +1235,7 @@
     <script src="settings.js"></script>
     <script src="assistant.js"></script>
     <script src="profile.js"></script>
+    <script src="home.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

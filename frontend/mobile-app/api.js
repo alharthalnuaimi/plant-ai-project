@@ -94,6 +94,144 @@ async function fetchSensorLatest() {
   return resp.json();
 }
 
+/* ====================================================================
+ * UNIFIED SENSOR SOURCE OF TRUTH
+ * ------------------------------------------------------------------
+ *  Use this from every page (Home, Garden, Profile, Analytics, Chat)
+ *  so freshness / mode / live-state are computed in exactly one place.
+ *
+ *  Returns:
+ *    {
+ *      ok: bool,                       // backend reachable
+ *      source: "live" | "none",        // raw /sensor/latest source
+ *      mode: "live" | "stale" | "simulation" | "offline",
+ *      freshness: "live" | "stale" | "offline" | "none",
+ *      age_seconds: number | null,
+ *      user_id, zone_id, device_id,    // active triple
+ *      reading: SensorReading | null,
+ *    }
+ *
+ *  Freshness rules (must match backend analytics_store._freshness):
+ *    age <= 30s   → live
+ *    age <= 300s  → stale  (5 min)
+ *    age >  300s  → offline
+ *    no reading   → none / simulation
+ * ==================================================================== */
+const SENSOR_LIVE_MAX_S = 30;
+const SENSOR_STALE_MAX_S = 300;
+
+function _sensorEmptyContext(reason) {
+  return {
+    ok: reason !== "no_base",
+    source: "none",
+    mode: "simulation",
+    freshness: "none",
+    age_seconds: null,
+    user_id: window.PLANT_USER_ID || "demo_user",
+    zone_id: window.PLANT_ZONE_ID || "zone_alpha",
+    device_id: window.PLANT_DEVICE_ID || "esp32_001",
+    reading: null,
+    reason: reason || null,
+  };
+}
+
+function _computeFreshness(ageSeconds) {
+  if (ageSeconds == null || Number.isNaN(ageSeconds)) return "offline";
+  if (ageSeconds <= SENSOR_LIVE_MAX_S) return "live";
+  if (ageSeconds <= SENSOR_STALE_MAX_S) return "stale";
+  return "offline";
+}
+
+function _parseIsoTs(iso) {
+  if (!iso) return null;
+  try {
+    return new Date(String(iso).replace("Z", "+00:00")).getTime() / 1000;
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Single source of truth. Never throws.
+ * Returns a normalized sensor context for any page to consume.
+ */
+async function fetchLatestSensorContext() {
+  const base = window.PLANT_API_BASE;
+  if (!base) return _sensorEmptyContext("no_base");
+
+  let payload = null;
+  try {
+    payload = await fetchSensorLatest();
+  } catch (_) {
+    return _sensorEmptyContext("offline");
+  }
+
+  if (!payload || !payload.reading) {
+    const empty = _sensorEmptyContext("no_reading");
+    empty.ok = true;
+    return empty;
+  }
+
+  const reading = payload.reading;
+  // Prefer the backend-computed age if present; otherwise compute locally.
+  let age = (typeof payload.age_seconds === "number") ? payload.age_seconds : null;
+  if (age == null) {
+    const ts = _parseIsoTs(reading.timestamp);
+    age = ts ? Math.max(0, Date.now() / 1000 - ts) : null;
+  }
+  const freshness = payload.freshness && payload.freshness !== "none"
+    ? payload.freshness
+    : _computeFreshness(age);
+
+  let mode;
+  if (freshness === "live") mode = "live";
+  else if (freshness === "stale") mode = "stale";
+  else mode = "offline";
+
+  return {
+    ok: true,
+    source: payload.source || "live",
+    mode,
+    freshness,
+    age_seconds: age,
+    user_id: reading.user_id || (window.PLANT_USER_ID || "demo_user"),
+    zone_id: reading.zone_id || (window.PLANT_ZONE_ID || "zone_alpha"),
+    device_id: reading.device_id || (window.PLANT_DEVICE_ID || "esp32_001"),
+    reading,
+    reason: null,
+  };
+}
+
+/* In-process cache so multiple panels share a single fetch per tick. */
+let _sensorCtxCache = null;
+let _sensorCtxAt = 0;
+const _SENSOR_CTX_TTL_MS = 1500;
+
+async function getSensorContext(force) {
+  const now = Date.now();
+  if (!force && _sensorCtxCache && (now - _sensorCtxAt) < _SENSOR_CTX_TTL_MS) {
+    return _sensorCtxCache;
+  }
+  _sensorCtxCache = await fetchLatestSensorContext();
+  _sensorCtxAt = now;
+  // Broadcast so any page can listen instead of polling.
+  try {
+    window.dispatchEvent(new CustomEvent("plantvision:sensor-ctx", { detail: _sensorCtxCache }));
+  } catch (_) { /* IE fallback not needed */ }
+  return _sensorCtxCache;
+}
+
+function getLastSensorContext() {
+  return _sensorCtxCache;
+}
+
+window.plantSensor = {
+  fetch: fetchLatestSensorContext,
+  get: getSensorContext,
+  last: getLastSensorContext,
+  computeFreshness: _computeFreshness,
+};
+
 /** Analytics dashboard — lightweight aggregation endpoints. */
 async function fetchAnalyticsSummary() {
   const base = window.PLANT_API_BASE;
@@ -157,5 +295,102 @@ async function fetchGardenDashboard() {
     return { ok: true, data: await resp.json() };
   } catch (_) {
     return { ok: false, data: null };
+  }
+}
+
+/* ====== Phase 2 — persistent zones & devices ====== */
+
+async function fetchZones() {
+  const base = window.PLANT_API_BASE;
+  if (!base) return { ok: false, source: "offline", zones: [] };
+  try {
+    const resp = await fetch(`${base}/zones`, { method: "GET" });
+    if (!resp.ok) return { ok: false, source: "offline", zones: [] };
+    const data = await resp.json();
+    return { ok: true, source: data.source || "memory", zones: data.zones || [] };
+  } catch (_) {
+    return { ok: false, source: "offline", zones: [] };
+  }
+}
+
+async function saveZone(zone) {
+  const base = window.PLANT_API_BASE;
+  if (!base) return null;
+  try {
+    const resp = await fetch(`${base}/zones`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(zone),
+    });
+    if (!resp.ok) return null;
+    return resp.json();
+  } catch (_) {
+    return null;
+  }
+}
+
+async function deleteZone(slug) {
+  const base = window.PLANT_API_BASE;
+  if (!base) return false;
+  try {
+    const resp = await fetch(`${base}/zones/${encodeURIComponent(slug)}`, { method: "DELETE" });
+    return resp.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function fetchDevices(zoneSlug) {
+  const base = window.PLANT_API_BASE;
+  if (!base) return { ok: false, source: "offline", devices: [] };
+  try {
+    const url = zoneSlug
+      ? `${base}/devices?zone=${encodeURIComponent(zoneSlug)}`
+      : `${base}/devices`;
+    const resp = await fetch(url, { method: "GET" });
+    if (!resp.ok) return { ok: false, source: "offline", devices: [] };
+    const data = await resp.json();
+    return { ok: true, source: data.source || "memory", devices: data.devices || [] };
+  } catch (_) {
+    return { ok: false, source: "offline", devices: [] };
+  }
+}
+
+async function saveDevice(device) {
+  const base = window.PLANT_API_BASE;
+  if (!base) return null;
+  try {
+    const resp = await fetch(`${base}/devices`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(device),
+    });
+    if (!resp.ok) return null;
+    return resp.json();
+  } catch (_) {
+    return null;
+  }
+}
+
+async function deleteDevice(slug) {
+  const base = window.PLANT_API_BASE;
+  if (!base) return false;
+  try {
+    const resp = await fetch(`${base}/devices/${encodeURIComponent(slug)}`, { method: "DELETE" });
+    return resp.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function fetchDbHealth() {
+  const base = window.PLANT_API_BASE;
+  if (!base) return null;
+  try {
+    const resp = await fetch(`${base}/health/db`, { method: "GET" });
+    if (!resp.ok) return null;
+    return resp.json();
+  } catch (_) {
+    return null;
   }
 }

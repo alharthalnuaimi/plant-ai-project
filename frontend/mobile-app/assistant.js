@@ -36,18 +36,43 @@
     const base = window.PLANT_API_BASE;
     if (!base) return;
     try {
-      const [health, summary, events, sensorRes] = await Promise.all([
+      const [health, summary, events, history, sensorCtx] = await Promise.all([
         typeof fetchPlantHealth === "function" ? fetchPlantHealth() : null,
         typeof fetchAnalyticsSummary === "function" ? fetchAnalyticsSummary() : null,
         typeof fetchAnalyticsEvents === "function" ? fetchAnalyticsEvents(12) : null,
-        typeof fetchSensorLatest === "function"
-          ? fetchSensorLatest().catch(() => null)
+        typeof fetchAnalyticsHistory === "function" ? fetchAnalyticsHistory(1) : null,
+        window.plantSensor && typeof window.plantSensor.get === "function"
+          ? window.plantSensor.get()
           : null,
       ]);
       if (health) ctx.lastHealth = health;
       if (summary) ctx.summary = summary;
       if (events) ctx.events = events;
-      if (sensorRes && sensorRes.reading) ctx.lastSensor = sensorRes.reading;
+      // Hydrate lastScan from the persisted history so the assistant can
+      // answer "what was the last scan?" even after a page reload.
+      if (!ctx.lastScan && Array.isArray(history) && history.length) {
+        const h = history[0];
+        ctx.lastScan = {
+          disease: h.disease,
+          confidence: h.confidence,
+          zone_id: h.zone_id,
+          status: h.status,
+          scan_id: h.scan_id,
+          timestamp: h.timestamp,
+          health: ctx.lastHealth || null,
+        };
+      }
+      if (sensorCtx && sensorCtx.reading) {
+        ctx.lastSensor = sensorCtx.reading;
+        ctx.sensorMode = sensorCtx.mode;
+        ctx.sensorFreshness = sensorCtx.freshness;
+        ctx.sensorAgeSec = sensorCtx.age_seconds;
+      } else {
+        ctx.lastSensor = null;
+        ctx.sensorMode = "simulation";
+        ctx.sensorFreshness = "none";
+        ctx.sensorAgeSec = null;
+      }
       ctx.updatedAt = Date.now();
     } catch (_) {
       /* offline */
@@ -84,8 +109,13 @@
 
     if (ctx.lastSensor) {
       const s = ctx.lastSensor;
+      const tag = ctx.sensorFreshness === "live"
+        ? "[LIVE]"
+        : ctx.sensorFreshness === "stale"
+          ? "[STALE]"
+          : "[OFFLINE]";
       lines.push(
-        `Sensor: air ${s.air_temperature}°C, humidity ${s.air_humidity}%, soil moisture ${s.soil_humidity}%.`
+        `Sensor ${tag} air ${s.air_temperature}°C, humidity ${s.air_humidity}%, soil moisture ${s.soil_humidity}%.`
       );
     } else {
       lines.push("Sensor feed: awaiting live stream (demo values may apply).");

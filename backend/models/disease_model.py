@@ -8,6 +8,7 @@ Swap `StubVisionPredictor` for `YoloVisionPredictor` when weights are available.
 from __future__ import annotations
 
 import io
+import logging
 import os
 import random
 from abc import ABC, abstractmethod
@@ -18,6 +19,8 @@ from PIL import Image
 
 from services.dataset_config import get_yolo_class_names
 from services.model_registry import resolve_model_descriptor
+
+logger = logging.getLogger("plantvision.vision")
 
 
 @dataclass
@@ -155,11 +158,35 @@ class YoloVisionPredictor(VisionPredictor):
 
 
 def get_vision_predictor() -> VisionPredictor:
+    """Resolve the active vision predictor.
+
+    Resolution order:
+      1. Real YOLO predictor when weights exist on disk *and* `ultralytics`
+         is importable. Errors are logged (not silenced) so an operator can
+         see why a real model failed to load.
+      2. Otherwise fall back to the stub so /predict never 500s on missing
+         weights — UI gets a clean response with `model_name == "stub_vision"`.
+    """
+
     descriptor = resolve_model_descriptor()
     weights = descriptor.weights_path
     if weights and os.path.isfile(weights):
         try:
-            return YoloVisionPredictor(weights)
-        except Exception:
-            pass
+            predictor = YoloVisionPredictor(weights)
+            logger.info("YOLO predictor loaded weights=%s", weights)
+            return predictor
+        except ImportError as exc:
+            logger.warning(
+                "YOLO weights found at %s but `ultralytics` not installed (%s). Falling back to stub.",
+                weights,
+                exc,
+            )
+        except Exception as exc:  # noqa: BLE001 — keep the API alive
+            logger.exception(
+                "YOLO load failed for weights=%s — falling back to stub: %s", weights, exc
+            )
+    elif weights:
+        logger.warning(
+            "YOLO_WEIGHTS_PATH is set but file does not exist: %s — using stub.", weights
+        )
     return StubVisionPredictor()
