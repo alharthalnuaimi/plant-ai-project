@@ -9,6 +9,11 @@
     summary: null,
     events: [],
     updatedAt: 0,
+    // Phase 3 correction — cached per-zone scan count + latest persisted
+    // scan, so "How is Zone Alpha?" can answer synchronously even after a
+    // page reload, without an in-session scan.
+    zoneCounts: {},
+    zoneLatest: {},   // zone_slug -> latest ScanListItem from /scans/history
   };
 
   const ZONE_LABELS = {
@@ -36,7 +41,7 @@
     const base = window.PLANT_API_BASE;
     if (!base) return;
     try {
-      const [health, summary, events, history, sensorCtx] = await Promise.all([
+      const [health, summary, events, history, sensorCtx, zoneCounts, richHistory] = await Promise.all([
         typeof fetchPlantHealth === "function" ? fetchPlantHealth() : null,
         typeof fetchAnalyticsSummary === "function" ? fetchAnalyticsSummary() : null,
         typeof fetchAnalyticsEvents === "function" ? fetchAnalyticsEvents(12) : null,
@@ -44,7 +49,21 @@
         window.plantSensor && typeof window.plantSensor.get === "function"
           ? window.plantSensor.get()
           : null,
+        typeof fetchZoneScanCounts === "function" ? fetchZoneScanCounts() : null,
+        typeof fetchScanHistory === "function" ? fetchScanHistory({ limit: 30 }) : null,
       ]);
+
+      // Cache zone-scan counts (Phase 3 correction).
+      if (zoneCounts && zoneCounts.counts) ctx.zoneCounts = zoneCounts.counts;
+
+      // Cache latest persisted scan per zone so "How is Zone X?" works.
+      if (richHistory && Array.isArray(richHistory.scans)) {
+        const seen = {};
+        for (const s of richHistory.scans) {
+          if (s && s.zone_id && !seen[s.zone_id]) seen[s.zone_id] = s;
+        }
+        ctx.zoneLatest = seen;
+      }
       if (health) ctx.lastHealth = health;
       if (summary) ctx.summary = summary;
       if (events) ctx.events = events;
@@ -131,6 +150,20 @@
     return lines.join("\n");
   }
 
+  function _classifiedDisease(s) {
+    const d = (s && s.disease) ? String(s.disease).trim() : "";
+    if (!d) return "Pending analysis";
+    if (/^(unknown|pending|unclassified|n\/a)$/i.test(d)) return "Pending analysis";
+    return d;
+  }
+
+  function _classifiedConf(s) {
+    if (!s) return "—";
+    const d = (s.disease || "").trim();
+    if (!d || /^(unknown|pending|unclassified|n\/a)$/i.test(d)) return "—";
+    return fmtConf(s.confidence);
+  }
+
   function buildZoneReply(lower) {
     const zid = window.PLANT_ZONE_ID || "zone_alpha";
     let target = zid;
@@ -140,19 +173,44 @@
     else if (lower.includes("alpha")) target = "zone_alpha";
 
     const ev = ctx.events.find((e) => e.zone_id === target);
-    const scan =
+    // Prefer in-session scan, then last persisted scan for the zone.
+    const sessionScan =
       ctx.lastScan && (ctx.lastScan.zone_id || zid) === target ? ctx.lastScan : null;
+    const scan = sessionScan || ctx.zoneLatest[target] || null;
+    const count = ctx.zoneCounts[target] || 0;
+
     let msg = `${zoneLabel(target)} status:\n`;
+
+    // Live sensor snapshot for this zone (if available via the unified context)
+    const sensorCtx = window.plantSensor && typeof window.plantSensor.last === "function"
+      ? window.plantSensor.last() : null;
+    if (sensorCtx && sensorCtx.reading && sensorCtx.reading.zone_id === target) {
+      const r = sensorCtx.reading;
+      const freshness = sensorCtx.freshness || sensorCtx.mode || "—";
+      msg += `Sensor (${freshness}): ${r.air_temperature?.toFixed?.(1) ?? r.air_temperature}°C · ${Math.round(r.air_humidity)}% RH · pH ${r.soil_ph}.\n`;
+    } else {
+      msg += `Sensor: no live reading for this zone yet.\n`;
+    }
+
     if (scan) {
-      msg += `Latest scan: ${scan.disease} (${fmtConf(scan.confidence)}).\n`;
+      const meta = scan.metadata || {};
+      const plant = meta.plant_id || scan.plant_id;
+      const h = scan.health;
+      const health = h ? h.plant_health : scan.health_score;
+      const risk   = h ? h.disease_risk : scan.risk_level;
+      const rec    = (h && h.recommendation) || scan.recommendation || (meta && meta.recommendation);
+      msg += `Latest scan: ${_classifiedDisease(scan)} (${_classifiedConf(scan)}).`;
+      if (plant) msg += `\nPlant: ${plant}.`;
+      if (health != null) msg += `\nHealth ${health}%${risk ? " · risk " + risk : ""}.`;
+      if (rec) msg += `\n${rec}`;
+      msg += "\n";
     } else if (ev) {
       msg += `Recent activity: ${ev.message}.\n`;
     } else {
-      msg += "No recent scan for this zone in the current session.\n";
+      msg += "No recent scan for this zone yet.\n";
     }
-    if (ctx.lastHealth) {
-      msg += `Health score ~${ctx.lastHealth.plant_health}% for current operator context.`;
-    }
+
+    msg += `Persisted scans in this zone: ${count}.`;
     return msg;
   }
 
@@ -170,15 +228,40 @@
   }
 
   function buildLatestScanReply() {
-    if (!ctx.lastScan) {
+    // Fall back to the latest persisted scan from any zone if the session
+    // is fresh (page reload, no in-session scan yet).
+    let s = ctx.lastScan;
+    if (!s) {
+      const persistedZones = Object.values(ctx.zoneLatest || {});
+      if (persistedZones.length) {
+        persistedZones.sort((a, b) => (Date.parse(b.created_at || 0) || 0) - (Date.parse(a.created_at || 0) || 0));
+        s = persistedZones[0];
+      }
+    }
+    if (!s) {
       return "No scan in this session. Open the scanner on Home or tap the camera icon here to diagnose a leaf.";
     }
-    const s = ctx.lastScan;
-  const h = s.health;
-    let msg = `Latest scan: ${s.disease} — confidence ${fmtConf(s.confidence)} (${s.class_name || s.disease_type || "classified"}).`;
-    if (h) {
-      msg += ` Health ${h.plant_health}%, risk ${h.disease_risk}. ${h.recommendation}`;
+    const h = s.health;
+    const zoneName = zoneLabel(s.zone_id || (window.PLANT_ZONE_ID || "zone_alpha"));
+    const meta = s.metadata || {};
+    const deviceId = meta.device_id || s.device_id || (window.PLANT_DEVICE_ID || "esp32_001");
+    const plantId = meta.plant_id || s.plant_id || "";
+    const source = meta.scan_source || s.scan_source || "";
+    const disease = _classifiedDisease(s);
+    const confTxt = _classifiedConf(s);
+    const klass = s.class_name || s.disease_type || meta.class_name || "classified";
+    const healthScore = (h && h.plant_health != null) ? h.plant_health : s.health_score;
+    const risk        = (h && h.disease_risk)         ? h.disease_risk : s.risk_level;
+    const survival    = (h && h.survival_chance != null) ? h.survival_chance : s.survival_score;
+    const rec         = (h && h.recommendation) || s.recommendation || meta.recommendation || "";
+
+    let msg = `Latest scan in ${zoneName}: ${disease} — confidence ${confTxt} (${klass}).`;
+    if (plantId) msg += `\nPlant: ${plantId}.`;
+    msg += `\nDevice: ${deviceId}${source ? " · source " + source : ""}.`;
+    if (healthScore != null) {
+      msg += `\nHealth ${healthScore}%${risk ? " · risk " + risk : ""}${survival != null ? " · survival " + survival + "%" : ""}.`;
     }
+    if (rec) msg += `\n${rec}`;
     return msg;
   }
 
@@ -243,4 +326,9 @@
 
   refreshContext();
   setInterval(refreshContext, 12000);
+  // Re-cache zone counts + zone latest immediately after each scan so the
+  // assistant's first reply post-scan already reflects the new total.
+  window.addEventListener("plantvision:scan-complete", () => {
+    refreshContext().catch(() => {});
+  });
 })();

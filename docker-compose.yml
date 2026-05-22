@@ -1,7 +1,13 @@
 # =====================================================================
-# PlantVision — Local Supabase / Postgres persistence (Phase 2)
+# PlantVision — OPTIONAL local Postgres stack  (Phase 2)
 # ---------------------------------------------------------------------
-# Minimal Supabase-compatible local stack for MVP development:
+# ⚠  THIS FILE IS OPTIONAL.
+#    The recommended Phase 2 path is Supabase Cloud (see SETUP_PHASE2.md).
+#    Only use docker-compose if you specifically want to run Postgres on
+#    localhost (e.g. offline development, CI). It is NOT required for the
+#    team to get PlantVision running.
+#
+# Services (when used):
 #   - postgres  : Supabase-flavored Postgres (extensions enabled)
 #   - studio    : Supabase Studio web UI (DB browser, optional)
 #   - meta      : pg-meta API powering Studio (optional)
@@ -16,6 +22,8 @@
 #     first boot (mounted into /docker-entrypoint-initdb.d).
 #   * To re-run migrations after the first boot, run:
 #       docker compose down -v && docker compose up -d
+#   * When using Supabase Cloud, you do NOT need to run this stack;
+#     migrations are applied via the SQL Editor in the dashboard.
 # =====================================================================
 
 services:
@@ -76,6 +84,11 @@ services:
       DEFAULT_PROJECT_NAME: plantvision-local
       SUPABASE_URL: http://localhost:${POSTGRES_PORT:-54322}
       SUPABASE_PUBLIC_URL: http://localhost:${POSTGRES_PORT:-54322}
+      # The two default JWTs below are the PUBLIC, well-known Supabase
+      # demo tokens (issuer="supabase-demo") shipped with every local
+      # Supabase project. They are NOT real secrets and they only work
+      # against this local docker-compose stack. Override via env vars
+      # in real deployments.
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlLWRlbW8iLCJpYXQiOjE2NDE3NjkyMDAsImV4cCI6MTc5OTUzNTYwMH0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE}
       SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UtZGVtbyIsImlhdCI6MTY0MTc2OTIwMCwiZXhwIjoxNzk5NTM1NjAwfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q}
 

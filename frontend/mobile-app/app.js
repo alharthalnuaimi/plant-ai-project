@@ -58,6 +58,42 @@ setInterval(()=>{
 const scanModal = document.getElementById('scan-modal');
 const scanSourceModal = document.getElementById('scan-source-modal');
 const cameraModal = document.getElementById('camera-modal');
+
+// Tracks where the current scan came from ("upload" | "camera" | "chat-camera").
+// Set by each entry point before runPlantPredict() so the result modal and
+// the backend /predict payload both know the scan source.
+let _currentScanSource = 'upload';
+
+// Human-friendly zone labels reused across the scan result modal.
+const _ZONE_LABELS = {
+  zone_alpha: 'Zone Alpha',
+  zone_beta:  'Zone Beta',
+  zone_gamma: 'Zone Gamma',
+  zone_delta: 'Zone Delta',
+};
+function _zoneLabel(zid){
+  if(!zid) return 'Default Zone';
+  if(_ZONE_LABELS[zid]) return _ZONE_LABELS[zid];
+  return String(zid).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// Source-of-truth resolver for the zone the next scan should be attributed
+// to: explicit Garden selection > operator profile zone > "zone_alpha".
+function _resolveScanZoneId(){
+  // Priority: Home scan-zone picker (with Garden mirror) > Garden direct
+  //         > operator-session zone > zone_alpha.
+  if (window.plantHome && typeof window.plantHome.getScanTargetZone === 'function') {
+    const z = window.plantHome.getScanTargetZone();
+    if (z) return z;
+  }
+  const fromGarden = window.plantGarden && typeof window.plantGarden.getSelectedZoneSlug === 'function'
+    ? window.plantGarden.getSelectedZoneSlug()
+    : null;
+  return (fromGarden || window.PLANT_ZONE_ID || 'zone_alpha').trim() || 'zone_alpha';
+}
+function _resolveScanDeviceId(){
+  return (window.PLANT_DEVICE_ID || 'esp32_001').trim() || 'esp32_001';
+}
 const resModal  = document.getElementById('res-modal');
 const mFill     = document.getElementById('m-fill');
 const mLbl      = document.getElementById('m-lbl');
@@ -178,9 +214,15 @@ function _resultHeadline(result, tone, userOk){
 }
 
 function showPredictResult(result){
-  const disease = result.disease || 'Unknown';
+  // Final polish — never surface raw "Unknown" to users; promote empty /
+  // placeholder predictions to "Pending analysis" so the result modal,
+  // notifications, exported reports, and assistant logs all read cleanly.
+  const _rawDisease = (result.disease || '').trim();
+  const _isUnclassified = !_rawDisease || /^(unknown|pending|unclassified|n\/a)$/i.test(_rawDisease);
+  const disease = _isUnclassified ? 'Pending analysis' : _rawDisease;
   const confNum = (result.confidence ?? 0) * 100;
-  const confPct = confNum.toFixed(1) + '%';
+  const _hasConf = Number.isFinite(result.confidence) && Number(result.confidence) > 0;
+  const confPct = (_isUnclassified || !_hasConf) ? '—' : confNum.toFixed(1) + '%';
   const userOk = window.plantVisionSettings && typeof window.plantVisionSettings.meetsConfidenceThreshold === 'function'
     ? window.plantVisionSettings.meetsConfidenceThreshold(result.confidence)
     : result.accepted;
@@ -211,6 +253,34 @@ function showPredictResult(result){
   if(recEl) recEl.textContent = health ? health.recommendation : (result.stress_hint || 'Monitor plant and rescan if symptoms persist.');
   if(waterEl) waterEl.textContent = result.model_name || 'yolov8';
 
+  // --- Scan-to-zone traceability: populate the meta row (Zone · Device · Source).
+  const meta = result.metadata || {};
+  const scanZone   = result.zone_id || _resolveScanZoneId();
+  const scanDevice = meta.device_id || _resolveScanDeviceId();
+  const scanSource = meta.scan_source || _currentScanSource || 'upload';
+  const sourceLabel = scanSource === 'camera' ? 'Camera'
+                    : scanSource === 'chat-camera' ? 'Chat camera'
+                    : 'Upload';
+  const zoneEl   = document.getElementById('r-zone');
+  const deviceEl = document.getElementById('r-device');
+  const sourceEl = document.getElementById('r-source');
+  if(zoneEl)   zoneEl.textContent   = _zoneLabel(scanZone);
+  if(deviceEl) deviceEl.textContent = scanDevice;
+  if(sourceEl) sourceEl.textContent = sourceLabel;
+
+  // Optional plant_id chip — only render when present in metadata.
+  const plantChip = document.getElementById('r-plant-chip');
+  const plantEl   = document.getElementById('r-plant');
+  const plantId   = meta.plant_id || '';
+  if (plantChip && plantEl) {
+    if (plantId) {
+      plantEl.textContent = plantId;
+      plantChip.hidden = false;
+    } else {
+      plantChip.hidden = true;
+    }
+  }
+
   if(window.plantAssistant && typeof window.plantAssistant.setLastScan === 'function'){
     window.plantAssistant.setLastScan(result);
   }
@@ -231,15 +301,32 @@ function showPredictResult(result){
   if (window.plantAnalytics && typeof window.plantAnalytics.refresh === 'function') {
     window.plantAnalytics.refresh();
   }
-  if (window.plantGarden && result.zone_id && typeof window.plantGarden.pulseZone === 'function') {
-    window.plantGarden.pulseZone(result.zone_id);
+  // Garden: pulse the marker AND force a refresh so the new
+  // "Scan complete in <Zone>" event appears in the activity panel
+  // and zone health reflects the latest scan.
+  if (window.plantGarden && scanZone && typeof window.plantGarden.pulseZone === 'function') {
+    window.plantGarden.pulseZone(scanZone);
+  }
+  if (window.plantGarden && typeof window.plantGarden.refresh === 'function') {
+    window.plantGarden.refresh(true);
   }
   if (window.plantProfile && typeof window.plantProfile.refresh === 'function') {
     window.plantProfile.refresh(false);
   }
+  if (window.plantProfile && typeof window.plantProfile.refreshPlantProfile === 'function') {
+    window.plantProfile.refreshPlantProfile();
+  }
   if (window.plantHome && typeof window.plantHome.refresh === 'function') {
     window.plantHome.refresh();
   }
+  // Broadcast for any listeners (analytics widgets, assistant context).
+  try {
+    window.dispatchEvent(new CustomEvent('plantvision:scan-complete', {
+      detail: { zone_id: scanZone, device_id: scanDevice, source: scanSource, result }
+    }));
+  } catch (_) { /* old browsers */ }
+  // Reset for next scan
+  _currentScanSource = 'upload';
 }
 
 function showScanError(message){
@@ -261,12 +348,24 @@ function showScanError(message){
   resModal.classList.add('active');
 }
 
-async function runPlantPredict(file){
+async function runPlantPredict(file, opts = {}){
   let finishedProgress = false;
   runProgressAnimation(() => { finishedProgress = true; });
 
+  const zoneId   = opts.zone_id   || _resolveScanZoneId();
+  const deviceId = opts.device_id || _resolveScanDeviceId();
+  const source   = opts.source    || _currentScanSource || 'upload';
+
   try {
-    const result = await predictPlantImage(file);
+    const result = await predictPlantImage(file, { zone_id: zoneId, device_id: deviceId, source });
+    // Annotate the result with the resolved zone/device/source so the modal,
+    // Garden, Profile, and Assistant all reflect WHERE the scan happened —
+    // even if the backend echo lacks some of these fields.
+    result.zone_id   = result.zone_id   || zoneId;
+    result.user_id   = result.user_id   || (window.PLANT_USER_ID || 'demo_user');
+    result.metadata  = result.metadata  || {};
+    if (!result.metadata.device_id)   result.metadata.device_id   = deviceId;
+    if (!result.metadata.scan_source) result.metadata.scan_source = source;
     const waitDone = () => {
       if(!finishedProgress){
         setTimeout(waitDone, 50);
@@ -376,12 +475,16 @@ function useCameraPhoto(){
   }
   const file = new File([capturedBlob], 'camera-capture.jpg', { type: 'image/jpeg' });
   closeCameraModal();
-  runPlantPredict(file);
+  _currentScanSource = 'camera';
+  runPlantPredict(file, { source: 'camera' });
 }
 
 scanFileInput.addEventListener('change', () => {
   const file = scanFileInput.files && scanFileInput.files[0];
-  if(file) runPlantPredict(file);
+  if(file){
+    _currentScanSource = 'upload';
+    runPlantPredict(file, { source: 'upload' });
+  }
 });
 
 document.getElementById('scan-trigger')?.addEventListener('click', openScanSourceModal);
@@ -474,7 +577,7 @@ document.getElementById('r-save').addEventListener('click', function(){
 });
 
 // --- Page Switching (shared) ---
-const pageMap = { n1:'page-home', n2:'page-data', n3:'page-garden', n4:'page-settings' };
+const pageMap = { n1:'page-home', n2:'page-data', n3:'page-garden', n5:'page-history', n4:'page-settings' };
 
 function switchPage(targetId){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -1877,10 +1980,18 @@ async function runChatPlantPredict(file){
   closeChatCameraPanel();
   addMsg('Scanning plant image…', true);
   showTyping();
+  const zoneId   = _resolveScanZoneId();
+  const deviceId = _resolveScanDeviceId();
   try {
-    const result = await predictPlantImage(file);
+    const result = await predictPlantImage(file, { zone_id: zoneId, device_id: deviceId, source: 'chat-camera' });
+    result.zone_id  = result.zone_id  || zoneId;
+    result.user_id  = result.user_id  || (window.PLANT_USER_ID || 'demo_user');
+    result.metadata = result.metadata || {};
+    if (!result.metadata.device_id)   result.metadata.device_id   = deviceId;
+    if (!result.metadata.scan_source) result.metadata.scan_source = 'chat-camera';
     removeChatTyping();
     addMsg(formatScanChatMessage(result), false);
+    _currentScanSource = 'chat-camera';
     showPredictResult(result);
   } catch (e) {
     removeChatTyping();
@@ -2330,7 +2441,7 @@ const origResModalShow = resModal.classList.add.bind(resModal.classList);
 const resObserver = new MutationObserver((mutations) => {
   mutations.forEach(m => {
     if(m.attributeName === 'class' && resModal.classList.contains('active')){
-      const species = document.getElementById('r-species')?.textContent || 'Unknown';
+      const species = document.getElementById('r-species')?.textContent || 'Pending analysis';
       const conf = document.getElementById('r-conf')?.textContent || '—';
       const health = document.getElementById('r-hp')?.textContent || '—';
       const risk = document.getElementById('r-risk')?.textContent || '—';

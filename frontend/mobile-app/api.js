@@ -2,14 +2,44 @@
  * Plant health API client — POST /predict only (MVP).
  */
 
-async function predictPlantImage(file) {
+/**
+ * POST /predict with full scan-to-zone traceability.
+ *
+ * @param {File|Blob} file
+ * @param {{ zone_id?: string, device_id?: string, user_id?: string, source?: string }} [opts]
+ *   - zone_id   : zone slug to attribute the scan to. Defaults to the
+ *                 currently selected Garden zone (if any), else
+ *                 window.PLANT_ZONE_ID, else "zone_alpha".
+ *   - device_id : ESP32 / device slug. Defaults to PLANT_DEVICE_ID.
+ *   - user_id   : operator slug. Defaults to PLANT_USER_ID.
+ *   - source    : "upload" | "camera" | "chat-camera" | string (purely
+ *                 telemetry / shown in result modal; never affects logic).
+ */
+async function predictPlantImage(file, opts = {}) {
   const base = window.PLANT_API_BASE;
   if (!base) throw new Error("PLANT_API_BASE is not configured");
 
+  const gardenSel =
+    (window.plantGarden && typeof window.plantGarden.getSelectedZoneSlug === "function")
+      ? window.plantGarden.getSelectedZoneSlug()
+      : null;
+  const zoneId   = (opts.zone_id   || gardenSel || window.PLANT_ZONE_ID   || "zone_alpha").trim() || "zone_alpha";
+  const deviceId = (opts.device_id ||              window.PLANT_DEVICE_ID || "esp32_001").trim() || "esp32_001";
+  const userId   = (opts.user_id   ||              window.PLANT_USER_ID   || "demo_user").trim() || "demo_user";
+  const source   = (opts.source    || "upload").trim() || "upload";
+  // Phase 3 — optional plant identifier (future plant_profiles table).
+  // Empty string is allowed; the default keeps demo scans complete.
+  const plantId   = (opts.plant_id   != null ? String(opts.plant_id)   : (window.PLANT_ID   || "cucumber_001")).trim();
+  const plantName = (opts.plant_name != null ? String(opts.plant_name) : (window.PLANT_NAME || "")).trim();
+
   const form = new FormData();
   form.append("file", file);
-  form.append("user_id", window.PLANT_USER_ID || "demo_user");
-  form.append("zone_id", window.PLANT_ZONE_ID || "zone_alpha");
+  form.append("user_id", userId);
+  form.append("zone_id", zoneId);
+  form.append("device_id", deviceId);
+  form.append("source", source);
+  if (plantId)   form.append("plant_id", plantId);
+  if (plantName) form.append("plant_name", plantName);
 
   const resp = await fetch(`${base}/predict`, {
     method: "POST",
@@ -245,6 +275,59 @@ async function fetchAnalyticsHistory(limit = 20) {
   if (!base) return null;
   const resp = await fetch(`${base}/analytics/history?limit=${limit}`);
   return resp.ok ? resp.json() : null;
+}
+
+/**
+ * Phase 3: rich scan history (DB-backed when possible, memory fallback otherwise).
+ * @param {{ zone?: string, status?: string, limit?: number }} [opts]
+ * @returns {Promise<{ source: string, total: number, zone: string|null, status_filter: string|null, scans: Array }|null>}
+ */
+async function fetchScanHistory(opts = {}) {
+  const base = window.PLANT_API_BASE;
+  if (!base) return null;
+  const params = new URLSearchParams();
+  if (opts.zone)   params.set("zone", opts.zone);
+  if (opts.status) params.set("status", opts.status);
+  params.set("limit", String(opts.limit || 50));
+  const resp = await fetch(`${base}/scans/history?${params.toString()}`);
+  return resp.ok ? resp.json() : null;
+}
+
+/** Phase 3: full scan detail (incl. sensor snapshot) for the detail modal. */
+async function fetchScanDetail(scanId) {
+  const base = window.PLANT_API_BASE;
+  if (!base || !scanId) return null;
+  const resp = await fetch(`${base}/scans/${encodeURIComponent(scanId)}`);
+  if (!resp.ok) return null;
+  return resp.json();
+}
+
+/** Phase 3: per-zone scan counts + status breakdown for Garden badges. */
+async function fetchZoneScanCounts() {
+  const base = window.PLANT_API_BASE;
+  if (!base) return null;
+  const resp = await fetch(`${base}/scans/zone-counts`);
+  return resp.ok ? resp.json() : null;
+}
+
+/** Phase 3 correction — Plant Profile aggregate (latest scan, count, history). */
+async function fetchPlantProfile(plantId) {
+  const base = window.PLANT_API_BASE;
+  if (!base || !plantId) return null;
+  const resp = await fetch(`${base}/scans/plant/${encodeURIComponent(plantId)}`);
+  return resp.ok ? resp.json() : null;
+}
+
+/** Resolve a scan thumbnail URL or null if the scan has no saved image. */
+function resolveScanImageUrl(scan) {
+  if (!scan) return null;
+  const base = window.PLANT_API_BASE || "";
+  const url = scan.image_url || (scan.metadata && scan.metadata.image_url);
+  if (url) return url.startsWith("http") ? url : `${base}${url.startsWith("/") ? "" : "/"}${url}`;
+  const path = scan.image_path || (scan.metadata && scan.metadata.saved_path);
+  if (!path) return null;
+  const norm = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${norm}`;
 }
 
 async function fetchAnalyticsEvents(limit = 25) {

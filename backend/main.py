@@ -10,16 +10,20 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+import logging
+
 from config.settings import SETTINGS
 from core.errors import AppError
 from core.observability import wire_observability
-from db.connection import close_pool, get_pool, ping
+from db.connection import close_pool, deployment_mode, get_pool, ping
+from services import analytics_store
 from routes.analytics import router as analytics_router
 from routes.chat import router as chat_router
 from routes.dataset_meta import router as dataset_meta_router
 from routes.devices import router as devices_router
 from routes.health_route import router as health_router
 from routes.predict import router as predict_router
+from routes.scans import router as scans_router
 from routes.sensor import router as sensor_router
 from routes.survival import router as survival_router
 from routes.zones import router as zones_router
@@ -50,12 +54,34 @@ app.include_router(dataset_meta_router)
 app.include_router(health_router)
 app.include_router(zones_router)
 app.include_router(devices_router)
+app.include_router(scans_router)
+
+# Static mount so the frontend can render scan thumbnails saved by /predict.
+# Images live under backend/uploads/ and are referenced as /uploads/<name>
+# in scan_results.metadata_json.image_url.
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+_UPLOADS_DIR = Path(__file__).resolve().parent / "uploads"
+_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(_UPLOADS_DIR)), name="uploads")
+
+
+_LOG = logging.getLogger("plantvision.startup")
 
 
 @app.on_event("startup")
 async def _startup() -> None:
     if SETTINGS.use_postgres:
         await get_pool()
+        # Hydrate in-memory analytics from the DB so /analytics/history,
+        # /analytics/summary, the Home scan log and the AI assistant context
+        # all survive a backend restart.
+        try:
+            loaded = await analytics_store.hydrate_from_db()
+            if loaded:
+                _LOG.info("Hydrated %d scan(s) from scan_results into in-memory analytics", loaded)
+        except Exception as exc:  # noqa: BLE001
+            _LOG.warning("Scan history hydration skipped: %s", exc)
 
 
 @app.on_event("shutdown")
@@ -100,13 +126,31 @@ async def health() -> dict:
 
 @app.get("/health/db")
 async def health_db() -> dict:
-    """Reports persistence backend state (Postgres reachable or memory fallback)."""
+    """Persistence backend status — Supabase Cloud, local Postgres, or memory."""
 
+    from urllib.parse import urlparse
+
+    mode = deployment_mode()  # "cloud" | "local" | "memory"
     ok = await ping() if SETTINGS.use_postgres else False
+    parsed = urlparse(SETTINGS.database_url) if SETTINGS.use_postgres else None
+    host = (parsed.hostname if parsed else None) or SETTINGS.postgres_host
+    port = (parsed.port if parsed else None) or SETTINGS.postgres_port
+
+    if not SETTINGS.use_postgres:
+        status = "memory_fallback"
+    elif ok and mode == "cloud":
+        status = "supabase_cloud_connected"
+    elif ok:
+        status = "postgres_connected"
+    else:
+        status = "postgres_unreachable"
+
     return {
         "persistence_backend": SETTINGS.persistence_backend,
+        "deployment": mode,
+        "status": status,
         "postgres_reachable": ok,
-        "database_host": SETTINGS.postgres_host,
-        "database_port": SETTINGS.postgres_port,
+        "database_host": host,
+        "database_port": port,
         "database_name": SETTINGS.postgres_db,
     }

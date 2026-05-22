@@ -231,6 +231,60 @@ def record_device_connected(device_id: str, zone_id: str) -> None:
     )
 
 
+async def hydrate_from_db(limit: int = 200) -> int:
+    """Re-populate the in-memory analytics deque from `scan_results`.
+
+    Called at startup so the dashboard / Home log / Assistant context all
+    survive a backend restart when persistence is enabled. Returns the
+    number of scans loaded.
+    """
+
+    global _scan_counter
+    if _scans:  # already populated this process
+        return 0
+    try:
+        from repositories import scans_repo  # local import to avoid cycles
+    except Exception:  # noqa: BLE001
+        return 0
+
+    try:
+        rows = await scans_repo.recent(limit=limit)
+    except Exception:  # noqa: BLE001
+        return 0
+    if not rows:
+        return 0
+
+    # rows come back newest-first; reverse so the deque order matches the
+    # natural arrival order (older items at the right end).
+    loaded = 0
+    for row in reversed(rows):
+        try:
+            created = row.get("created_at")
+            if isinstance(created, datetime):
+                ts = created.timestamp()
+            else:
+                ts = _now()
+            disease = row.get("disease") or "Unknown"
+            confidence = float(row.get("confidence") or 0.0)
+            accepted = bool(row.get("accepted") if row.get("accepted") is not None else True)
+            _scan_counter += 1
+            _scans.appendleft({
+                "scan_id": f"#{_scan_counter}",
+                "user_id": row.get("user_slug") or "demo_user",
+                "zone_id": row.get("zone_slug") or "zone_alpha",
+                "disease": disease,
+                "confidence": confidence,
+                "status": _scan_status(disease, confidence, accepted),
+                "inference_ms": float(row.get("inference_ms") or 0.0),
+                "timestamp": ts,
+                "accepted": accepted,
+            })
+            loaded += 1
+        except Exception:  # noqa: BLE001 — never let one bad row break boot
+            continue
+    return loaded
+
+
 def _demo_summary() -> AnalyticsSummary:
   days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
   return AnalyticsSummary(
@@ -254,15 +308,48 @@ def _demo_summary() -> AnalyticsSummary:
     )
 
 
+_UNCLASSIFIED_DISEASES = {"unknown", "pending", "pending analysis", "unclassified", "n/a"}
+
+
+def _has_valid_confidence(s: dict[str, Any]) -> bool:
+    """A scan has a usable confidence value (real positive number)."""
+    conf = s.get("confidence")
+    try:
+        return conf is not None and float(conf) > 0.0
+    except (TypeError, ValueError):
+        return False
+
+
+def _is_classified(s: dict[str, Any]) -> bool:
+    """The scan has a classified disease (not empty / 'Unknown' / placeholder)."""
+    d = (s.get("disease") or "").strip().lower()
+    return bool(d) and d not in _UNCLASSIFIED_DISEASES
+
+
+def _is_valid_prediction(s: dict[str, Any]) -> bool:
+    """Phase 3 polish — combined predicate kept for backward compatibility.
+    Total scan count still includes ALL scans regardless of this filter.
+    """
+    return _is_classified(s) and _has_valid_confidence(s)
+
+
 def get_summary() -> AnalyticsSummary:
     scans = list(_scans)
     if not scans:
         return _demo_summary()
 
     total = len(scans)
-    diseased = sum(1 for s in scans if not _is_healthy_disease(s["disease"]))
-    detection_rate = round((diseased / total) * 100, 1) if total else 0.0
-    avg_conf = round(sum(s["confidence"] for s in scans) / total, 4)
+    # Phase 3 — per the correction pass:
+    # - avg_confidence: include any scan with a real positive confidence
+    #   (so legitimate 0.35-conf "Diseased" detections still contribute).
+    # - detection_rate: include only scans with a classified disease
+    #   (so "Unknown" / placeholder rows don't pollute the disease ratio).
+    # - total_scans still counts EVERYTHING for the user-facing count.
+    conf_pool = [s for s in scans if _has_valid_confidence(s)]
+    cls_pool = [s for s in scans if _is_classified(s)]
+    avg_conf = round(sum(float(s["confidence"]) for s in conf_pool) / len(conf_pool), 4) if conf_pool else 0.0
+    diseased = sum(1 for s in cls_pool if not _is_healthy_disease(s["disease"]))
+    detection_rate = round((diseased / len(cls_pool)) * 100, 1) if cls_pool else 0.0
     avg_ms = round(sum(s["inference_ms"] for s in scans) / total, 1)
 
     readings = sensor_store.list_all_readings()
@@ -278,7 +365,7 @@ def get_summary() -> AnalyticsSummary:
     scans_today = sum(1 for s in scans if s["timestamp"] >= today_start)
 
     disease_counts: dict[str, int] = {}
-    for s in scans:
+    for s in cls_pool:  # only count scans with a classified disease
         d = s["disease"]
         if _is_healthy_disease(d):
             continue

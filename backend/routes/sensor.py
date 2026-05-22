@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Query
 
+from repositories import sensor_repo
 from schemas.sensors import SensorInput, SensorLatestResponse, SensorReading
 from services import analytics_store
 from services.sensor_processing import process_sensor_reading
@@ -15,6 +18,8 @@ from services.sensor_store import (
     get_latest,
     save_reading,
 )
+
+log = logging.getLogger("plantvision.sensor")
 
 router = APIRouter(tags=["sensor"])
 
@@ -38,6 +43,40 @@ def _freshness_label(age: float | None) -> str:
     return "offline"
 
 
+def _row_to_reading(row: dict[str, Any]) -> SensorReading | None:
+    """Rebuild a SensorReading from a sensor_readings DB row.
+
+    Status fields are re-derived from raw values (deterministic), and the
+    original DB timestamp (`recorded_at`) is preserved so freshness math
+    stays accurate after a backend restart.
+    """
+
+    try:
+        payload = SensorInput(
+            user_id=row.get("user_slug") or DEFAULT_USER_ID,
+            zone_id=row.get("zone_slug") or DEFAULT_ZONE_ID,
+            device_id=row.get("device_slug") or DEFAULT_DEVICE_ID,
+            air_temperature=float(row["air_temp"]),
+            air_humidity=float(row["air_humidity"]),
+            light_lux=float(row.get("lux") or 0),
+            soil_temperature=float(row["soil_temp"]),
+            soil_humidity=float(row["soil_moisture"]),
+            soil_ph=float(row["ph"]),
+            soil_ec=float(row["ec"]),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        log.warning("Could not rebuild SensorReading from DB row: %s", exc)
+        return None
+
+    reading = process_sensor_reading(payload)
+
+    recorded_at = row.get("recorded_at")
+    if isinstance(recorded_at, datetime):
+        ts = recorded_at.astimezone(timezone.utc).replace(microsecond=0).isoformat()
+        reading = reading.model_copy(update={"timestamp": ts})
+    return reading
+
+
 @router.post("/sensor", response_model=SensorReading)
 async def post_sensor(payload: SensorInput) -> SensorReading:
     reading = process_sensor_reading(payload)
@@ -53,10 +92,26 @@ async def sensor_latest(
     device_id: str = Query(default=DEFAULT_DEVICE_ID, description="ESP32 / sensor node id"),
 ) -> SensorLatestResponse:
     reading = get_latest(user_id=user_id, zone_id=zone_id, device_id=device_id)
+
+    # Postgres fallback: in-memory cache is wiped on backend restart. If
+    # persistence is enabled, hydrate the latest reading from the DB so
+    # the API surface stays consistent across restarts.
+    if reading is None:
+        try:
+            row = await sensor_repo.latest_for_device(device_id)
+        except Exception as exc:  # noqa: BLE001 — never fail this endpoint
+            log.warning("DB hydration for /sensor/latest failed: %s", exc)
+            row = None
+        if row:
+            reading = _row_to_reading(row)
+            if reading is not None:
+                save_reading(reading)  # warm the in-memory cache
+
     if reading is None:
         return SensorLatestResponse(
             ok=True, source="none", reading=None, age_seconds=None, freshness="none"
         )
+
     age = _age_seconds(reading.timestamp)
     return SensorLatestResponse(
         ok=True,

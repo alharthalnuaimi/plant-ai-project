@@ -48,6 +48,12 @@ async def persist_scan_async(result: VisionResult) -> None:
     h = result.health
     meta = dict(result.metadata or {})
     image_path = meta.pop("saved_path", None) if isinstance(meta, dict) else None
+    # Phase 3 polish — store environment_stress and class_name/disease_type in
+    # metadata so the detail view can render them without a schema migration.
+    if h is not None:
+        meta.setdefault("environment_stress", h.environment_stress)
+        meta.setdefault("class_name", h.class_name)
+        meta.setdefault("disease_type", h.disease_type)
     await scans_repo.insert_scan(
         user_slug=result.user_id,
         zone_slug=result.zone_id,

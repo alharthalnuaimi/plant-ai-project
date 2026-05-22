@@ -1,10 +1,36 @@
 # =============================================================================
-# PlantVision / Plant AI MVP — team-safe .gitignore
-# FastAPI backend · Node mobile web · YOLOv8 · local simulation
+# PlantVision / Plant AI MVP — production-safe .gitignore
+# FastAPI backend · Mobile web frontend · Supabase Cloud · YOLOv8 · ESP32
+# =============================================================================
+# Sections:
+#   1.  Secrets
+#   2.  Python
+#   3.  Frontend / Node
+#   4.  AI Models
+#   5.  Datasets
+#   6.  Build Artifacts
+#   7.  Logs
+#   8.  IDE
+#   9.  OS Files
+#   10. Temporary Files
+#   11. Project-specific runtime
 # =============================================================================
 
+
 # -----------------------------------------------------------------------------
-# Python / backend
+# 1. Secrets / environment   (keep .env.example for onboarding)
+# -----------------------------------------------------------------------------
+.env
+.env.*
+*.env
+!.env.example
+
+# ESP32 firmware secrets — keep firmware/esp32/config.example.h for onboarding
+firmware/esp32/config.h
+
+
+# -----------------------------------------------------------------------------
+# 2. Python
 # -----------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
@@ -12,46 +38,50 @@ __pycache__/
 *.pyo
 *.pyd
 *.so
+
 *.egg
 *.egg-info/
 .eggs/
-dist/
-build/
 pip-wheel-metadata/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-htmlcov/
-.coverage
-.coverage.*
-*.cover
-.hypothesis/
 
+# Virtualenvs
 .venv/
 venv/
 env/
 ENV/
 .env.bak
 
-logs/
-*.log
-tmp/
-temp/
+# Test / type / coverage caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+htmlcov/
+.coverage
+.coverage.*
+*.cover
+
+# Jupyter
+.ipynb_checkpoints/
+
 
 # -----------------------------------------------------------------------------
-# Secrets / environment (keep .env.example for onboarding)
+# 3. Frontend / Node   (keep package-lock.json for reproducible installs)
 # -----------------------------------------------------------------------------
-.env
-.env.*
-!.env.example
+node_modules/
+.pnpm-store/
+.parcel-cache/
+.nyc_output/
+
+# Auto-generated local app state
+frontend/mobile-app/data/appdata.json
+
+# Legacy import staging
+frontend/_imports/
+
 
 # -----------------------------------------------------------------------------
-# Backend runtime (user uploads, scan images)
-# -----------------------------------------------------------------------------
-backend/uploads/
-
-# -----------------------------------------------------------------------------
-# AI / model weights & exports (do NOT ignore backend/models/ Python package)
+# 4. AI Models   (weights are large; keep registry/manifest + .gitkeep)
 # -----------------------------------------------------------------------------
 *.pt
 *.pth
@@ -59,112 +89,133 @@ backend/uploads/
 *.engine
 *.tflite
 *.mlmodel
+*.bin
+*.h5
+*.pkl
 
-# Versioned checkpoints under artifacts (keep .gitkeep + registry.json)
+# Versioned checkpoint folder (keep marker files only)
 artifacts/models/**
 !artifacts/models/.gitkeep
 !artifacts/models/**/.gitkeep
+!artifacts/registry.json
 
+# Training output trees
 artifacts/train_runs/
 ultralytics_runs/
 checkpoints/
-
-# -----------------------------------------------------------------------------
-# Datasets / training outputs
-# -----------------------------------------------------------------------------
-# Bulk imports & Roboflow exports (keep dataset/README, templates, yolov8 scaffolding)
-dataset/_imports/
-dataset/cucumber/
-
-datasets/
-data/
-
 runs/
-outputs/
-output/
 wandb/
 mlruns/
 
+
+# -----------------------------------------------------------------------------
+# 5. Datasets   (heavy binaries; keep small READMEs / yaml scaffolds)
+# -----------------------------------------------------------------------------
+dataset/_imports/
+dataset/cucumber/
+datasets/
+data/
+
+# Common dataset archive formats
 *.zip
 *.rar
 *.7z
+*.tar
 *.tar.gz
+*.tgz
+
 
 # -----------------------------------------------------------------------------
-# Node / frontend (mobile-app static server)
-# Keep package-lock.json for reproducible team installs
+# 6. Build Artifacts
 # -----------------------------------------------------------------------------
-node_modules/
+dist/
+build/
+outputs/
+output/
+coverage/
+
+# Node / bundler caches
+.cache/
+.next/
+.nuxt/
+.svelte-kit/
+.turbo/
+
+
+# -----------------------------------------------------------------------------
+# 7. Logs
+# -----------------------------------------------------------------------------
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-.pnpm-store/
 
-dist/
-build/
-coverage/
-.nyc_output/
-.parcel-cache/
-.cache/
-
-# Auto-generated local app state
-frontend/mobile-app/data/appdata.json
-
-# Legacy / misc import staging
-frontend/_imports/
 
 # -----------------------------------------------------------------------------
-# Local runtime / cache / exports
-# -----------------------------------------------------------------------------
-*.sqlite
-*.sqlite3
-*.db
-cache/
-local_cache/
-exports/
-reports/
-screenshots/
-*.json.bak
-
-# -----------------------------------------------------------------------------
-# IDE / OS
+# 8. IDE
 # -----------------------------------------------------------------------------
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+
+
+# -----------------------------------------------------------------------------
+# 9. OS Files
+# -----------------------------------------------------------------------------
 .DS_Store
 Thumbs.db
-desktop.ini
 ehthumbs.db
-
-# -----------------------------------------------------------------------------
-# Firmware (device secrets — use config.example.h)
-# -----------------------------------------------------------------------------
-firmware/esp32/config.h
-
-# -----------------------------------------------------------------------------
-# Pre-push safety net (catches stragglers from the IGNORE spec)
-# -----------------------------------------------------------------------------
-
-# Any *.env filename suffix (e.g. local.env, prod.env) — complements .env / .env.*
-*.env
-
-# Blanket uploads dir (in addition to backend/uploads/)
-uploads/
-
-# Generic temp / backup files (broadens *.json.bak above)
-*.tmp
-*.bak
-
-# Jupyter notebook checkpoints
-.ipynb_checkpoints/
-
-# Windows OS junk — uppercase variant (case-sensitive filesystems)
+desktop.ini
 Desktop.ini
 
-# NOTE: artifacts/registry.json and artifacts/models/.gitkeep are intentionally
-# kept tracked above as deployment config. Actual model weights (*.pt, *.pth,
-# *.onnx, *.engine, *.tflite, *.mlmodel) are already ignored globally.
+
+# -----------------------------------------------------------------------------
+# 10. Temporary Files
+# -----------------------------------------------------------------------------
+tmp/
+temp/
+*.tmp
+*.bak
+*.json.bak
+
+# Local sqlite / on-disk DB snapshots
+*.sqlite
+*.sqlite3
+*.db
+
+# Local cache / export folders
+cache/
+local_cache/
+exports/
+reports/
+screenshots/
+
+
+# -----------------------------------------------------------------------------
+# 11. Project-specific runtime
+# -----------------------------------------------------------------------------
+# User-uploaded scan images (kept locally per developer)
+backend/uploads/
+uploads/
+
+
+# =============================================================================
+# NOTES
+# -----------------------------------------------------------------------------
+# Intentionally TRACKED (do not add to the ignore list):
+#   .env.example                       — environment template for onboarding
+#   artifacts/models/.gitkeep          — ensures model dir exists on a fresh clone
+#   artifacts/registry.json            — model registry / manifest (small JSON)
+#   firmware/esp32/config.example.h    — firmware secrets template
+#   supabase/migrations/*.sql          — database schema migrations
+#   docker-compose.yml                 — optional local Postgres
+#   requirements.txt, package.json     — dependency manifests
+#   README.md, SETUP_PHASE2.md         — setup docs
+#
+# Real model weights (*.pt / *.pth / *.onnx / *.engine / *.tflite / *.mlmodel)
+# are always ignored — fetch them via the model registry / your team's bucket.
+# =============================================================================

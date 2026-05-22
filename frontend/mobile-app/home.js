@@ -201,7 +201,10 @@
     try {
       const [gardenRes, histRes, evRes, healthRes, ctx] = await Promise.all([
         typeof fetchGardenDashboard === "function" ? fetchGardenDashboard() : Promise.resolve({ ok: false, data: null }),
-        typeof fetchAnalyticsHistory === "function" ? fetchAnalyticsHistory(3) : Promise.resolve(null),
+        // Prefer the rich shape (image_url, plant_id, classified status) so
+        // the Home log can render thumbnails + premium placeholders.
+        typeof fetchScanHistory === "function" ? fetchScanHistory({ limit: 3 })
+          : (typeof fetchAnalyticsHistory === "function" ? fetchAnalyticsHistory(3) : Promise.resolve(null)),
         typeof fetchAnalyticsEvents === "function" ? fetchAnalyticsEvents(1) : Promise.resolve(null),
         typeof fetchPlantHealth === "function" ? fetchPlantHealth() : Promise.resolve(null),
         window.plantSensor && typeof window.plantSensor.get === "function"
@@ -213,7 +216,9 @@
         summary = gardenRes.data.summary || null;
         isLive = gardenRes.data.source === "live";
       }
-      if (Array.isArray(histRes)) history = histRes;
+      // Accept both shapes: rich { scans: [...] } and legacy array.
+      if (histRes && Array.isArray(histRes.scans)) history = histRes.scans;
+      else if (Array.isArray(histRes)) history = histRes;
       if (Array.isArray(evRes)) events = evRes;
       if (healthRes && healthRes.plant_health !== undefined) health = healthRes;
       sensorCtx = ctx || null;
@@ -240,6 +245,43 @@
     return "et-warn";
   }
 
+  // Final polish — friendly status / disease / confidence helpers.
+  // Mirror analytics.js so Home / Analytics / Profile / Assistant all
+  // present the same wording for legacy + low-quality scan rows.
+  const _UNCLASSIFIED = new Set(["", "unknown", "pending", "pending analysis", "unclassified", "n/a"]);
+  function _isUnclassified(r) {
+    if (!r) return true;
+    const d = (r.disease || "").trim().toLowerCase();
+    return !d || _UNCLASSIFIED.has(d);
+  }
+  function _friendlyDisease(r) {
+    if (_isUnclassified(r)) return "Pending analysis";
+    return r.disease;
+  }
+  function _friendlyConfidence(r) {
+    if (_isUnclassified(r)) return "—";
+    const c = Number(r && r.confidence);
+    if (!Number.isFinite(c) || c <= 0) return "—";
+    return (c * 100).toFixed(1) + "%";
+  }
+  function _friendlyStatusLabel(s) {
+    if (s === "PASS") return "Healthy";
+    if (s === "WARN") return "Warning";
+    if (s === "CRITICAL") return "Critical";
+    if (s === "UNKNOWN") return "Unclassified";
+    return s || "Warning";
+  }
+  function _resolveThumbUrl(r) {
+    if (!r) return null;
+    const base = window.PLANT_API_BASE || "";
+    const meta = r.metadata || {};
+    const url = r.image_url || meta.image_url || null;
+    if (url) return /^https?:\/\//i.test(url) ? url : `${base}${url.startsWith("/") ? "" : "/"}${url.replace(/\\/g, "/")}`;
+    const path = r.image_path || meta.saved_path || null;
+    if (!path) return null;
+    return `${base}${path.startsWith("/") ? "" : "/"}${path.replace(/\\/g, "/")}`;
+  }
+
   // Render the Home scan log directly so a fresh page load (without
   // navigating to Analytics first) still shows the latest scans.
   function renderLogEntries(rows) {
@@ -254,16 +296,25 @@
     const html = slice
       .map((r) => {
         const cls = statusTagClass(r.status);
-        const thumbCls = (r.status === "WARN" || r.status === "CRITICAL") ? "entry-t-warn" : "";
-        const img = r.status === "PASS" ? "healthy_leaf.png" : "diseased_leaf.png";
-        return `<article class="entry" data-scan-id="${r.scan_id}">
-          <div class="entry-thumb ${thumbCls}"><img src="${img}" alt="" class="entry-img"></div>
+        const thumbUrl = _resolveThumbUrl(r);
+        const disease = _friendlyDisease(r);
+        const conf = _friendlyConfidence(r);
+        const stLbl = _friendlyStatusLabel(r.status);
+        const shortId = r.id ? String(r.id).slice(0, 8) : (r.scan_id || "");
+        const time = (typeof r.timestamp === "number")
+          ? fmtAgo(r.timestamp)
+          : (r.created_at ? fmtAgo(Math.floor(Date.parse(r.created_at) / 1000)) : "—");
+        const inner = thumbUrl
+          ? `<img src="${thumbUrl}" alt="" class="entry-img" loading="lazy" onerror="this.parentNode.classList.add('entry-thumb-placeholder');this.outerHTML='<span class=\\'entry-thumb-empty\\'><svg viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'1.5\\' stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\'><path d=\\'M11 20A7 7 0 0 1 4 13V4h9a7 7 0 0 1 7 7v9z\\'/><path d=\\'M4 4l16 16\\'/></svg><span class=\\'entry-thumb-empty-lbl\\'>No image stored</span></span>'">`
+          : `<span class="entry-thumb-empty" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 4 13V4h9a7 7 0 0 1 7 7v9z"/><path d="M4 4l16 16"/></svg><span class="entry-thumb-empty-lbl">No image stored</span></span>`;
+        return `<article class="entry" data-scan-id="${r.id || r.scan_id || ""}">
+          <div class="entry-thumb${thumbUrl ? "" : " entry-thumb-placeholder"}">${inner}</div>
           <div class="entry-body">
             <div class="entry-r1">
-              <span class="entry-name">${r.disease}</span>
-              <span class="entry-tag ${cls}">${r.status}</span>
+              <span class="entry-name">${disease}</span>
+              <span class="entry-tag ${cls}">${stLbl}</span>
             </div>
-            <span class="entry-sub mono">${fmtAgo(r.timestamp)} · ${(r.confidence * 100).toFixed(1)}% · ${r.scan_id}</span>
+            <span class="entry-sub mono">${time} · ${conf}${shortId ? " · " + shortId : ""}</span>
           </div>
         </article>`;
       })
@@ -284,10 +335,69 @@
     pollTimer = setInterval(refresh, POLL_MS);
   }
 
+  // --- Phase 3: Scan-zone picker (Home → /predict zone_id) --------------
+  // Priority resolution: explicit Home selection > Garden selection
+  //                    > window.PLANT_ZONE_ID > "zone_alpha".
+  // We persist the Home picker selection in localStorage so it survives
+  // page reload, but we DO NOT mutate window.PLANT_ZONE_ID (which is the
+  // operator's session zone). The scan pipeline calls getScanTargetZone()
+  // at scan time so the latest Garden selection still wins if the user
+  // moves between Garden and Home.
+  let _homeScanZone = null;
+  function _initScanZonePicker() {
+    const sel = document.getElementById("scan-zone-select");
+    const wrap = document.getElementById("scan-zone-picker");
+    if (!sel) return;
+    const stored = localStorage.getItem("pv-home-scan-zone");
+    const fallback = (window.PLANT_ZONE_ID || "zone_alpha").trim();
+    _homeScanZone = stored || fallback;
+    // Populate from /zones if available, otherwise keep the static options.
+    if (typeof fetchZones === "function") {
+      try {
+        Promise.resolve(fetchZones()).then((res) => {
+          if (!res || !Array.isArray(res.zones)) return;
+          sel.innerHTML = res.zones
+            .map((z) => `<option value="${z.slug}">${z.name || z.slug}</option>`)
+            .join("");
+          sel.value = _homeScanZone;
+        }).catch(() => { /* keep static fallback */ });
+      } catch (_) { /* keep static fallback */ }
+    }
+    sel.value = _homeScanZone;
+    sel.addEventListener("change", () => {
+      _homeScanZone = sel.value || fallback;
+      localStorage.setItem("pv-home-scan-zone", _homeScanZone);
+      if (wrap) wrap.removeAttribute("data-source");
+    });
+    // If Garden has a current selection, follow it visually (and update the
+    // picker UX) — but the resolver below always re-reads at scan time.
+    window.addEventListener("plantvision:garden-zone-selected", (e) => {
+      const z = e && e.detail && e.detail.zone_id;
+      if (!z) return;
+      sel.value = z;
+      _homeScanZone = z;
+      if (wrap) wrap.setAttribute("data-source", "garden");
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", _initScanZonePicker);
+  } else {
+    _initScanZonePicker();
+  }
+
+  function getScanTargetZone() {
+    const gardenSel =
+      (window.plantGarden && typeof window.plantGarden.getSelectedZoneSlug === "function")
+        ? window.plantGarden.getSelectedZoneSlug()
+        : null;
+    return (gardenSel || _homeScanZone || window.PLANT_ZONE_ID || "zone_alpha").trim() || "zone_alpha";
+  }
+
   window.plantHome = {
     refresh,
     onNavigate,
     start,
+    getScanTargetZone,
     stop: () => {
       if (pollTimer) {
         clearInterval(pollTimer);

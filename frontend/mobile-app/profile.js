@@ -304,7 +304,7 @@
     setDiag("api", backendOk ? "ok" : "off", backendOk ? "Online" : "Offline");
 
     let yoloState = "warn";
-    let yoloLbl = "Unknown";
+    let yoloLbl = "Unavailable";
     if (typeof fetchModelsHealth === "function") {
       const mh = await fetchModelsHealth();
       if (mh.ok && mh.data) {
@@ -364,10 +364,150 @@
     }
   }
 
+  // --- Phase 3 — Plant Profile card ---------------------------------------
+  const PLANT_FALLBACK = { id: "cucumber_001", name: "Cucumber", type: "Cucumis sativus" };
+
+  function _ppZoneLabel(slug) {
+    const map = { zone_alpha: "Zone Alpha", zone_beta: "Zone Beta", zone_gamma: "Zone Gamma", zone_delta: "Zone Delta" };
+    return map[slug] || (slug ? slug.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase()) : "—");
+  }
+
+  function _ppStatusFromScan(scan) {
+    if (!scan) return { cls: "ok", label: "● Awaiting first scan" };
+    const st = scan.status || "WARN";
+    if (st === "PASS") return { cls: "ok",   label: "● Healthy" };
+    if (st === "WARN") return { cls: "warn", label: "● Monitor" };
+    if (st === "CRITICAL") return { cls: "crit", label: "● Critical" };
+    return { cls: "unk", label: "● Unclassified" };
+  }
+
+  function _ppFmtAgo(iso) {
+    if (!iso) return "—";
+    const t = Date.parse(iso);
+    if (Number.isNaN(t)) return "—";
+    const sec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+    if (sec < 60) return sec + "s ago";
+    if (sec < 3600) return Math.floor(sec / 60) + "m ago";
+    if (sec < 86400) return Math.floor(sec / 3600) + "h ago";
+    return Math.floor(sec / 86400) + "d ago";
+  }
+
+  function _ppPickPid() {
+    return (window.PLANT_ID || PLANT_FALLBACK.id).trim() || PLANT_FALLBACK.id;
+  }
+
+  async function refreshPlantProfile() {
+    const card = $("plant-profile-card");
+    if (!card) return;
+    const pid = _ppPickPid();
+    let profile = null;
+    try {
+      if (typeof fetchPlantProfile === "function") profile = await fetchPlantProfile(pid);
+    } catch (_) { profile = null; }
+
+    const titleEl = $("pp-title");
+    const subEl = $("pp-sub");
+    const statusEl = $("pp-status");
+    const diseaseEl = $("pp-latest-disease");
+    const confEl = $("pp-latest-conf");
+    const healthEl = $("pp-latest-health");
+    const countEl = $("pp-scan-count");
+    const tsEl = $("pp-last-scanned");
+    const recBlock = $("pp-rec-block");
+    const recEl = $("pp-rec");
+    const listEl = $("pp-history-list");
+
+    const plantName = (profile && profile.plant_name) || PLANT_FALLBACK.name;
+    if (titleEl) titleEl.textContent = plantName;
+    const zone = (profile && profile.current_zone) || (window.PLANT_ZONE_ID || "zone_alpha");
+    if (subEl) subEl.textContent = `${pid} · ${_ppZoneLabel(zone)}`;
+
+    const latest = profile && profile.latest_scan;
+    const stInfo = _ppStatusFromScan(latest);
+    if (statusEl) {
+      statusEl.textContent = stInfo.label;
+      statusEl.className = "pp-status pp-status-" + stInfo.cls;
+    }
+
+    if (diseaseEl) {
+      if (!latest) diseaseEl.textContent = "—";
+      else {
+        const d = (latest.disease || "").trim();
+        const conf = Number(latest.confidence) || 0;
+        const unclassified = !d || /^(unknown|pending|unclassified|n\/a)$/i.test(d) || conf < 0.4;
+        diseaseEl.textContent = unclassified ? "Pending analysis" : d;
+      }
+    }
+    if (confEl) {
+      if (!latest) confEl.textContent = "—";
+      else {
+        const conf = Number(latest.confidence) || 0;
+        confEl.textContent = conf < 0.4 ? "—" : (conf * 100).toFixed(1) + "%";
+      }
+    }
+    if (healthEl) healthEl.textContent = (latest && latest.health_score != null) ? latest.health_score + "%" : "—";
+    if (countEl) countEl.textContent = (profile && profile.scan_count) || 0;
+    if (tsEl) tsEl.textContent = profile ? _ppFmtAgo(profile.last_scanned_at) : "—";
+
+    const rec = latest && (latest.recommendation || (latest.metadata && latest.metadata.recommendation));
+    if (rec && recBlock && recEl) {
+      recEl.textContent = rec;
+      recBlock.hidden = false;
+    } else if (recBlock) {
+      recBlock.hidden = true;
+    }
+
+    if (listEl) {
+      const items = (profile && profile.recent_scans) || [];
+      if (!items.length) {
+        listEl.innerHTML = `<div class="pp-history-empty">Run a scan to populate this plant's history.</div>`;
+      } else {
+        const stCls = (s) => s === "PASS" ? "et-ok" : (s === "CRITICAL" ? "et-crit" : (s === "UNKNOWN" ? "et-unk" : "et-warn"));
+        const stLbl = (s) => s === "PASS" ? "Healthy" : (s === "WARN" ? "Warning" : (s === "CRITICAL" ? "Critical" : (s === "UNKNOWN" ? "Unclassified" : s)));
+        listEl.innerHTML = items.slice(0, 5).map((it) => {
+          const dRaw = (it.disease || "").trim();
+          const conf = Number(it.confidence) || 0;
+          const unclassified = !dRaw || /^(unknown|pending|unclassified|n\/a)$/i.test(dRaw) || conf < 0.4;
+          const disease = unclassified ? "Pending analysis" : dRaw;
+          const confTxt = unclassified ? "—" : (conf * 100).toFixed(1) + "%";
+          return `<div class="pp-history-row" data-scan-id="${it.id || ""}" data-scan-zone="${it.zone_id || ""}" role="button" tabindex="0">
+            <span class="pp-row-disease">${disease}</span>
+            <span class="entry-tag ${stCls(it.status)} pp-row-status">${stLbl(it.status)}</span>
+            <span class="pp-row-conf">${confTxt}</span>
+            <span class="pp-row-time">${_ppFmtAgo(it.created_at)}</span>
+          </div>`;
+        }).join("");
+      }
+    }
+
+    // Bind once: row click → open scan detail modal
+    if (listEl && !listEl.dataset.bound) {
+      listEl.addEventListener("click", (e) => {
+        const row = e.target.closest(".pp-history-row");
+        if (!row) return;
+        const id = row.getAttribute("data-scan-id");
+        const zone = row.getAttribute("data-scan-zone") || "";
+        if (window.plantAnalytics && typeof window.plantAnalytics.openScanDetail === "function") {
+          window.plantAnalytics.openScanDetail(id, zone);
+        }
+      });
+      listEl.dataset.bound = "1";
+    }
+    const openHist = $("pp-open-history");
+    if (openHist && !openHist.dataset.bound) {
+      openHist.addEventListener("click", () => {
+        if (typeof switchPage === "function") switchPage("page-history");
+      });
+      openHist.dataset.bound = "1";
+    }
+  }
+
   async function refresh(force) {
     const tag = $("prof-live-tag");
     const polled = $("prof-polled-at");
     const modeEl = $("prof-session-mode");
+    // Phase 3 — refresh Plant Profile in parallel; failures are silent.
+    refreshPlantProfile().catch(() => {});
 
     let summary = null;
     let events = null;
@@ -530,7 +670,7 @@
     window.addEventListener("plantvision:settings-changed", syncPreferenceToggles);
   }
 
-  window.plantProfile = { refresh, onNavigate };
+  window.plantProfile = { refresh, onNavigate, refreshPlantProfile };
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);

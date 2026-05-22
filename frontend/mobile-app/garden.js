@@ -24,6 +24,9 @@
   const counterAnim = new Map();
   let isSimulation = false;
   const scanByZone = {};
+  // Phase 3: per-zone persisted scan counts (refreshed from /scans/zone-counts).
+  const zoneScanCounts = {};
+  let zoneScanCountsAt = 0;
 
   const ZONE_ALIAS = {
     a: ["alpha", "zone_alpha", "zone alpha"],
@@ -249,6 +252,10 @@
     } else {
       lines.push('<div class="zt-row zt-muted">Last scan: —</div>');
     }
+    const totalScans = zoneScanCounts[zid] || 0;
+    if (totalScans > 0) {
+      lines.push('<div class="zt-row zt-muted">Scans: <b>' + totalScans + '</b></div>');
+    }
     lines.push('<div class="zt-row">Sensor: <b>' + sensorLabel + "</b></div>");
     if (isSimulation) lines.push('<div class="zt-sim">Simulation preview</div>');
     return lines.join("");
@@ -322,13 +329,17 @@
   function flashZoneMarker(zoneKey) {
     const b = bridge();
     const zones = b.getZones?.() || [];
-    const z = zones.find((x) => localZoneId(x) === zoneKey);
+    // Accept either the local short id ("a") OR the backend slug ("zone_alpha")
+    const targetSlug = LOCAL_ZONE_MAP[zoneKey] || zoneKey;
+    const z = zones.find((x) =>
+      localZoneId(x) === zoneKey || localZoneId(x) === Object.keys(LOCAL_ZONE_MAP).find((k) => LOCAL_ZONE_MAP[k] === targetSlug)
+    );
     if (!z) return;
     const m = b.getMarkers?.()?.[z.id];
     const inner = m?.getElement?.()?.querySelector(".zone-marker");
     if (inner) {
       inner.classList.add("zm-flash");
-      setTimeout(() => inner.classList.remove("zm-flash"), 1400);
+      setTimeout(() => inner.classList.remove("zm-flash"), 3200);
     }
   }
 
@@ -508,6 +519,13 @@
   function selectZone(zoneKey) {
     selectedZoneKey = zoneKey;
     flashZoneMarker(zoneKey);
+    try {
+      window.dispatchEvent(new CustomEvent("plantvision:garden-zone-selected", {
+        detail: { zone_id: zoneKey }
+      }));
+    } catch (_) { /* IE fallback not needed */ }
+    // Phase 3 — populate the per-zone "Latest scans" panel
+    refreshZoneScansPanel(zoneKey).catch(() => {});
     const b = bridge();
     const map = b.getMap?.();
     const zones = b.getZones?.() || [];
@@ -524,10 +542,99 @@
     patchActivity();
   }
 
+  function _gzsThumb(scan) {
+    const base = window.PLANT_API_BASE || "";
+    const url = scan.image_url || (scan.metadata && scan.metadata.image_url);
+    if (url) {
+      const norm = url.startsWith("http") ? url : `${base}${url.startsWith("/") ? "" : "/"}${url.replace(/\\/g, "/")}`;
+      return `<img src="${norm}" alt="" loading="lazy" onerror="this.parentNode.innerHTML='<svg viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'1.6\\'><path d=\\'M11 20A7 7 0 0 1 4 13V4h9a7 7 0 0 1 7 7v9z\\'/></svg>'">`;
+    }
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 4 13V4h9a7 7 0 0 1 7 7v9z"/><path d="M4 4l16 16"/></svg>`;
+  }
+
+  function _gzsStatusCls(s) {
+    if (s === "PASS") return "et-ok";
+    if (s === "CRITICAL") return "et-crit";
+    if (s === "UNKNOWN") return "et-unk";
+    return "et-warn";
+  }
+
+  function _gzsFmtAgo(iso) {
+    if (!iso) return "—";
+    const t = Date.parse(iso);
+    if (Number.isNaN(t)) return "—";
+    const sec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+    if (sec < 60) return sec + "s ago";
+    if (sec < 3600) return Math.floor(sec / 60) + "m ago";
+    if (sec < 86400) return Math.floor(sec / 3600) + "h ago";
+    return Math.floor(sec / 86400) + "d ago";
+  }
+
+  async function refreshZoneScansPanel(zoneKey) {
+    const panel = document.getElementById("garden-zone-scans");
+    const list = document.getElementById("gzs-list");
+    const title = document.getElementById("gzs-title");
+    if (!panel || !list || !zoneKey || typeof fetchScanHistory !== "function") return;
+
+    // Translate Garden's short keys (a/b/c/d) into backend slugs when needed
+    const slug = LOCAL_ZONE_MAP[zoneKey] || zoneKey;
+    const labelMap = { zone_alpha: "Zone Alpha", zone_beta: "Zone Beta", zone_gamma: "Zone Gamma", zone_delta: "Zone Delta" };
+    if (title) title.textContent = `LATEST SCANS · ${labelMap[slug] || slug.replace(/_/g, " ").toUpperCase()}`;
+
+    panel.hidden = false;
+    list.innerHTML = `<div class="gzs-empty">Loading…</div>`;
+
+    let payload = null;
+    try { payload = await fetchScanHistory({ zone: slug, limit: 5 }); } catch (_) { payload = null; }
+    const scans = (payload && Array.isArray(payload.scans)) ? payload.scans : [];
+
+    if (!scans.length) {
+      list.innerHTML = `<div class="gzs-empty">No scans recorded for this zone yet.</div>`;
+      return;
+    }
+    const cnt = scans.length;
+    if (title) title.textContent = `LATEST SCANS · ${labelMap[slug] || slug} · ${cnt}`;
+
+    const _UNK = new Set(["", "unknown", "pending", "pending analysis", "unclassified", "n/a"]);
+    list.innerHTML = scans.map((s) => {
+      const dRaw = (s.disease || "").trim();
+      const conf = Number(s.confidence) || 0;
+      const unclassified = _UNK.has(dRaw.toLowerCase()) || conf < 0.4;
+      const disease = unclassified ? "Pending analysis" : dRaw;
+      const confTxt = unclassified ? "—" : (conf * 100).toFixed(1) + "%";
+      const statusLbl = s.status === "PASS" ? "Healthy" : (s.status === "CRITICAL" ? "Critical" : (s.status === "UNKNOWN" ? "—" : "Warn"));
+      const src = s.scan_source || "—";
+      return `<div class="gzs-row" data-scan-id="${s.id || ""}" role="button" tabindex="0">
+        <div class="gzs-thumb">${_gzsThumb(s)}</div>
+        <div class="gzs-body">
+          <span class="gzs-name">${disease}</span>
+          <span class="gzs-sub">${_gzsFmtAgo(s.created_at)} · ${src}</span>
+        </div>
+        <span class="gzs-conf">${confTxt}</span>
+        <span class="entry-tag ${_gzsStatusCls(s.status)} gzs-status">${statusLbl}</span>
+      </div>`;
+    }).join("");
+
+    // Bind once: row click → open scan detail
+    if (!list.dataset.bound) {
+      list.addEventListener("click", (e) => {
+        const row = e.target.closest(".gzs-row");
+        if (!row) return;
+        const id = row.getAttribute("data-scan-id");
+        if (window.plantAnalytics && typeof window.plantAnalytics.openScanDetail === "function") {
+          window.plantAnalytics.openScanDetail(id, slug);
+        }
+      });
+      list.dataset.bound = "1";
+    }
+  }
+
   function clearSelection() {
     selectedZoneKey = null;
     const btn = document.getElementById("garden-show-all");
     if (btn) btn.hidden = true;
+    const panel = document.getElementById("garden-zone-scans");
+    if (panel) panel.hidden = true;
     const map = bridge().getMap?.();
     if (map) map.flyTo([33.315, 44.366], 14, { duration: 0.6 });
     patchMarkers();
@@ -551,6 +658,21 @@
       const cls = backend ? statusClass(backend.status) : "off";
       const dot = chip.querySelector(".zone-chip-dot");
       if (dot) dot.className = "zone-chip-dot zcd-" + cls;
+      // Phase 3 — scan-count badge (idempotent)
+      const zid = localZoneId(z);
+      const count = zoneScanCounts[zid] || 0;
+      let badge = chip.querySelector(".zone-chip-scans");
+      if (count > 0) {
+        if (!badge) {
+          badge = document.createElement("span");
+          badge.className = "zone-chip-scans mono";
+          badge.title = "Persisted scans in this zone";
+          chip.appendChild(badge);
+        }
+        badge.textContent = count + " scan" + (count === 1 ? "" : "s");
+      } else if (badge) {
+        badge.remove();
+      }
       chip.classList.toggle("zone-chip-selected", selectedZoneKey === localZoneId(z));
       chip.classList.toggle("zone-chip-dimmed", selectedZoneKey && selectedZoneKey !== localZoneId(z));
       chip.classList.toggle("zch-ok", cls === "ok");
@@ -938,6 +1060,22 @@
         indexScansFromHistory(hist || []);
       } catch (_) {}
     }
+
+    // Phase 3 — refresh per-zone scan counts (badge on chips + tooltip).
+    // Coalesce to ~15s unless force is true, so the regular Garden poll
+    // doesn't beat the DB on every tick.
+    const nowMs = Date.now();
+    if (typeof fetchZoneScanCounts === "function" && (force || nowMs - zoneScanCountsAt > 15000)) {
+      try {
+        const counts = await fetchZoneScanCounts();
+        if (counts && counts.counts) {
+          // Reset and repopulate
+          Object.keys(zoneScanCounts).forEach((k) => delete zoneScanCounts[k]);
+          Object.assign(zoneScanCounts, counts.counts);
+          zoneScanCountsAt = nowMs;
+        }
+      } catch (_) {}
+    }
     const res = await fetchGardenDashboard();
     if (res.ok && res.data) {
       applyDashboard(res.data);
@@ -989,24 +1127,21 @@
     selectZone,
     clearSelection,
     hasSelection: () => !!selectedZoneKey,
-    pulseZone: (zoneKey) => {
-      markerEls.forEach((m, lid) => {
-        const zones = bridge().getZones?.() || [];
-        const z = zones.find((x) => x.id === lid);
-        if (z && localZoneId(z) === zoneKey) {
-          const el = m.getElement?.();
-          const inner = el?.querySelector(".zone-marker");
-          if (inner) {
-            inner.classList.add("zm-flash");
-            setTimeout(() => inner.classList.remove("zm-flash"), 1200);
-          }
-        }
-      });
-    },
+    /**
+     * Returns the currently selected zone slug ("zone_alpha" form), or null
+     * if no zone is selected on the Garden map. Used by the scan pipeline
+     * to attribute scans to the user's active zone selection.
+     */
+    getSelectedZoneSlug: () => selectedZoneKey || null,
+    pulseZone: (zoneKey) => flashZoneMarker(zoneKey),
   };
 
   wireSearch();
   document.getElementById("garden-show-all")?.addEventListener("click", clearSelection);
+  document.getElementById("gzs-close")?.addEventListener("click", () => {
+    const panel = document.getElementById("garden-zone-scans");
+    if (panel) panel.hidden = true;
+  });
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => refreshGarden(false));

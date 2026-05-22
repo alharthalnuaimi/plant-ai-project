@@ -8,7 +8,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from schemas.contracts import OrchestratorRequest, OrchestratorResponse, SurvivalSensorInput, VisionResult
 from services.config_loader import get_runtime_config
 from services.orchestrator import run_analysis_pipeline
-from services import analytics_store
+from services import analytics_store, sensor_store
 from services.plant_health import enrich_vision_result
 from services.prediction import run_vision_prediction
 
@@ -37,11 +37,20 @@ def _normalize_zone_id(zone_id: str | None) -> str:
     return zid or "zone_alpha"
 
 
+def _normalize_device_id(device_id: str | None) -> str:
+    did = (device_id or "esp32_001").strip()
+    return did or "esp32_001"
+
+
 @router.post("/predict", response_model=VisionResult)
 async def predict(
     file: UploadFile = File(...),
     user_id: str = Form(default="demo_user"),
     zone_id: str = Form(default="zone_alpha"),
+    device_id: str = Form(default="esp32_001"),
+    source: str = Form(default="upload"),
+    plant_id: str = Form(default=""),
+    plant_name: str = Form(default=""),
 ) -> VisionResult:
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Expected an image upload")
@@ -51,6 +60,8 @@ async def predict(
 
     uid = _normalize_user_id(user_id)
     zid = _normalize_zone_id(zone_id)
+    did = _normalize_device_id(device_id)
+    src = (source or "upload").strip().lower() or "upload"
 
     # Optional: persist for demo/debug
     fname = f"{uuid.uuid4().hex}_{file.filename or 'image'}"
@@ -71,11 +82,39 @@ async def predict(
         ) from exc
 
     meta = dict(pred.metadata)
-    meta["saved_path"] = str(dest.relative_to(UPLOAD_DIR.parent))
+    saved_rel = dest.relative_to(UPLOAD_DIR.parent).as_posix()
+    meta["saved_path"] = saved_rel
+    meta["image_url"] = "/" + saved_rel  # served by the /uploads static mount
     meta["user_id"] = uid
     meta["zone_id"] = zid
+    meta["device_id"] = did
+    meta["scan_source"] = src
+
+    # Optional plant identity (Phase 3 placeholder — future plant_profiles table)
+    pid = (plant_id or "").strip()
+    pname = (plant_name or "").strip()
+    if pid:
+        meta["plant_id"] = pid
+    if pname:
+        meta["plant_name"] = pname
+
+    # Snapshot the latest sensor reading for this user/zone/device so the
+    # scan detail view can show env conditions even after backend restart.
+    snap = sensor_store.get_latest(user_id=uid, zone_id=zid, device_id=did)
+    if snap is not None:
+        meta["sensor_snapshot"] = {
+            "air_temperature": snap.air_temperature,
+            "air_humidity":    snap.air_humidity,
+            "light_lux":       snap.light_lux,
+            "soil_temperature": snap.soil_temperature,
+            "soil_humidity":   snap.soil_humidity,
+            "soil_ph":         snap.soil_ph,
+            "soil_ec":         snap.soil_ec,
+            "timestamp":       snap.timestamp,
+        }
+
     base = pred.model_copy(update={"user_id": uid, "zone_id": zid, "metadata": meta})
-    result = enrich_vision_result(base, uid, zid, "esp32_001")
+    result = enrich_vision_result(base, uid, zid, did)
     analytics_store.record_scan(result)
     return result
 

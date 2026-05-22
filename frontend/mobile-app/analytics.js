@@ -22,6 +22,20 @@
   let barsInitialized = false;
   let zoneCardEls = new Map();
 
+  // Phase 3 — scan history filter state + last fetched rich payload (used by
+  // the detail modal so it can fall back to in-memory data when the row's
+  // canonical UUID isn't available in demo/memory mode).
+  let shZoneFilter = "";
+  let shStatusFilter = "";
+  let lastRichScans = [];
+  // Phase 3 correction — dedicated Scan History page state. Filters here are
+  // independent from the Data-page scan history widget so users can drill in
+  // without losing context.
+  let histZoneFilter = "";
+  let histStatusFilter = "";
+  let histScans = [];
+  let histInFlight = false;
+
   function log(...args) {
     if (DEBUG) console.log("[analytics]", ...args);
   }
@@ -87,7 +101,53 @@
   function statusTagClass(status) {
     if (status === "PASS" || status === "HEALTHY") return "et-ok";
     if (status === "CRITICAL") return "et-crit";
+    if (status === "UNKNOWN") return "et-unk";
     return "et-warn";
+  }
+
+  // --- Phase 3 polish — friendly fallbacks for missing/legacy data ---------
+  const _UNCLASSIFIED = new Set(["", "unknown", "pending", "pending analysis", "unclassified", "n/a"]);
+
+  function _isUnclassified(scan) {
+    // Disease-string driven. A valid prediction like "Diseased" stays
+    // classified even at modest confidence; the confidence column itself
+    // tells the story. We only treat truly empty / "Unknown" rows as
+    // unclassified — matches backend _status_from in routes/scans.py.
+    if (!scan) return true;
+    const d = (scan.disease || "").trim().toLowerCase();
+    return !d || _UNCLASSIFIED.has(d);
+  }
+
+  function _friendlyDisease(scan) {
+    if (_isUnclassified(scan)) {
+      return scan && scan.is_legacy ? "Unclassified scan" : "Pending analysis";
+    }
+    return scan.disease;
+  }
+
+  function _friendlyPlantName(scan) {
+    if (!scan) return "Plant specimen";
+    return scan.plant_name || (scan.plant_id ? "Cucumber" : "Plant specimen");
+  }
+
+  function _friendlyConfidence(scan) {
+    if (_isUnclassified(scan)) return "—";
+    return ((scan.confidence || 0) * 100).toFixed(1) + "%";
+  }
+
+  function _friendlyStatusLabel(status) {
+    if (status === "UNKNOWN") return "Unclassified";
+    if (status === "PASS") return "Healthy";
+    if (status === "WARN") return "Warning";
+    if (status === "CRITICAL") return "Critical";
+    return status || "Warning";
+  }
+
+  function _scanLegacyBadge(scan) {
+    if (!scan) return "";
+    if (scan.is_legacy) return "Legacy scan record";
+    if (_isUnclassified(scan)) return "Missing prediction metadata";
+    return "";
   }
 
   function setText(id, text) {
@@ -337,29 +397,100 @@
       .join("");
   }
 
-  function renderScanHistory(rows, isLive) {
+  function _isHttpUrl(s) {
+    return typeof s === "string" && /^https?:\/\//i.test(s);
+  }
+
+  function _resolveThumb(scan) {
+    const base = window.PLANT_API_BASE || "";
+    const meta = scan && scan.metadata ? scan.metadata : {};
+    const url = scan.image_url || meta.image_url || null;
+    if (url) return _isHttpUrl(url) ? url : `${base}${url.startsWith("/") ? "" : "/"}${url}`;
+    const path = scan.image_path || meta.saved_path || null;
+    if (!path) return null;
+    const norm = (path[0] === "/" ? path : "/" + path).replace(/\\/g, "/");
+    return `${base}${norm}`;
+  }
+
+  /** Clean PlantVision thumbnail block. Falls back to an SVG placeholder
+   *  (a stylized leaf) when no persisted image exists — never shows the
+   *  green-checkerboard healthy_leaf.png placeholder again. */
+  function _renderThumb(scan) {
+    const thumbUrl = _resolveThumb(scan);
+    const statusKey = (scan && scan.status || "WARN").toLowerCase();
+    const thumbCls = `sh-thumb sh-status-${statusKey}`;
+    if (thumbUrl) {
+      return `<span class="${thumbCls}"><img src="${thumbUrl}" alt="" loading="lazy" onerror="this.parentNode.classList.add('sh-thumb-placeholder');this.remove()"></span>`;
+    }
+    return `<span class="${thumbCls} sh-thumb-placeholder" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 4 13V4h9a7 7 0 0 1 7 7v9z"/><path d="M4 4l16 16"/></svg></span>`;
+  }
+
+  function _scanTs(scan) {
+    // Rich rows expose ISO created_at; legacy memory rows expose epoch ts.
+    if (scan && scan.created_at) {
+      const t = Date.parse(scan.created_at);
+      return Number.isNaN(t) ? null : Math.floor(t / 1000);
+    }
+    return typeof scan.timestamp === "number" ? scan.timestamp : null;
+  }
+
+  function _scanLabel(scan) {
+    const disease = _friendlyDisease(scan);
+    const plant = scan && (scan.plant_name || scan.plant_id);
+    return plant ? `${disease} · ${plant}` : disease;
+  }
+
+  function _scanSubLine(scan) {
+    const legacy = _scanLegacyBadge(scan);
+    if (legacy) return legacy;
+    const bits = [];
+    if (scan.id) bits.push(String(scan.id).slice(0, 8));
+    if (scan.device_id) bits.push(scan.device_id);
+    if (scan.scan_source) bits.push(scan.scan_source);
+    return bits.join(" · ") || "—";
+  }
+
+  function renderScanHistory(rows, source, isLive) {
     const body = document.getElementById("scan-table-body");
     const tag = document.getElementById("scan-history-tag");
+    const srcEl = document.getElementById("sh-source");
     if (!body) return;
     if (tag) tag.textContent = rows.length ? `Recent ${rows.length}` : "Recent";
+    if (srcEl) {
+      const labelMap = { postgres: "● Supabase Cloud", memory: "◇ Memory fallback", demo: "○ No persisted scans" };
+      srcEl.textContent = labelMap[source] || "";
+    }
 
     if (!rows.length) {
-      body.innerHTML = isLive
-        ? '<div class="scan-table-empty">No scans yet — run a scan from Home.</div>'
-        : '<div class="scan-table-empty">No scans yet. Demo metrics shown until first scan.</div>';
+      const msg = (shZoneFilter || shStatusFilter)
+        ? "No scans match the current filter."
+        : (isLive ? "No scans yet — run a scan from Home." : "No scans yet. Demo metrics shown until first scan.");
+      body.innerHTML = `<div class="scan-table-empty">${msg}</div>`;
       return;
     }
 
     const html = rows
       .map((r) => {
         const cls = statusTagClass(r.status);
-        const conf = (r.confidence * 100).toFixed(1) + "%";
-        return `<div class="scan-table-row" data-scan-id="${r.scan_id}">
-          <span class="mono col-id">${r.scan_id}</span>
-          <span class="col-detail">${zoneLabel(r.zone_id)} · ${r.disease}</span>
-          <span class="entry-tag ${cls} col-status">${r.status}</span>
-          <span class="mono col-conf">${conf}</span>
-          <span class="mono col-time">${fmtAgo(r.timestamp)}</span>
+        const conf = _friendlyConfidence(r);
+        const ts = _scanTs(r);
+        const time = ts != null ? fmtAgo(ts) : "—";
+        const zoneTxt = zoneLabel(r.zone_id || "");
+        const thumb = _renderThumb(r);
+        const health = (typeof r.health_score === "number" && !_isUnclassified(r))
+          ? `<span class="sh-health"><span class="sh-health-bar" style="--w:${Math.max(0, Math.min(100, r.health_score))}%"></span>${r.health_score}</span>`
+          : `<span class="sh-health">—</span>`;
+        return `<div class="scan-table-row sh-row" data-scan-id="${r.id || ""}" data-scan-zone="${r.zone_id || ""}" tabindex="0" role="button" aria-label="Open scan detail">
+          ${thumb}
+          <span class="sh-detail">
+            <span class="sh-detail-name">${_scanLabel(r)}</span>
+            <span class="sh-detail-sub mono">${_scanSubLine(r)}</span>
+          </span>
+          <span class="sh-zone mono">${zoneTxt}</span>
+          <span class="entry-tag ${cls} col-status">${_friendlyStatusLabel(r.status)}</span>
+          <span class="sh-conf mono">${conf}</span>
+          ${health}
+          <span class="sh-time mono">${time}</span>
         </div>`;
       })
       .join("");
@@ -380,15 +511,23 @@
         const cls = statusTagClass(r.status);
         const thumbCls =
           r.status === "WARN" || r.status === "CRITICAL" ? "entry-t-warn" : "";
-        const img = r.status === "PASS" ? "healthy_leaf.png" : "diseased_leaf.png";
-        return `<article class="entry" data-scan-id="${r.scan_id}">
-          <div class="entry-thumb ${thumbCls}"><img src="${img}" alt="" class="entry-img"></div>
+        const thumbUrl = _resolveThumb(r);
+        const ts = _scanTs(r);
+        const time = ts != null ? fmtAgo(ts) : "—";
+        const shortId = r.id ? String(r.id).slice(0, 8) : (r.scan_id || "");
+        const disease = _friendlyDisease(r);
+        const conf = _friendlyConfidence(r);
+        const thumbInner = thumbUrl
+          ? `<img src="${thumbUrl}" alt="" class="entry-img" loading="lazy" onerror="this.parentNode.classList.add('entry-thumb-placeholder');this.remove()">`
+          : `<svg class="entry-img-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 4 13V4h9a7 7 0 0 1 7 7v9z"/><path d="M4 4l16 16"/></svg>`;
+        return `<article class="entry" data-scan-id="${r.id || r.scan_id || ""}">
+          <div class="entry-thumb ${thumbCls}${thumbUrl ? "" : " entry-thumb-placeholder"}">${thumbInner}</div>
           <div class="entry-body">
             <div class="entry-r1">
-              <span class="entry-name">${r.disease}</span>
-              <span class="entry-tag ${cls}">${r.status}</span>
+              <span class="entry-name">${disease}</span>
+              <span class="entry-tag ${cls}">${_friendlyStatusLabel(r.status)}</span>
             </div>
-            <span class="entry-sub mono">${fmtAgo(r.timestamp)} · ${(r.confidence * 100).toFixed(1)}% · ${r.scan_id}</span>
+            <span class="entry-sub mono">${time} · ${conf} · ${shortId}</span>
           </div>
         </article>`;
       })
@@ -636,13 +775,21 @@
       }
       const sensorLive = sensorCtx && (sensorCtx.mode === "live" || sensorCtx.mode === "stale");
 
-      const [sumRes, histRes, evRes, zoneRes, insRes] = await Promise.all([
+      const scanQs = new URLSearchParams();
+      scanQs.set("limit", "50");
+      if (shZoneFilter)   scanQs.set("zone", shZoneFilter);
+      if (shStatusFilter) scanQs.set("status", shStatusFilter);
+
+      const [sumRes, scanRes, evRes, zoneRes, insRes, homeScanRes] = await Promise.all([
         fetchJson("/analytics/summary"),
-        fetchJson("/analytics/history?limit=12"),
+        fetchJson(`/scans/history?${scanQs.toString()}`),
         fetchJson("/analytics/events?limit=25"),
         fetchJson("/analytics/zones"),
         fetchJson("/analytics/insights"),
+        // Unfiltered top-N for the Home "Recent activity" tile.
+        fetchJson("/scans/history?limit=5"),
       ]);
+      const histRes = scanRes;
 
       const anyOk =
         sumRes.ok || histRes.ok || evRes.ok || zoneRes.ok || insRes.ok;
@@ -652,7 +799,8 @@
       }
 
       let summary = sumRes.ok ? sumRes.data : null;
-      const history = histRes.ok ? histRes.data : null;
+      const richHistory = histRes.ok ? histRes.data : null; // { source, scans:[...] }
+      const homeHistory = homeScanRes.ok ? homeScanRes.data : null;
       const events = evRes.ok ? evRes.data : null;
       const zones = zoneRes.ok ? zoneRes.data : null;
       const insightsRes = insRes.ok ? insRes.data : null;
@@ -668,17 +816,22 @@
       log("refreshed", {
         live: isLive,
         scans: summary && summary.total_scans,
-        history: history && history.length,
+        history: richHistory && (richHistory.scans || []).length,
       });
 
       if (summary) renderSummary(summary);
-      if (history) {
-        const histKey = stableStringify(history);
+      if (richHistory) {
+        const scans = Array.isArray(richHistory.scans) ? richHistory.scans : [];
+        lastRichScans = scans;
+        const histKey = stableStringify({ src: richHistory.source, scans });
         if (force || lastSnapshot.history !== histKey) {
           lastSnapshot.history = histKey;
-          renderScanHistory(history, isLive);
-          renderHomeLog(history);
+          renderScanHistory(scans, richHistory.source || "demo", isLive);
         }
+      }
+      if (homeHistory) {
+        const homeScans = Array.isArray(homeHistory.scans) ? homeHistory.scans : [];
+        renderHomeLog(homeScans);
       }
       if (events) {
         const evKey = stableStringify(events);
@@ -718,10 +871,364 @@
       log("Data page opened — immediate refresh");
       refreshDashboard({ force: true });
     }
+    if (targetId === "page-history") {
+      bindHistoryPage();
+      refreshHistoryPage();
+    }
   }
+
+  // -------------------- Phase 3 — scan history interactions ---------------
+
+  function _envVal(v, suffix) {
+    if (v == null || v === "") return "—";
+    return `${v}${suffix || ""}`;
+  }
+
+  function _renderDetailFromScan(scan) {
+    if (!scan) return;
+    const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    const meta = scan.metadata || {};
+    const snap = scan.sensor_snapshot || meta.sensor_snapshot || null;
+    const conf = ((scan.confidence || 0) * 100).toFixed(1);
+    const ts   = _scanTs(scan);
+
+    setText("sd-title", _friendlyDisease(scan));
+    const subParts = [];
+    if (scan.id) subParts.push("#" + String(scan.id).slice(0, 8));
+    if (scan.zone_id) subParts.push(zoneLabel(scan.zone_id));
+    if (ts != null) subParts.push(fmtAgo(ts));
+    if (scan.is_legacy) subParts.push("legacy scan");
+    setText("sd-sub", subParts.join(" · ") || "—");
+
+    // Image / thumbnail
+    const thumbEl = document.getElementById("sd-thumb");
+    const emptyEl = document.getElementById("sd-thumb-empty");
+    const url = _resolveThumb(scan);
+    if (thumbEl) {
+      if (url) {
+        thumbEl.src = url;
+        thumbEl.removeAttribute("hidden");
+        thumbEl.onerror = () => {
+          thumbEl.setAttribute("hidden", "");
+          if (emptyEl) { emptyEl.textContent = "Image unavailable"; emptyEl.style.display = ""; }
+        };
+        if (emptyEl) emptyEl.style.display = "none";
+      } else {
+        thumbEl.setAttribute("hidden", "");
+        if (emptyEl) { emptyEl.textContent = "No image stored for this scan"; emptyEl.style.display = ""; }
+      }
+    }
+
+    // Meta chips (zone, device, source, plant_id)
+    const metaGrid = document.getElementById("sd-meta-grid");
+    if (metaGrid) {
+      const chips = [];
+      const chip = (lbl, val) => `<span class="sd-meta-chip"><span class="sd-chip-lbl">${lbl}</span><strong>${val}</strong></span>`;
+      chips.push(chip("Zone", zoneLabel(scan.zone_id || "")));
+      if (scan.device_id) chips.push(chip("Device", scan.device_id));
+      if (scan.scan_source) chips.push(chip("Source", scan.scan_source));
+      const pid = scan.plant_id || meta.plant_id;
+      if (pid) chips.push(chip("Plant", pid));
+      const pname = scan.plant_name || meta.plant_name;
+      if (pname) chips.push(chip("Type", pname));
+      if (scan.model_name) chips.push(chip("Model", scan.model_name));
+      metaGrid.innerHTML = chips.join("");
+    }
+
+    // Diagnosis metric cards
+    const metricsEl = document.getElementById("sd-metrics");
+    if (metricsEl) {
+      const cards = [];
+      const card = (lbl, val, mono) => `<div class="sd-metric"><span class="sd-metric-lbl">${lbl}</span><span class="sd-metric-val${mono ? " sd-mono" : ""}">${val}</span></div>`;
+      const unclassified = _isUnclassified(scan);
+      cards.push(card("Confidence", _friendlyConfidence(scan), true));
+      cards.push(card("Health Score", (!unclassified && scan.health_score != null) ? scan.health_score + "%" : "—", true));
+      cards.push(card("Risk Level", (!unclassified && scan.risk_level) || "—"));
+      cards.push(card("Env. Stress", (scan.environment_stress || (meta && meta.environment_stress)) || "—"));
+      cards.push(card("Survival", (!unclassified && scan.survival_score != null) ? scan.survival_score + "%" : "—", true));
+      metricsEl.innerHTML = cards.join("");
+    }
+
+    setText("sd-rec", scan.recommendation || meta.recommendation || "No advisory generated for this scan.");
+
+    // Sensor snapshot or safe fallback
+    const snapEl = document.getElementById("sd-snapshot");
+    if (snapEl) {
+      if (snap && typeof snap === "object") {
+        const snapCards = [
+          ["Air Temp",    snap.air_temperature,   "°C"],
+          ["Air Humidity", snap.air_humidity,     "%"],
+          ["Light",       snap.light_lux,         " lx"],
+          ["Soil Temp",   snap.soil_temperature,  "°C"],
+          ["Soil Hum.",   snap.soil_humidity,     "%"],
+          ["Soil pH",     snap.soil_ph,           ""],
+          ["Soil EC",     snap.soil_ec,           " mS/cm"],
+        ].map(([lbl, val, suf]) => `<div class="sd-snap-card"><span class="sd-snap-lbl">${lbl}</span><span class="sd-snap-val">${_envVal(val, suf)}</span></div>`).join("");
+        snapEl.innerHTML = snapCards;
+      } else {
+        snapEl.innerHTML = `<div class="sd-snap-empty">No sensor snapshot available for this scan.</div>`;
+      }
+    }
+  }
+
+  async function openScanDetail(scanId, zoneIdHint) {
+    const modal = document.getElementById("sd-modal");
+    if (!modal) return;
+    modal.classList.add("active");
+    let scan = null;
+    // Prefer canonical DB record (richer than in-memory fallback)
+    if (scanId && typeof fetchScanDetail === "function") {
+      try { scan = await fetchScanDetail(scanId); } catch (_) { scan = null; }
+    }
+    if (!scan) {
+      // Fall back to the row we already have (in-memory mode)
+      scan = lastRichScans.find((s) => s.id === scanId || s.scan_id === scanId) || null;
+    }
+    if (!scan && zoneIdHint) {
+      scan = lastRichScans.find((s) => s.zone_id === zoneIdHint) || null;
+    }
+    _renderDetailFromScan(scan || { disease: "Scan unavailable", confidence: 0 });
+  }
+
+  function closeScanDetail() {
+    const m = document.getElementById("sd-modal");
+    if (m) m.classList.remove("active");
+  }
+
+  // -------------------- Phase 3 — dedicated Scan History page ------------
+
+  function _statusCardCls(s) {
+    if (s === "PASS") return "hist-st-ok";
+    if (s === "CRITICAL") return "hist-st-crit";
+    if (s === "UNKNOWN") return "hist-st-unk";
+    return "hist-st-warn";
+  }
+
+  function renderHistoryGrid(scans, source) {
+    const grid = document.getElementById("hist-grid");
+    const empty = document.getElementById("hist-empty");
+    const totalEl = document.getElementById("hist-total");
+    const liveEl = document.getElementById("hist-live-tag");
+    if (!grid) return;
+
+    if (liveEl) {
+      const labels = {
+        postgres: "● Supabase Cloud",
+        memory: "◇ Memory fallback",
+        demo: "○ Demo",
+      };
+      liveEl.textContent = labels[source] || "● Live";
+      liveEl.style.color = source === "postgres" ? "var(--sage)" : (source === "memory" ? "var(--gold)" : "var(--t4)");
+    }
+
+    if (!scans.length) {
+      grid.innerHTML = "";
+      grid.hidden = true;
+      if (empty) empty.hidden = false;
+      if (totalEl) totalEl.textContent = "0 scans";
+      return;
+    }
+
+    if (empty) empty.hidden = true;
+    grid.hidden = false;
+    if (totalEl) totalEl.textContent = scans.length + (scans.length === 1 ? " scan" : " scans");
+
+    const html = scans.map((r) => {
+      const thumbUrl = _resolveThumb(r);
+      const stCls = _statusCardCls(r.status);
+      const stLabel = _friendlyStatusLabel(r.status);
+      const ts = _scanTs(r);
+      const time = ts != null ? fmtAgo(ts) : "—";
+      const title = _friendlyDisease(r);
+      // Final polish — keep card subtitles consistent. Show
+      // "Zone · Device" when present, otherwise a subtle "Legacy scan" tag.
+      const baseSub = `${r.zone_id ? zoneLabel(r.zone_id) + " · " : ""}${r.device_id || ""}`.replace(/ · $/, "").trim();
+      const legacyTag = r.is_legacy ? `<span class="hist-card-sub-legacy">Legacy scan</span>` : "";
+      const sub = baseSub
+        ? `${baseSub}${legacyTag ? " · " + legacyTag : ""}`
+        : (legacyTag || "—");
+      const imgBlock = thumbUrl
+        ? `<img src="${thumbUrl}" alt="" loading="lazy" onerror="this.parentNode.classList.add('placeholder');this.remove()">`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 4 13V4h9a7 7 0 0 1 7 7v9z"/><path d="M4 4l16 16"/></svg>`;
+      const imgCls = thumbUrl ? "hist-card-img" : "hist-card-img placeholder";
+      const conf = _friendlyConfidence(r);
+      const health = (typeof r.health_score === "number" && !_isUnclassified(r)) ? r.health_score + "%" : "—";
+      const chips = [];
+      if (r.plant_id)   chips.push(`<span class="hist-card-chip hist-chip-plant">${r.plant_id}</span>`);
+      if (r.scan_source) chips.push(`<span class="hist-card-chip">${r.scan_source}</span>`);
+      if (r.has_sensor_snapshot) chips.push(`<span class="hist-card-chip">+ sensors</span>`);
+
+      return `<article class="hist-card" data-scan-id="${r.id || ""}" data-scan-zone="${r.zone_id || ""}" tabindex="0" role="button" aria-label="Open scan detail">
+        <div class="${imgCls}">
+          ${imgBlock}
+          <span class="hist-status ${stCls}">${stLabel}</span>
+          <span class="hist-time">${time}</span>
+        </div>
+        <div class="hist-card-body">
+          <div>
+            <div class="hist-card-title">${title}</div>
+            <div class="hist-card-sub">${sub || "—"}</div>
+          </div>
+          ${chips.length ? `<div class="hist-card-meta">${chips.join("")}</div>` : ""}
+          <div class="hist-card-stats">
+            <div class="hist-card-stat"><span class="hist-card-stat-lbl">Confidence</span><span class="hist-card-stat-val">${conf}</span></div>
+            <div class="hist-card-stat"><span class="hist-card-stat-lbl">Health</span><span class="hist-card-stat-val">${health}</span></div>
+            <div class="hist-card-stat"><span class="hist-card-stat-lbl">Zone</span><span class="hist-card-stat-val">${zoneLabel(r.zone_id || "")}</span></div>
+          </div>
+        </div>
+      </article>`;
+    }).join("");
+
+    grid.innerHTML = html;
+  }
+
+  async function refreshHistoryPage() {
+    if (histInFlight) return;
+    histInFlight = true;
+    try {
+      const qs = new URLSearchParams();
+      qs.set("limit", "100");
+      if (histZoneFilter) qs.set("zone", histZoneFilter);
+      if (histStatusFilter) qs.set("status", histStatusFilter);
+      const res = await fetchJson(`/scans/history?${qs.toString()}`);
+      if (res.ok && res.data) {
+        const scans = Array.isArray(res.data.scans) ? res.data.scans : [];
+        histScans = scans;
+        renderHistoryGrid(scans, res.data.source || "demo");
+      } else {
+        renderHistoryGrid([], "demo");
+      }
+    } finally {
+      histInFlight = false;
+    }
+  }
+
+  function bindHistoryPage() {
+    const zSel = document.getElementById("hist-zone-filter");
+    const sSel = document.getElementById("hist-status-filter");
+    const reset = document.getElementById("hist-reset");
+    const refresh = document.getElementById("hist-refresh");
+    const grid = document.getElementById("hist-grid");
+
+    if (zSel && !zSel.dataset.bound) {
+      zSel.addEventListener("change", () => {
+        histZoneFilter = zSel.value || "";
+        refreshHistoryPage();
+      });
+      zSel.dataset.bound = "1";
+    }
+    if (sSel && !sSel.dataset.bound) {
+      sSel.addEventListener("change", () => {
+        histStatusFilter = sSel.value || "";
+        refreshHistoryPage();
+      });
+      sSel.dataset.bound = "1";
+    }
+    if (reset && !reset.dataset.bound) {
+      reset.addEventListener("click", () => {
+        histZoneFilter = ""; histStatusFilter = "";
+        if (zSel) zSel.value = "";
+        if (sSel) sSel.value = "";
+        refreshHistoryPage();
+      });
+      reset.dataset.bound = "1";
+    }
+    if (refresh && !refresh.dataset.bound) {
+      refresh.addEventListener("click", () => refreshHistoryPage());
+      refresh.dataset.bound = "1";
+    }
+    if (grid && !grid.dataset.bound) {
+      const handleOpen = (target) => {
+        const card = target.closest(".hist-card");
+        if (!card) return;
+        openScanDetail(card.getAttribute("data-scan-id") || "", card.getAttribute("data-scan-zone") || "");
+      };
+      grid.addEventListener("click", (e) => handleOpen(e.target));
+      grid.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleOpen(e.target); }
+      });
+      grid.dataset.bound = "1";
+    }
+  }
+
+  function bindScanHistoryUI() {
+    // Filter selects
+    const zSel = document.getElementById("sh-zone-filter");
+    const sSel = document.getElementById("sh-status-filter");
+    if (zSel && !zSel.dataset.bound) {
+      zSel.addEventListener("change", () => {
+        shZoneFilter = zSel.value || "";
+        lastSnapshot.history = ""; // force re-render
+        refreshDashboard({ force: true });
+      });
+      zSel.dataset.bound = "1";
+    }
+    if (sSel && !sSel.dataset.bound) {
+      sSel.addEventListener("change", () => {
+        shStatusFilter = sSel.value || "";
+        lastSnapshot.history = "";
+        refreshDashboard({ force: true });
+      });
+      sSel.dataset.bound = "1";
+    }
+
+    // Row click → open detail
+    const body = document.getElementById("scan-table-body");
+    if (body && !body.dataset.bound) {
+      body.addEventListener("click", (e) => {
+        const row = e.target.closest(".sh-row");
+        if (!row) return;
+        const id = row.getAttribute("data-scan-id") || "";
+        const zone = row.getAttribute("data-scan-zone") || "";
+        openScanDetail(id, zone);
+      });
+      body.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        const row = e.target.closest(".sh-row");
+        if (!row) return;
+        e.preventDefault();
+        const id = row.getAttribute("data-scan-id") || "";
+        const zone = row.getAttribute("data-scan-zone") || "";
+        openScanDetail(id, zone);
+      });
+      body.dataset.bound = "1";
+    }
+
+    // Close detail (backdrop + close button)
+    const modal = document.getElementById("sd-modal");
+    const closeBtn = document.getElementById("sd-close");
+    if (closeBtn && !closeBtn.dataset.bound) {
+      closeBtn.addEventListener("click", closeScanDetail);
+      closeBtn.dataset.bound = "1";
+    }
+    if (modal && !modal.dataset.bound) {
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) closeScanDetail();
+      });
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && modal.classList.contains("active")) closeScanDetail();
+      });
+      modal.dataset.bound = "1";
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => { bindScanHistoryUI(); bindHistoryPage(); });
+  } else {
+    bindScanHistoryUI();
+    bindHistoryPage();
+  }
+  // Re-bind after a scan completes (in case the dashboard re-renders empty state).
+  window.addEventListener("plantvision:scan-complete", () => {
+    bindScanHistoryUI();
+    refreshDashboard({ force: true });
+    // Refresh the dedicated history page in background so it's ready next visit.
+    refreshHistoryPage();
+  });
 
   window.plantAnalytics = {
     refresh: (opts) => refreshDashboard({ force: true, ...(opts || {}) }),
+    openScanDetail,
     onNavigate,
     getLastRefreshAt: () => lastRefreshAt,
     start: startPolling,

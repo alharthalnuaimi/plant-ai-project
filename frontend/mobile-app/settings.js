@@ -187,7 +187,7 @@
     );
 
     let camState = "unknown";
-    let camLabel = "Unknown";
+    let camLabel = "Checking…";
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       camState = "off";
       camLabel = "Unsupported";
