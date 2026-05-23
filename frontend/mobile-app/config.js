@@ -14,7 +14,7 @@
   let base = (fromQuery || fromStorage || "").trim();
   if (!base) {
     if (host === "localhost" || host === "127.0.0.1") {
-      base = "http://127.0.0.1:8000";
+      base = "http://192.168.0.108:8000";
     } else {
       // e.g. phone opens http://192.168.1.5:3000 → API on same IP :8000
       base = `http://${host}:8000`;
