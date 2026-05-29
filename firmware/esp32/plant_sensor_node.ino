@@ -80,6 +80,8 @@ void readRS485Soil(SensorSample &s) {
 #endif
 }
 
+#include <WiFiClientSecure.h>
+
 bool postSensorReading(const SensorSample &s) {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi not connected");
@@ -103,7 +105,15 @@ bool postSensorReading(const SensorSample &s) {
 
   String url = String(API_BASE_URL) + "/sensor";
   HTTPClient http;
-  http.begin(url);
+  
+  if (url.startsWith("https://")) {
+    WiFiClientSecure client;
+    client.setInsecure();
+    http.begin(client, url);
+  } else {
+    http.begin(url);
+  }
+  
   http.addHeader("Content-Type", "application/json");
 
   int code = http.POST(body);

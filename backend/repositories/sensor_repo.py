@@ -89,3 +89,27 @@ async def latest_for_device(device_slug: str) -> dict[str, Any] | None:
     except Exception as exc:  # noqa: BLE001
         log.warning("latest_for_device failed: %s", exc)
         return None
+
+
+async def recent_readings(limit: int = 100) -> list[dict[str, Any]]:
+    """Retrieve recent readings across all devices, ordered oldest to newest (recorded_at asc) for sparkline history."""
+    pool = await get_pool()
+    if pool is None:
+        return []
+    try:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                select * from (
+                    select * from public.sensor_readings
+                    order by recorded_at desc
+                    limit $1
+                ) sub
+                order by recorded_at asc
+                """,
+                limit,
+            )
+            return [dict(r) for r in rows]
+    except Exception as exc:  # noqa: BLE001
+        log.warning("recent_readings failed: %s", exc)
+        return []

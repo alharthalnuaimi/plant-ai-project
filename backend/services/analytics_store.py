@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from collections import deque
 from datetime import datetime, timezone
 from typing import Any
+
+log = logging.getLogger("plantvision.analytics_store")
 
 from schemas.analytics import (
     AIInsight,
@@ -232,7 +235,7 @@ def record_device_connected(device_id: str, zone_id: str) -> None:
 
 
 async def hydrate_from_db(limit: int = 200) -> int:
-    """Re-populate the in-memory analytics deque from `scan_results`.
+    """Re-populate the in-memory analytics deque from `scan_results` and `sensor_readings`.
 
     Called at startup so the dashboard / Home log / Assistant context all
     survive a backend restart when persistence is enabled. Returns the
@@ -242,46 +245,91 @@ async def hydrate_from_db(limit: int = 200) -> int:
     global _scan_counter
     if _scans:  # already populated this process
         return 0
+
+    # 1. Hydrate scan history
     try:
         from repositories import scans_repo  # local import to avoid cycles
     except Exception:  # noqa: BLE001
-        return 0
+        scans_repo = None
+
+    loaded = 0
+    if scans_repo:
+        try:
+            rows = await scans_repo.recent(limit=limit)
+        except Exception:  # noqa: BLE001
+            rows = []
+
+        # rows come back newest-first; reverse so the deque order matches the
+        # natural arrival order (older items at the right end).
+        for row in reversed(rows):
+            try:
+                created = row.get("created_at")
+                if isinstance(created, datetime):
+                    ts = created.timestamp()
+                else:
+                    ts = _now()
+                disease = row.get("disease") or "Unknown"
+                confidence = float(row.get("confidence") or 0.0)
+                accepted = bool(row.get("accepted") if row.get("accepted") is not None else True)
+                _scan_counter += 1
+                _scans.appendleft({
+                    "scan_id": f"#{_scan_counter}",
+                    "user_id": row.get("user_slug") or "demo_user",
+                    "zone_id": row.get("zone_slug") or "zone_alpha",
+                    "disease": disease,
+                    "confidence": confidence,
+                    "status": _scan_status(disease, confidence, accepted),
+                    "inference_ms": float(row.get("inference_ms") or 0.0),
+                    "timestamp": ts,
+                    "accepted": accepted,
+                })
+                loaded += 1
+            except Exception:  # noqa: BLE001 — never let one bad row break boot
+                continue
+
+    # 2. Hydrate sensor readings history and warm up cache
+    try:
+        from repositories import sensor_repo
+        from services.sensor_store import save_reading
+        from schemas.sensors import SensorInput
+        from services.sensor_processing import process_sensor_reading
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Sensor hydration imports failed: %s", exc)
+        return loaded
 
     try:
-        rows = await scans_repo.recent(limit=limit)
-    except Exception:  # noqa: BLE001
-        return 0
-    if not rows:
-        return 0
+        sensor_rows = await sensor_repo.recent_readings(limit=limit)
+        for row in sensor_rows:
+            try:
+                payload = SensorInput(
+                    user_id=row.get("user_slug") or "demo_user",
+                    zone_id=row.get("zone_slug") or "zone_alpha",
+                    device_id=row.get("device_slug") or "esp32_001",
+                    air_temperature=float(row["air_temp"]),
+                    air_humidity=float(row["air_humidity"]),
+                    light_lux=float(row.get("lux") or 0),
+                    soil_temperature=float(row["soil_temp"]),
+                    soil_humidity=float(row["soil_moisture"]),
+                    soil_ph=float(row["ph"]),
+                    soil_ec=float(row["ec"]),
+                )
+                reading = process_sensor_reading(payload)
+                recorded_at = row.get("recorded_at")
+                if isinstance(recorded_at, datetime):
+                    ts = recorded_at.astimezone(timezone.utc).replace(microsecond=0).isoformat()
+                    reading = reading.model_copy(update={"timestamp": ts})
+                
+                # Update in-memory cache and append to sparklines
+                save_reading(reading)
+                _append_spark(reading.user_id, reading.zone_id, reading)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("Failed to hydrate sensor reading row: %s", exc)
+                continue
+        if sensor_rows:
+            log.info("Hydrated %d sensor reading(s) from Supabase into in-memory analytics", len(sensor_rows))
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Sensor hydration failed: %s", exc)
 
-    # rows come back newest-first; reverse so the deque order matches the
-    # natural arrival order (older items at the right end).
-    loaded = 0
-    for row in reversed(rows):
-        try:
-            created = row.get("created_at")
-            if isinstance(created, datetime):
-                ts = created.timestamp()
-            else:
-                ts = _now()
-            disease = row.get("disease") or "Unknown"
-            confidence = float(row.get("confidence") or 0.0)
-            accepted = bool(row.get("accepted") if row.get("accepted") is not None else True)
-            _scan_counter += 1
-            _scans.appendleft({
-                "scan_id": f"#{_scan_counter}",
-                "user_id": row.get("user_slug") or "demo_user",
-                "zone_id": row.get("zone_slug") or "zone_alpha",
-                "disease": disease,
-                "confidence": confidence,
-                "status": _scan_status(disease, confidence, accepted),
-                "inference_ms": float(row.get("inference_ms") or 0.0),
-                "timestamp": ts,
-                "accepted": accepted,
-            })
-            loaded += 1
-        except Exception:  # noqa: BLE001 — never let one bad row break boot
-            continue
     return loaded
 
 

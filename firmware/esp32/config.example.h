@@ -6,9 +6,9 @@
 #define WIFI_SSID "YOUR_WIFI_SSID"
 #define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
 
-// FastAPI backend (PC on LAN). Examples:
-//   http://192.168.1.10:8000
-//   http://10.0.2.2:8000   (Android emulator → host PC)
+// FastAPI backend API endpoint. Examples:
+//   - Local LAN dev:   "http://192.168.1.10:8000"
+//   - Public Cloud:     "https://your-app.up.railway.app" (automatic HTTPS supported)
 #define API_BASE_URL "http://192.168.1.10:8000"
 
 #define DEVICE_ID "esp32_001"
