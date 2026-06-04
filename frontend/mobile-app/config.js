@@ -16,7 +16,10 @@
     if (window.__PLANT_API_URL__) {
       base = window.__PLANT_API_URL__;
     } else if (host === "localhost" || host === "127.0.0.1") {
-      base = "http://localhost:8000";
+      // Defensive fallback: env.js normally already provides the Railway
+      // URL, but if a dev clears it manually we still hit the live backend
+      // by default. Use ?api=... or pv-api-base to point at a local backend.
+      base = "https://plant-ai-project-production.up.railway.app";
     } else {
       // e.g. phone opens http://192.168.1.5:3000 → API on same IP :8000
       base = `http://${host}:8000`;
