@@ -240,6 +240,14 @@
         Math.round(backend.air_humidity) +
         "%</b></div>"
       );
+    } else {
+      // Final polish — contextual empty state instead of a bare em-dash.
+      const sensorCtx = zoneDevs.length === 0
+        ? "No device assigned"
+        : (sensorLabel === "Stale"
+          ? "Waiting for ESP32"
+          : (sensorLabel === "Offline" ? "Sensor offline" : "No live reading"));
+      lines.push('<div class="zt-row zt-muted">Sensors: <b>' + sensorCtx + "</b></div>");
     }
     if (scan) {
       lines.push(
@@ -250,7 +258,7 @@
         "%)</div>"
       );
     } else {
-      lines.push('<div class="zt-row zt-muted">Last scan: —</div>');
+      lines.push('<div class="zt-row zt-muted">Last scan: <b>No scans yet</b></div>');
     }
     const totalScans = zoneScanCounts[zid] || 0;
     if (totalScans > 0) {
@@ -302,6 +310,10 @@
   function alertCategory(a) {
     const msg = (a.message || "").toLowerCase();
     const et = (a.event_type || "").toLowerCase();
+    if (et === "ai" || msg.includes("recommend") || msg.includes("ai insight"))
+      return "ai";
+    if (msg.includes("water") || msg.includes("irrigation") || msg.includes("moisture"))
+      return "water";
     if (
       et === "device" ||
       et === "sensor" ||
@@ -708,7 +720,7 @@
       fresh === "live"
         ? "LIVE"
         : fresh === "stale"
-          ? "STALE"
+          ? "WAITING FOR ESP32"
           : "OFFLINE";
     const ago = ts ? " — updated " + fmtAgo(ts) : "";
     return `<span class="dev-fresh dev-fresh-${fresh}">${label}${ago}</span>`;
@@ -808,7 +820,7 @@
           <span class="dev-acc-sub mono">${subParts.join(" · ")}</span>
           <span class="dev-acc-preview dip-${prev.insightTone === "off" ? "off" : prev.insightTone || "pass"}">${prev.insight}</span>
         </span>
-        <span class="dev-fresh dev-fresh-${fresh}">—</span>
+        <span class="dev-fresh dev-fresh-${fresh}">${fresh === "live" ? "LIVE" : fresh === "stale" ? "WAITING FOR ESP32" : "OFFLINE"}</span>
         <span class="dev-acc-chevron" aria-hidden="true"></span>
       </button>
       <div class="dev-acc-body">
@@ -894,7 +906,12 @@
         : selectedZoneKey
           ? "Add devices in zone settings or show all zones."
           : "Connect ESP32 devices or post to /sensor to populate readings.";
-      const emptyHtml = gardenEmptyHtml("📡", msg, hint, "dev-no-devices");
+      const emptyHtml = gardenEmptyHtml(
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.55a8 8 0 0114 0"/><path d="M8.5 16.05a4 4 0 017 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>',
+        msg,
+        hint,
+        "dev-no-devices"
+      );
       const cur = panel.querySelector(".dev-no-devices");
       if (!cur) panel.innerHTML = emptyHtml;
       else if (cur.querySelector(".garden-empty-title")?.textContent !== msg) cur.outerHTML = emptyHtml;
@@ -963,9 +980,13 @@
       existingIds.add(a.id);
       let row = alertEls.get(a.id);
       const cat = alertCategory(a);
-      const ico = { crit: "✕", warn: "!", info: "✓", sys: "◈" }[cat] || "✓";
+      // Emoji-first design language — every alert row uses an approved
+      // emoji (crit:🔴, warn:⚠️, info:✅ Scan Complete, ai:🧠, water:💧,
+      // sys:📢). No SVG glyphs in this content surface.
+      const icoMap = { crit: "🔴", warn: "⚠️", info: "✅", ai: "🧠", water: "💧", sys: "📢" };
+      const ico = icoMap[cat] || "✅";
       const html = `<div class="alert-item alert-${cat}${i === 0 ? " alert-item-new" : ""}" data-alert-id="${a.id}">
-        <span class="alert-ico">${ico}</span>
+        <span class="alert-ico" aria-hidden="true">${ico}</span>
         <div class="alert-body"><span class="alert-msg">${a.message}</span><span class="alert-time mono">${fmtAgo(a.timestamp)}</span></div>
       </div>`;
       if (!row) {
@@ -994,7 +1015,7 @@
     });
 
     if (!alerts.length) {
-      list.innerHTML = gardenEmptyHtml("✓", searchQuery ? "No matching alerts" : "All clear — no active alerts", searchQuery ? "Adjust search or clear the filter." : "Monitoring continues in the background.", "garden-alert-empty");
+      list.innerHTML = gardenEmptyHtml("✅", searchQuery ? "No matching alerts" : "All clear — no active alerts", searchQuery ? "Adjust search or clear the filter." : "Monitoring continues in the background.", "garden-alert-empty");
     } else {
       const empty = list.querySelector(".garden-alert-empty");
       if (empty) empty.remove();
@@ -1023,7 +1044,12 @@
     if (list.innerHTML !== html) {
       if (html) list.innerHTML = html;
       else
-        list.innerHTML = gardenEmptyHtml("◎", "Awaiting zone activity", "Scans and sensor events will appear here.", "garden-act-empty");
+        list.innerHTML = gardenEmptyHtml(
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>',
+          "Awaiting zone activity",
+          "Scans and sensor events will appear here.",
+          "garden-act-empty"
+        );
     }
   }
 

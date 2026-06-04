@@ -206,6 +206,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);display:flex;-
 .sys-chip-crit .sys-chip-dot{background:var(--coral);box-shadow:0 0 8px rgba(176,112,112,.5)}
 .sys-chip-ai{color:var(--sage);background:var(--sage-dim);border-color:rgba(140,168,140,.18)}
 .sys-chip-ai .sys-chip-ico{stroke:var(--sage)}
+/* Phase 4 (A3): Demo Mode badge */
+.sys-chip-demo{color:var(--gold);background:var(--gold-dim);border-color:rgba(192,160,106,.32);font-weight:700;letter-spacing:.8px}
+.sys-chip-demo .sys-chip-dot{background:var(--gold);box-shadow:0 0 10px rgba(192,160,106,.6);animation:pulse 2s ease infinite}
 .sys-chip-fps{font-family:var(--mono);color:var(--t3)}
 .sys-chip-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 .sys-chip-text{white-space:nowrap}
@@ -236,6 +239,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);display:flex;-
 .home-dashboard .stats-row > *{min-width:0}
 .home-dashboard .zone-sensor-card,.home-dashboard .actions-card,.home-dashboard .env-strip,.home-dashboard .log-card{min-width:0;max-width:100%;box-sizing:border-box}
 .dashboard-aside{display:contents}
+/* Phase 4 (B1): wrapper that lets warnings + log + care card span the
+   full grid width as a single column. Mirrors the legacy .log-card
+   `grid-column:1/-1` behaviour but for the whole stack. */
+.home-dashboard .home-log-wrap{grid-column:1/-1;min-width:0;max-width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:12px}
+.home-dashboard .home-log-wrap > .log-card{grid-column:auto;width:100%}
 
 /* ====== SCANNER CARD ====== */
 .scanner-card{grid-column:1;grid-row:1/3;border-radius:var(--rl);overflow:hidden;background:var(--surface);border:1px solid var(--b1);display:flex;flex-direction:column;transition:background .4s,border-color .4s}
@@ -1602,7 +1610,9 @@ body.pv-reduced-motion .an{animation:none!important}
   .home-dashboard .env-strip,
   .home-dashboard .actions-card{grid-column:unset;align-self:stretch;width:100%}
   .home-dashboard .env-strip{display:none}
-  .home-dashboard .log-card{grid-area:log;grid-column:auto}
+  .home-dashboard .log-card{grid-area:auto;grid-column:auto}
+  /* Phase 4 (B1): the wrapper now occupies the bottom row. */
+  .home-dashboard .home-log-wrap{grid-area:log;grid-column:auto}
   .home-dashboard .stats-row{gap:14px}
   .home-dashboard .zone-sensor-card{padding:18px 20px}
   .home-dashboard .env-val{font-size:18px}
@@ -1638,6 +1648,7 @@ body.pv-reduced-motion .an{animation:none!important}
   .zone-sensor-card,.env-strip{grid-column:1}
   .actions-card{grid-column:1}
   .log-card{grid-column:1}
+  .home-log-wrap{grid-column:1}
   .log-grid{grid-template-columns:1fr}
   .scanner-view{min-height:220px}
   .data-grid{grid-template-columns:1fr}
@@ -2145,3 +2156,740 @@ textarea:focus-visible,
   .home-mode-live,
   .chat-fab-ring{animation:none!important}
 }
+
+/* =========================================================
+   Phase 4 — Demo Mode card + Devices diagnostics table
+   ========================================================= */
+.set-card-demo .set-hint{margin-top:8px;line-height:1.5}
+.set-card-demo .set-hint strong{color:var(--gold)}
+
+.set-devices-table{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.set-dev-row{display:grid;grid-template-columns:1.3fr 1fr 1fr .9fr .7fr .7fr;gap:10px;align-items:center;padding:9px 12px;background:var(--surface2);border:1px solid var(--b1);border-radius:var(--rs);font-size:11px;color:var(--t2);transition:background .2s,border-color .2s}
+.set-dev-row:hover{background:var(--surface3);border-color:var(--b2);color:var(--t1)}
+.set-dev-head{background:transparent;border:none;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;font-size:9.5px;font-weight:700;padding:4px 12px 2px}
+.set-dev-head:hover{background:transparent;border:none;color:var(--t3)}
+.set-dev-fresh{font-weight:600;text-transform:uppercase;letter-spacing:.5px;font-size:10px}
+.set-dev-row.fresh-live .set-dev-fresh{color:var(--sage)}
+.set-dev-row.fresh-stale .set-dev-fresh{color:var(--gold)}
+.set-dev-row.fresh-off .set-dev-fresh{color:var(--coral)}
+.set-devices-empty{padding:14px;color:var(--t3);text-align:center;font-size:10.5px}
+
+@media(max-width:768px){
+  .set-dev-row{grid-template-columns:1.2fr 1fr .9fr .8fr;font-size:10.5px}
+  .set-dev-row>span:nth-child(5),
+  .set-dev-row>span:nth-child(6){display:none}
+}
+
+/* =========================================================
+   Phase 4 (B1) — Home dashboard polish
+   * .home-hero-health  — hero plant-health ring + score on scanner card
+   * .home-warnings     — warnings strip above the log card
+   * .home-care-card    — latest care recommendations under the log
+   ========================================================= */
+.home-hero-health{display:flex;align-items:center;gap:12px;padding:10px 14px;margin-top:8px;background:var(--surface2);border:1px solid var(--b1);border-radius:var(--rs);position:relative;overflow:hidden}
+.home-hero-health.tone-ok{border-color:rgba(140,168,140,.32)}
+.home-hero-health.tone-warn{border-color:rgba(192,160,106,.32);background:linear-gradient(135deg,var(--surface2),var(--gold-dim))}
+.home-hero-health.tone-crit{border-color:rgba(176,112,112,.32);background:linear-gradient(135deg,var(--surface2),var(--coral-dim))}
+.home-hero-ring{position:relative;width:54px;height:54px;flex-shrink:0}
+.home-hero-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.home-hero-ring circle{fill:none;stroke-width:5;stroke-linecap:round}
+.home-hero-ring .hhr-track{stroke:var(--b1)}
+.home-hero-ring .hhr-fill{stroke:var(--sage);transition:stroke-dashoffset .6s var(--ease),stroke .3s}
+.home-hero-health.tone-warn .hhr-fill{stroke:var(--gold)}
+.home-hero-health.tone-crit .hhr-fill{stroke:var(--coral)}
+.home-hero-ring-val{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:14px;font-weight:600;color:var(--t1)}
+.home-hero-body{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.home-hero-lbl{font-size:9px;font-weight:700;letter-spacing:.8px;color:var(--t3);text-transform:uppercase}
+.home-hero-title{font-size:13px;font-weight:600;color:var(--t1);line-height:1.25}
+.home-hero-sub{font-size:10.5px;color:var(--t3);font-family:var(--mono);letter-spacing:.2px}
+
+.home-warnings{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;background:linear-gradient(135deg,var(--gold-dim),var(--surface2));border:1px solid rgba(192,160,106,.28);border-radius:var(--r);margin-bottom:12px}
+.home-warnings-ico{display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:8px;background:rgba(192,160,106,.18);color:var(--gold);flex-shrink:0}
+.home-warnings-head{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:700;letter-spacing:.7px;color:var(--gold);text-transform:uppercase;margin-right:6px}
+.home-warn-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:var(--surface2);border:1px solid var(--b2);font-size:10.5px;color:var(--t2);line-height:1.2}
+.home-warn-chip.sev-critical{color:var(--coral);border-color:rgba(176,112,112,.32);background:var(--coral-dim)}
+.home-warn-chip.sev-warning{color:var(--gold);border-color:rgba(192,160,106,.32);background:var(--gold-dim)}
+.home-warn-chip-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0}
+
+.home-care-card{padding:14px 16px;background:var(--surface);border:1px solid var(--b1);border-radius:var(--r);box-shadow:var(--shadow-card);margin-top:12px}
+.home-care-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.home-care-title{font-size:11px;font-weight:700;letter-spacing:.7px;color:var(--t2);text-transform:uppercase}
+.home-care-stage{font-size:10px;color:var(--gold);font-family:var(--mono);letter-spacing:.5px}
+.home-care-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px}
+.home-care-item{display:flex;flex-direction:column;gap:2px;padding:8px 10px;background:var(--surface2);border:1px solid var(--b1);border-radius:var(--rs)}
+.home-care-item-lbl{font-size:9px;font-weight:700;letter-spacing:.6px;color:var(--t3);text-transform:uppercase}
+.home-care-item-val{font-family:var(--mono);font-size:11.5px;color:var(--t1);font-weight:500}
+.home-care-summary{font-size:11.5px;line-height:1.55;color:var(--t2)}
+
+@media(max-width:768px){
+  .home-warnings{padding:8px 10px}
+  .home-care-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .home-care-card{padding:12px}
+}
+
+/* =========================================================
+   Phase Final — additive polish (skeletons, offline banner,
+   chart). Pure additive — does not change any theme tokens.
+   ========================================================= */
+/* Pulsing skeleton placeholder used while initial dashboard
+   data is being fetched. Apply via JS by adding `pv-skeleton`
+   to an element. Stops as soon as real text replaces "—". */
+@keyframes pvSkeletonPulse{0%,100%{opacity:.55}50%{opacity:1}}
+.pv-skeleton{position:relative;color:transparent!important;background:linear-gradient(90deg,var(--surface3) 0%,var(--surface2) 50%,var(--surface3) 100%);background-size:200% 100%;border-radius:6px;display:inline-block;min-width:28px;animation:pvSkeletonPulse 1.4s ease-in-out infinite}
+.stat-card.is-bootstrap .stat-num,
+.stat-card.is-bootstrap .stat-trend{opacity:.55;animation:pvSkeletonPulse 1.4s ease-in-out infinite}
+
+/* Backend-offline / no-internet inline banner. Lives at the
+   top of the .content area without breaking the dashboard
+   layout. Hidden by default; revealed by app.js when either
+   the FastAPI health probe fails OR the browser fires the
+   `offline` event. */
+.pv-offline-banner{display:flex;align-items:center;gap:10px;margin:0 28px 12px;padding:8px 14px;border-radius:var(--rs);background:linear-gradient(135deg,var(--coral-dim),var(--surface2));border:1px solid rgba(176,112,112,.32);color:var(--coral);font-size:11.5px;font-weight:600;letter-spacing:.2px;box-shadow:var(--shadow-card)}
+.pv-offline-banner[hidden]{display:none}
+.pv-offline-banner svg{flex-shrink:0}
+.pv-offline-banner .pv-offline-hint{color:var(--t2);font-weight:400;margin-left:auto;font-family:var(--mono);font-size:10.5px}
+
+/* Phase D — health trend chart card (Home) */
+.home-trend-card{padding:14px 16px;background:var(--surface);border:1px solid var(--b1);border-radius:var(--r);box-shadow:var(--shadow-card);margin-top:12px}
+.home-trend-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.home-trend-title{font-size:11px;font-weight:700;letter-spacing:.7px;color:var(--t2);text-transform:uppercase}
+.home-trend-tag{font-size:10px;color:var(--sage);font-family:var(--mono);letter-spacing:.5px}
+.home-trend-canvas-wrap{position:relative;width:100%;height:140px}
+.home-trend-canvas-wrap canvas{width:100%!important;height:100%!important;display:block}
+.home-trend-empty{display:flex;align-items:center;justify-content:center;height:100%;font-size:11px;color:var(--t3);font-family:var(--mono);letter-spacing:.3px}
+
+@media(max-width:768px){
+  .pv-offline-banner{margin:0 14px 10px;font-size:11px}
+  .home-trend-canvas-wrap{height:120px}
+}
+
+/* =========================================================
+   Final UI polish pass (graduation submission)
+   - Standardize circular icon containers (svg = 60% of box)
+   - Profile page hierarchy (operator first, plant+AI grid)
+   - Scan-history scroll containers (history page + analytics)
+   - Contextual empty-state chips (no bare em-dash)
+   - Tighter settings spacing
+   ALL ADDITIVE: zero token / color changes.
+   ========================================================= */
+
+/* --- 1. Icon containers: every circular container shows its
+       SVG centred via flexbox at 60% of the container diameter.
+       Uses :where() for low specificity so existing rules win. */
+:where(
+  .smc-ico,
+  .garden-sum-ico,
+  .pp-avatar,
+  .notif-ico,
+  .alert-ico,
+  .zm-head-ico,
+  .sd-head-ico,
+  .prof-act-ico,
+  .home-warnings-ico,
+  .prof-metric-ico,
+  .home-care-stage-ico,
+  .scan-zone-ico,
+  .r-ico,
+  .home-log-empty-ico,
+  .pp-rec-ico,
+  .prof-ai-rec-ico,
+  .prof-ai-empty-ico
+){display:flex;align-items:center;justify-content:center}
+
+.smc-ring .smc-ico svg{width:60%;height:60%}
+.garden-sum-ico svg{width:60%;height:60%}
+.pp-avatar svg{width:58%;height:58%}
+.notif-ico svg{width:55%;height:55%}
+.alert-ico svg{width:55%;height:55%}
+.zm-head-ico svg{width:50%;height:50%}
+.sd-head-ico svg{width:52%;height:52%}
+.prof-act-ico svg{width:55%;height:55%}
+.home-warnings-ico svg{width:55%;height:55%}
+.prof-metric-ico svg{width:60%;height:60%}
+.home-log-empty-ico svg{width:52%;height:52%}
+
+/* Force every Lucide-style stroked svg in metric/icon containers
+   to a single stroke-width for visual consistency. */
+.smc-ico svg[stroke],
+.garden-sum-ico svg[stroke],
+.pp-avatar svg[stroke],
+.prof-metric-ico svg[stroke],
+.prof-act-ico svg[stroke]{stroke-width:1.6}
+
+/* Profile metric cards: existing inline icons were a mix of text
+   emoji and svg. Wrap with a real centred container so the icon
+   sits in a sage-tinted 36px chip with the SVG at 60%. */
+.prof-metric-ico{
+  display:flex;align-items:center;justify-content:center;
+  width:36px;height:36px;border-radius:10px;
+  margin:0 auto 6px;
+  background:var(--sage-dim);color:var(--sage);
+  border:1px solid rgba(140,168,140,.18);
+  font-size:15px;line-height:1;opacity:1;
+}
+.prof-metric-card{display:flex;flex-direction:column;align-items:center;gap:0}
+.prof-metric-val{margin-top:2px}
+.prof-metric-lbl{margin-top:4px}
+
+/* Plant Profile avatar already sized — just lock the 60% rule.
+   pp-avatar is 48px which already passed the visual test. */
+.pp-avatar{width:48px;height:48px}
+
+/* --- 2. Profile page hierarchy
+       Operator/Session card sits in its own full-width row.
+       Plant Profile shares a 2-col grid with the AI sidebar.
+       (Plant Profile already contains the recent-scans block.) */
+.prof-operator-row{display:block;max-width:1200px;margin-bottom:18px}
+.prof-operator-row .prof-hero-card{width:100%}
+.prof-operator-row .prof-hero-name{font-size:24px}
+.prof-operator-row .prof-hero-head{padding-bottom:4px;border-bottom:1px solid var(--b1);margin-bottom:18px}
+
+.prof-plant-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr);gap:18px;max-width:1200px;margin-bottom:18px;align-items:start}
+.prof-plant-grid .plant-profile-card{margin-bottom:0}
+.prof-plant-grid .prof-ai-card{align-self:stretch}
+
+@media(max-width:1024px){
+  .prof-plant-grid{grid-template-columns:1fr}
+}
+
+/* Section title sits cleanly above each profile block */
+.prof-section-title{margin-top:4px}
+.prof-section-title:first-of-type{margin-top:0}
+
+/* --- 3. Scan History scrolling
+       Both the dedicated #page-history grid and the Analytics
+       scan-history table get a constrained height + custom
+       themed scrollbar. The toolbar uses position:sticky so
+       filters stay reachable while the grid scrolls beneath.
+       (We deliberately do NOT touch the .page display rule —
+       page show/hide is driven by .active.) */
+#page-history .hist-toolbar{position:sticky;top:0;z-index:5;background:var(--bg);padding:6px 0 8px;margin-bottom:10px}
+#page-history .hist-grid{
+  max-height:calc(100vh - var(--topbar-h) - 240px);
+  min-height:240px;
+  overflow-y:auto;
+  padding:2px 6px 18px 2px;
+  scrollbar-width:thin;
+  scrollbar-color:var(--b2) transparent;
+}
+#page-history .hist-grid::-webkit-scrollbar{width:6px}
+#page-history .hist-grid::-webkit-scrollbar-track{background:transparent}
+#page-history .hist-grid::-webkit-scrollbar-thumb{background:var(--b2);border-radius:4px}
+#page-history .hist-grid::-webkit-scrollbar-thumb:hover{background:var(--b3)}
+
+/* Analytics → Scan History panel — constrained scroll body */
+.page-data .sh-table{display:flex;flex-direction:column;max-height:520px;min-height:240px;border:1px solid var(--b1);border-radius:var(--rs);background:var(--surface2);overflow:hidden}
+.page-data .sh-table .scan-table-head{position:sticky;top:0;z-index:2;background:var(--surface2);border-bottom:1px solid var(--b1)}
+.page-data #scan-table-body{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  scrollbar-width:thin;
+  scrollbar-color:var(--b2) transparent;
+}
+.page-data #scan-table-body::-webkit-scrollbar{width:6px}
+.page-data #scan-table-body::-webkit-scrollbar-track{background:transparent}
+.page-data #scan-table-body::-webkit-scrollbar-thumb{background:var(--b2);border-radius:4px}
+.page-data #scan-table-body::-webkit-scrollbar-thumb:hover{background:var(--b3)}
+.page-data .sh-source{flex-shrink:0}
+
+@media(max-width:768px){
+  #page-history .hist-grid{max-height:calc(100vh - var(--topbar-h) - 200px)}
+  .page-data .sh-table{max-height:420px}
+}
+
+/* --- 4. Contextual empty-state chips
+       Replace bare "—" placeholder text with a small, muted
+       chip so empty data reads as "intentional" rather than
+       broken. Used by the polish JS edits in garden.js and
+       analytics.js. */
+.pv-empty-chip{
+  display:inline-flex;align-items:center;
+  padding:2px 8px;border-radius:999px;
+  background:var(--surface3);border:1px solid var(--b1);
+  font-size:9.5px;font-weight:600;letter-spacing:.4px;
+  color:var(--t3);font-family:var(--font);
+  text-transform:none;
+  white-space:nowrap;
+}
+.pv-empty-chip.pv-empty-warn{
+  color:var(--gold);border-color:rgba(192,160,106,.22);
+  background:var(--gold-dim);
+}
+.pv-empty-chip.pv-empty-off{
+  color:var(--t4);border-color:var(--b1);
+  background:var(--surface3);
+}
+
+/* When a Garden device accordion reports OFFLINE, gently dim
+   the seven sensor mini-cards so the OFFLINE badge is the only
+   loud signal. No content removed — purely visual. */
+.dev-accordion:has(.dev-fresh-offline) .dev-sensor-rows{opacity:.55;filter:saturate(.7)}
+.dev-accordion:has(.dev-fresh-offline) .dev-s-val{color:var(--t4)}
+
+/* Garden device card padding/alignment polish */
+.page-garden .dev-s{padding:10px 6px}
+.page-garden .dev-s-val{font-variant-numeric:tabular-nums}
+.page-garden .dev-sensor-rows{gap:8px}
+
+/* --- 5. Settings spacing — tighten the gap between the
+       8 control-center cards so they read as one dense board
+       instead of floating islands. */
+.settings-grid{gap:14px}
+.settings-control-grid{gap:14px}
+.settings-control-grid .set-card{padding:18px 18px 16px}
+.settings-control-grid .set-row{padding:12px 0}
+.settings-control-grid .d-card-head{margin-bottom:14px}
+.set-card-demo .set-select-wrap{display:flex;align-items:center;gap:8px}
+.set-card-demo .set-select{min-width:200px}
+
+@media(min-width:1280px){
+  .data-grid,.settings-grid{gap:16px}
+}
+
+/* --- 6. General sweep
+       - Long-label overflow ellipsis where missing
+       - Consistent dev-acc-sub truncation on long device IDs
+       - Make sure log-pulse-text doesn't blow out at narrow widths */
+.dev-acc-sub,.dev-acc-preview,.dev-name,.gzs-sub,.pp-sub,
+.sd-sub,.scanner-meta-bot,.set-val-trunc,.entry-name,
+.notif-title,.sh-detail-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prof-metric-lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+
+/* Ensure the topbar brand subline doesn't push system chips off
+   on narrow desktops (1024-1200 sweet spot). */
+@media(max-width:1200px){
+  .topbar-sub{display:none}
+}
+
+/* Reduce excessive vertical whitespace in the System Status
+   inner grid + nudge dot alignment for crisper rows. */
+.set-status-card .status-grid{gap:10px}
+.status-item{padding:10px 12px}
+
+/* Inline "no reading" placeholder for analytics zone-health metrics */
+.zone-health-metrics .zh-miss{
+  font-style:normal;color:var(--t4);
+  font-size:9px;letter-spacing:.4px;
+  padding:1px 6px;border-radius:6px;
+  background:var(--surface3);border:1px solid var(--b1);
+  font-family:var(--font);
+}
+
+/* "Waiting for ESP32" can run longer than the existing badge cell —
+   make sure it can wrap onto a second line without breaking the
+   accordion header. */
+.page-garden .dev-fresh{max-width:140px;line-height:1.25;text-align:right;white-space:normal;font-size:8.5px}
+
+/* Plant Profile card needs a touch less bottom margin now that
+   it sits inside its own grid row. */
+.prof-plant-grid .plant-profile-card{padding:20px 22px 16px}
+
+
+/* =========================================================
+   Second-pass refinement (delta on top of the polish pass)
+   - Bigger, more confident metric icons (SaaS dashboard feel)
+   - Profile page = vertical story (5 stacked blocks)
+   - Scroll containment on activity + alerts feeds
+   - Spacing rhythm + card consistency normalisation
+   - Hybrid emoji/icon support (content surfaces only)
+   ALL ADDITIVE: no token / colour / typography changes.
+   ========================================================= */
+
+/* ---------- A. METRIC ICONS — bigger + bolder strokes -------- */
+/* Override the previous-pass smc-ring (44px / 60% / 1.6 stroke)
+   with a more confident 48px ring, 66% SVG, 2.0 stroke. */
+.smc-ring{width:48px;height:48px}
+.smc-ring .smc-ico svg{width:66%;height:66%}
+.smc-ico svg[stroke]{stroke-width:2}
+/* Same treatment for the cucumber-profile metric chips below
+   "Plant Health Details". Container 36px → 40px, svg 60% → 66%,
+   stroke 1.6 → 2. */
+.prof-metric-ico{width:40px;height:40px;font-size:17px}
+.prof-metric-ico svg{width:66%;height:66%}
+.prof-metric-ico svg[stroke]{stroke-width:2}
+/* Garden summary chips (the small 4 strip at top of Garden) get
+   the same stroke treatment so cards read as one family. */
+.garden-sum-ico svg[stroke]{stroke-width:2}
+.garden-sum-ico svg{width:64%;height:64%}
+/* Notif + alert chips stay a notch lighter so they don't outweigh
+   their badge counterpart, but bump from 1.6 → 1.8. */
+.notif-ico svg[stroke],
+.alert-ico svg[stroke]{stroke-width:1.8}
+
+@media(max-width:768px){
+  .smc-ring{width:42px;height:42px}
+}
+
+/* ---------- B. PROFILE PAGE — vertical story flow ------------ */
+/* Remove the 2-col Plant + AI grid; every profile block is now a
+   single full-width row stacked vertically. The 5 blocks the user
+   sees are: Operator → AI Assistant → Plant Profile → Recent
+   Scans → Plant Health Details. */
+.prof-plant-grid{display:flex;flex-direction:column;gap:0;grid-template-columns:none}
+.prof-plant-grid > *{width:100%;max-width:none}
+.prof-plant-grid .plant-profile-card{margin-bottom:0;padding:20px 22px 18px}
+.prof-plant-grid .prof-ai-card{align-self:stretch;width:100%}
+@media(max-width:1024px){.prof-plant-grid{grid-template-columns:none}}
+
+/* New wrappers for the three additional rows. Same max-width and
+   vertical rhythm as the operator + plant rows. */
+.prof-ai-row,
+.prof-plant-row,
+.prof-scans-row,
+.prof-health-row{display:block;max-width:1200px;margin-bottom:18px}
+.prof-ai-row > .prof-ai-card{width:100%}
+.prof-plant-row > .plant-profile-card{width:100%;margin-bottom:0;padding:20px 22px 18px}
+.prof-scans-row > .pp-scans-card{width:100%;background:var(--surface);border:1px solid var(--b1);border-radius:var(--r);padding:18px 20px 16px;box-shadow:var(--shadow-card)}
+.prof-scans-row .pp-history{margin:0}
+.prof-scans-row .pp-history-head{margin-bottom:10px}
+.prof-health-row > .prof-metrics-row{margin-bottom:0}
+
+/* Recent Scans extracted card needs the same .pp-history list
+   styling it had inside .plant-profile-card. */
+.prof-scans-row .pp-history-list{gap:6px}
+
+/* Section titles get consistent rhythm above each block. */
+.prof-section-title{margin:18px 0 10px;letter-spacing:2.2px}
+.prof-section-title:first-of-type{margin-top:0}
+
+/* Plant Profile card's inner pp-history is hidden when we have
+   extracted Recent Scans into its own block. */
+.plant-profile-card.pp-no-history .pp-history{display:none}
+
+/* ---------- C. SCROLL CONTAINMENT — activity / alerts -------- */
+/* Activity feed on Garden Command Center */
+#garden-activity-list,
+.garden-activity-list{
+  max-height:320px;
+  overflow-y:auto;
+  padding-right:4px;
+  scrollbar-width:thin;
+  scrollbar-color:var(--b2) transparent;
+}
+.garden-activity-list::-webkit-scrollbar{width:6px}
+.garden-activity-list::-webkit-scrollbar-track{background:transparent}
+.garden-activity-list::-webkit-scrollbar-thumb{background:var(--b2);border-radius:4px}
+.garden-activity-list::-webkit-scrollbar-thumb:hover{background:var(--b3)}
+
+/* Live alerts panel — same treatment, slightly shorter */
+#garden-alert-list,
+.garden-alert-list{
+  max-height:300px;
+  overflow-y:auto;
+  padding-right:4px;
+  scrollbar-width:thin;
+  scrollbar-color:var(--b2) transparent;
+}
+.garden-alert-list::-webkit-scrollbar{width:6px}
+.garden-alert-list::-webkit-scrollbar-track{background:transparent}
+.garden-alert-list::-webkit-scrollbar-thumb{background:var(--b2);border-radius:4px}
+.garden-alert-list::-webkit-scrollbar-thumb:hover{background:var(--b3)}
+
+/* Reinforce themed scrollbar on Analytics event feed (already
+   constrained, but normalise hover state to match the rest). */
+.event-feed-list::-webkit-scrollbar-thumb:hover{background:var(--b3)}
+.event-feed-list{padding-right:4px;max-height:280px}
+
+/* Recent Activity list on the Profile page (after restructure) */
+#prof-activity-list,
+.prof-activity-list{
+  max-height:260px;
+  overflow-y:auto;
+  padding-right:4px;
+  scrollbar-width:thin;
+  scrollbar-color:var(--b2) transparent;
+}
+.prof-activity-list::-webkit-scrollbar{width:6px}
+.prof-activity-list::-webkit-scrollbar-track{background:transparent}
+.prof-activity-list::-webkit-scrollbar-thumb{background:var(--b2);border-radius:4px}
+.prof-activity-list::-webkit-scrollbar-thumb:hover{background:var(--b3)}
+
+/* ---------- D. SPACING RHYTHM normalisation ------------------ */
+/* Analytics cards: bring chart card padding into line with siblings */
+.page-data .d-card{padding:18px 20px}
+.page-data .d-card .d-card-head{margin-bottom:14px}
+.page-data .chart-area{padding:6px 0 4px}
+.page-data .chart-area-split{gap:16px}
+.page-data .env-trends{gap:14px}
+.page-data .perf-grid-runtime{margin-bottom:6px}
+
+/* Garden command center: tighten right-side panel gap so map &
+   sidebar read as siblings; map keeps its dominant 55%+ split. */
+.page-garden .garden-layout{gap:16px}
+.page-garden .garden-sidebar{display:flex;flex-direction:column;gap:14px}
+.page-garden .garden-devices-card,
+.page-garden .garden-alerts-card{padding:18px 20px}
+/* Header sits outside the scroll container .garden-alert-list,
+   so it stays put naturally as alerts scroll. No sticky hack. */
+.page-garden .garden-alerts-card .d-card-head{margin-bottom:12px}
+.page-garden .garden-activity-card{padding:14px 16px}
+.page-garden .garden-activity-card .d-card-head{margin-bottom:10px}
+
+/* Zone cards (the 3 zone health cards) get a uniform min-height
+   so they look like siblings even if one has fewer metrics. */
+.page-data .zone-health-card{min-height:160px;display:flex;flex-direction:column;justify-content:space-between}
+
+/* ---------- E. CARD CONSISTENCY — radii + headings ----------- */
+/* Replace ad-hoc 14/18px radii with our --r / --rl tokens
+   wherever the literal won't break legacy hover targets. */
+.hist-toolbar-row,
+.hist-card,
+.chat-bubble,
+.chat-qa-chip,
+.chat-bubble-card,
+.scan-opt-btn,
+.r-metric{border-radius:var(--r)}
+.r-advisory{border-radius:var(--r)}
+.plant-profile-card,
+.sd-modal{border-radius:var(--rl)}
+/* pp-avatar inherits via :where(); leave as-is */
+
+/* Card heading → first content gap should be a consistent 12px
+   across the chrome (settings already at 14; analytics now at
+   14; home log keeps its own rhythm). */
+.set-card .d-card-head,
+.garden-alerts-card .d-card-head,
+.garden-devices-card .d-card-head{margin-bottom:12px}
+
+/* ---------- F. HEALTH-STATE PILL ACCENT (profile + result) --- */
+/* The .pp-status pill already conveys colour. Tighten its
+   padding and let the leading emoji breathe. */
+.pp-status{padding:5px 12px;font-weight:600;display:inline-flex;align-items:center;gap:5px;line-height:1.3}
+
+/* Hybrid pill style for the result modal headline: lets a
+   leading emoji sit on the same baseline as the title text. */
+.rm-headline{display:inline-flex;align-items:center;justify-content:center;gap:8px}
+
+/* Care card label gap (so the leading emoji has air) */
+.home-care-item-lbl{display:inline-flex;align-items:center;gap:5px}
+
+/* Warnings header text + dot get the same hybrid treatment */
+.home-warnings-head{gap:6px}
+
+/* ---------- G. EVENT FEED + ACTIVITY ITEMS spacing ------------ */
+.event-item{padding:10px 6px}
+.garden-act-item{padding:8px 0;display:flex;gap:10px;align-items:flex-start;border-bottom:1px solid var(--b1);font-size:11px;line-height:1.45}
+.garden-act-item:last-child{border-bottom:none}
+
+/* ---------- H. AI ASSISTANT bubble header accent -------------- */
+/* The existing .chat-bubble-title already sets display:flex /
+   align:center / gap:6px (line ~1802). Hide the decorative
+   sage ::before dot now that the 🧠 emoji is doing the same
+   "this row is AI" job — keeps the title from feeling crowded. */
+.chat-bubble-title:has(> span[aria-hidden])::before{display:none}
+.chat-bubble-title > span[aria-hidden]{font-size:11px;line-height:1}
+
+/* ---------- I. ALERT chips emoji sizing ----------------------- */
+/* Garden alert-ico used to carry single glyphs (! / ✕) at
+   font-size:10px. With emoji it needs a touch more room so the
+   character is readable without overflowing the chip. */
+.alert-ico{font-size:13px;line-height:1}
+.notif-ico{font-size:14px;line-height:1}
+
+/* ---------- J. CARE label emoji prefix ------------------------ */
+/* The leading emoji span sits *before* the text in the label.
+   Match the 13px baseline used across other emoji-first card
+   surfaces so all four care chips (💧 / ☀️ / 🌡️ / 💨) render
+   at identical visual weight. */
+.home-care-item-lbl > span[aria-hidden]{font-size:13px;line-height:1;opacity:.95}
+
+/* ---------- K. Warnings strip emoji prefix -------------------- */
+/* The chip's leading emoji span shouldn't blow out the dot's
+   alignment — match its font-size to chip body, keep it tight. */
+.home-warn-chip > span[aria-hidden]{font-size:11px;line-height:1}
+.home-warnings-head > span[aria-hidden]{font-size:13px;line-height:1}
+
+/* ---------- L. AI rec emoji accents --------------------------- */
+.prof-ai-rec,
+.pp-rec{line-height:1.55}
+
+/* ---------- M. SECTION TITLE emoji prefix --------------------- */
+/* The Plant Health Details section heading carries a leading 🩺
+   emoji. Lock it so the heavy letter-spacing of .mono section
+   titles doesn't push it off baseline. */
+.prof-section-title > span[aria-hidden]{
+  display:inline-block;
+  font-size:14px;
+  letter-spacing:0;
+  margin-right:4px;
+  line-height:1;
+  vertical-align:-1px;
+}
+
+/* ---------- N. ACTIVITY FEED emoji ---------------------------- */
+/* prof-act-ico hosts approved emojis (📷 / ✅ / ⚠️ / 🧠 / 🔴 / 📢) —
+   make sure the 12px font-size from line 1456 doesn't clip the glyph. */
+.prof-act-ico{font-size:13px;line-height:1}
+
+/* =========================================================
+   Emoji-first design-language pivot
+   ---------------------------------------------------------
+   Every card surface (Home stats, Analytics SMC, Profile
+   metrics, System Diagnostics, Garden alerts, Garden summary,
+   notifications, result modal, status pills, care card) now
+   uses approved emojis at consistent size/baseline. Sidebar
+   and topbar are the only remaining SVG-icon zones. CSS-only
+   pivot — no token / color / typography changes.
+   ========================================================= */
+
+/* --- Emoji rendering inside circular icon containers.
+   The `font-size` is calibrated to fill ~55–60% of the
+   container, matching the visual weight that the SVG icons
+   carried before the swap. Line-height:1 keeps the glyph
+   from inflating the row, and the text-rendering hint
+   silences variant-selector fall-back to monochrome. */
+:where(.smc-ico,.garden-sum-ico,.prof-metric-ico,.alert-ico,
+       .notif-ico,.prof-act-ico,.r-ico-emoji,.prof-diag-ico,
+       .status-ico,.stat-badge,.home-warnings-head > span,
+       .home-care-item-lbl > span,.home-warn-chip > span,
+       .pp-status,.r-advisory-ico,.prof-ai-empty-ico,
+       .pp-rec-ico,.prof-ai-rec-ico){
+  font-variant-emoji:emoji;
+  text-rendering:optimizeLegibility;
+  font-feature-settings:"liga" off;
+}
+
+/* SMC rings (Analytics System Metrics) — emoji needs the
+   ring's full visual presence. Override the prior 16px font
+   so the emoji sits at ~24px inside the 48px ring. */
+.smc-ring .smc-ico{font-size:24px;line-height:1}
+@media(max-width:768px){.smc-ring .smc-ico{font-size:20px}}
+
+/* Garden summary chip emoji (the 4 strip at top of Garden) */
+.garden-sum-ico{font-size:22px;line-height:1}
+@media(max-width:768px){.garden-sum-ico{font-size:18px}}
+
+/* Home stats row — small status badges. The original sb-* badges
+   carried 8px text glyphs (OK / ! / ✕); emojis need a touch more
+   font-size to render. The neutral background still encodes tone
+   colour through .sb-ok/.sb-warn/.sb-crit. */
+.stat-badge{font-size:14px;font-weight:400;line-height:1;background:transparent;width:auto;height:auto;padding:0}
+.sb-ok,.sb-warn,.sb-crit{background:transparent}
+
+/* Profile metric chip emoji — bump emoji rendering size to ~18px
+   so it carries the row's visual weight without crowding. */
+.prof-metric-ico{font-size:18px;line-height:1}
+
+/* System Diagnostics emoji prefix (Profile + Settings).
+   The dot stays as a small status colour cue; the emoji is the
+   identity. Spacing keeps the row at the same height. */
+.prof-diag-ico,.status-ico{font-size:14px;line-height:1;flex-shrink:0}
+.prof-diag-item{gap:6px}
+.status-item{gap:8px}
+.status-ico{margin-top:1px}
+
+/* Result modal hero icon — the 62px ring now hosts an emoji
+   instead of a stroked SVG. Centre the glyph at a generous size
+   so it reads as the "single hero" element of the card. */
+.r-ico-emoji{display:inline-flex;align-items:center;justify-content:center;font-size:32px;line-height:1;width:100%;height:100%}
+
+/* Result modal advisory icon — was a stroked brain SVG, now 🧠.
+   Drop the box treatment so the emoji sits inline with the
+   "AI ADVISORY" eyebrow without an extra chip background. */
+.r-advisory-ico{background:transparent;border:none;width:auto;height:auto;font-size:16px;line-height:1}
+
+/* --- Alert items (Garden Live Alerts) — emoji-first.
+   Bump emoji font-size, give the row a touch more padding, and
+   add a 3px left border whose colour mirrors the severity token
+   so severity is glanceable without needing colour theming. */
+.alert-ico{font-size:16px;line-height:1;background:transparent;width:auto;height:auto;border-radius:0}
+.alert-item{padding-top:10px;padding-bottom:10px;border-left:3px solid var(--b1);padding-left:10px;border-radius:6px}
+.alert-item.alert-crit{border-left-color:var(--coral)}
+.alert-item.alert-warn{border-left-color:var(--gold)}
+.alert-item.alert-info{border-left-color:var(--sage)}
+.alert-item.alert-ai{border-left-color:#b09cd6}
+.alert-item.alert-water{border-left-color:#7ba4c7}
+.alert-item.alert-sys{border-left-color:#8aa8c8}
+/* When alert-ico contains an emoji (no SVG), neutralise the
+   tone-tinted background overrides applied earlier in the file. */
+.page-garden .alert-ico,
+.alert-warn .alert-ico,
+.alert-crit .alert-ico,
+.alert-ok   .alert-ico,
+.page-garden .alert-info .alert-ico,
+.page-garden .alert-warn .alert-ico,
+.page-garden .alert-crit .alert-ico,
+.page-garden .alert-sys  .alert-ico{background:transparent;color:inherit}
+
+/* Notif-ico — already emoji; ensure the same render hint applies. */
+.notif-ico{font-size:16px;line-height:1}
+
+/* The `prof-diag-item span:nth-child(2)::before` rule (line ~2027)
+   added a 14px decorative empty square before whichever span sat
+   at position 2. Now that we have a real emoji prefix
+   (.prof-diag-ico) inserted at position 1, the dot has shifted to
+   nth-child(2) and the label to nth-child(3) — the decoration
+   would land on the wrong element. Suppress every ::before
+   decoration in the row at matching specificity (same compound
+   selector form as the original, so cascade order wins). */
+.prof-diag-item span:nth-child(1)::before,
+.prof-diag-item span:nth-child(2)::before,
+.prof-diag-item span:nth-child(3)::before,
+.prof-diag-item span:nth-child(4)::before{content:none}
+/* Re-pin layout to classes (not :nth-child) now that the emoji
+   pushed every span one slot to the right. */
+.prof-diag-item span.prof-diag-dot{flex:0 0 8px;width:8px}
+.prof-diag-item span.prof-diag-ico{flex:0 0 auto}
+.prof-diag-item .prof-diag-dot ~ span:not(.prof-diag-lbl){flex:1;color:var(--t2)}
+
+/* =========================================================
+   Profile ultrawide layout — let the vertical sections grow
+   on ≥1440px and ≥1680px screens so the page no longer leaves
+   big empty side gutters. Mobile/tablet behaviour preserved
+   by the existing ≤1024px and ≤768px breakpoints above.
+   ========================================================= */
+@media(min-width:1440px){
+  #page-profile .prof-operator-row,
+  #page-profile .prof-ai-row,
+  #page-profile .prof-plant-row,
+  #page-profile .prof-scans-row,
+  #page-profile .prof-health-row,
+  #page-profile .prof-metrics-row,
+  #page-profile .prof-mid-grid,
+  #page-profile .prof-bottom-grid,
+  #page-profile .prof-plant-grid{max-width:1480px}
+  #page-profile .prof-metrics-row{grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}
+  /* Plant Profile + Plant Health Details + AI Summary fill width
+     so chip rows can flow horizontally rather than wrap tight. */
+  #page-profile .prof-plant-row > .plant-profile-card,
+  #page-profile .prof-ai-row    > .prof-ai-card,
+  #page-profile .prof-scans-row > .pp-scans-card,
+  #page-profile .prof-operator-row > .prof-hero-card{width:100%;max-width:100%}
+  /* Diagnostics grid widens to 3 columns so 6 entries fit one row. */
+  #page-profile .prof-diag-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+@media(min-width:1680px){
+  #page-profile .prof-operator-row,
+  #page-profile .prof-ai-row,
+  #page-profile .prof-plant-row,
+  #page-profile .prof-scans-row,
+  #page-profile .prof-health-row,
+  #page-profile .prof-metrics-row,
+  #page-profile .prof-mid-grid,
+  #page-profile .prof-bottom-grid,
+  #page-profile .prof-plant-grid{max-width:1600px}
+  /* On true ultrawide, hero plant-stats and history rows breathe. */
+  #page-profile .pp-stats{grid-template-columns:repeat(5,minmax(0,1fr));gap:18px}
+  #page-profile .prof-bottom-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+}
+
+/* --- Consistent card heights for sibling-card rows.
+   Avoids the irregular-collage look when one card has more
+   trend text than its siblings. */
+.stats-row .stat-card,
+.sys-metrics-grid .sys-metric-card,
+.prof-metrics-row .prof-metric-card{min-height:96px}
+.garden-summary-row .garden-sum-card{min-height:78px}
+@media(max-width:768px){
+  .stats-row .stat-card,
+  .sys-metrics-grid .sys-metric-card,
+  .prof-metrics-row .prof-metric-card{min-height:84px}
+}
+
+/* --- pp-status pill — emoji-first. The pill already encodes
+   colour through .pp-status-ok/.pp-status-warn/.pp-status-crit;
+   bump font-size slightly so the leading emoji reads cleanly. */
+.pp-status{font-size:11px}
+

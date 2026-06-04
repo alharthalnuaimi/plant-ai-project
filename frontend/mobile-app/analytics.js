@@ -457,7 +457,7 @@
     if (!body) return;
     if (tag) tag.textContent = rows.length ? `Recent ${rows.length}` : "Recent";
     if (srcEl) {
-      const labelMap = { postgres: "● Supabase Cloud", memory: "◇ Memory fallback", demo: "○ No persisted scans" };
+      const labelMap = { postgres: "● Supabase Cloud", memory: "● Memory fallback", demo: "○ No persisted scans" };
       srcEl.textContent = labelMap[source] || "";
     }
 
@@ -578,13 +578,15 @@
 
     const metrics = card.querySelector(".zone-health-metrics");
     if (metrics) {
-      const temp = z.air_temperature != null ? z.air_temperature.toFixed(1) + "°C" : "—";
-      const hum = z.air_humidity != null ? z.air_humidity.toFixed(0) + "%" : "—";
-      const ph = z.soil_ph != null ? z.soil_ph.toFixed(1) : "—";
-      const ec = z.soil_ec != null ? z.soil_ec.toFixed(1) : "—";
+      // Final polish — contextual empty value instead of a bare em-dash.
+      const _miss = "<i class='zh-miss'>No reading</i>";
+      const temp = z.air_temperature != null ? z.air_temperature.toFixed(1) + "°C" : _miss;
+      const hum = z.air_humidity != null ? z.air_humidity.toFixed(0) + "%" : _miss;
+      const ph = z.soil_ph != null ? z.soil_ph.toFixed(1) : _miss;
+      const ec = z.soil_ec != null ? z.soil_ec.toFixed(1) : _miss;
       const texts = [`Temp: ${temp}`, `Humid: ${hum}`, `pH: ${ph}`, `EC: ${ec}`];
       metrics.querySelectorAll("span").forEach((sp, i) => {
-        if (texts[i] && sp.textContent !== texts[i]) sp.textContent = texts[i];
+        if (texts[i] && sp.innerHTML !== texts[i]) sp.innerHTML = texts[i];
       });
     }
 
@@ -1014,7 +1016,7 @@
     if (liveEl) {
       const labels = {
         postgres: "● Supabase Cloud",
-        memory: "◇ Memory fallback",
+        memory: "● Memory fallback",
         demo: "○ Demo",
       };
       liveEl.textContent = labels[source] || "● Live";

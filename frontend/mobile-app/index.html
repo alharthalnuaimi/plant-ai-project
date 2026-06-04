@@ -72,6 +72,10 @@
             </div>
             <div class="topbar-right">
                 <div class="sys-strip" aria-label="System status">
+                    <div class="sys-chip sys-chip-demo" id="sys-chip-demo" title="Demo Mode is active — backend, ESP32 and Supabase are bypassed. Toggle in Settings → Demo Mode." hidden>
+                        <span class="sys-chip-dot"></span>
+                        <span class="sys-chip-text">DEMO</span>
+                    </div>
                     <div class="sys-chip sys-chip-ok" id="sys-chip-net" title="Network connection">
                         <span class="sys-chip-dot"></span>
                         <span class="sys-chip-text">System Online</span>
@@ -123,6 +127,16 @@
         <!-- Content Area -->
         <div class="content">
 
+            <!-- Phase Final — backend / network offline banner. Hidden by
+                 default; revealed by app.js when checkBackendHealth fails
+                 OR when the browser fires the `offline` event. Polls so it
+                 self-dismisses on reconnect. -->
+            <div class="pv-offline-banner" id="pv-offline-banner" role="status" aria-live="polite" hidden>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 1l22 22"/><path d="M16.72 11.06A10.94 10.94 0 0119 12.55"/><path d="M5 12.55a10.94 10.94 0 015.17-2.39"/><path d="M10.71 5.05A16 16 0 0122.58 9"/><path d="M1.42 9a15.91 15.91 0 014.7-2.88"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+                <span id="pv-offline-banner-text">Backend offline — switch to Demo Mode in Settings to continue without a live connection.</span>
+                <span class="pv-offline-hint">Auto-retry…</span>
+            </div>
+
             <!-- ===== PAGE: HOME ===== -->
             <div class="page page-home active" id="page-home">
             <div class="grid-layout home-dashboard">
@@ -132,7 +146,7 @@
                     <div class="scanner-header">
                         <div class="scanner-head-l">
                             <span class="scanner-label">SCAN MODULE</span>
-                            <span class="home-mode-badge home-mode-sim" id="home-mode-badge" title="Toggle in Settings → Sensors">◆ Simulation</span>
+                            <span class="home-mode-badge home-mode-sim" id="home-mode-badge" title="Toggle in Settings → Sensors">● Simulation</span>
                         </div>
                         <div class="scanner-head-r">
                             <label class="scan-zone-picker" id="scan-zone-picker" title="Zone the next scan will be attributed to">
@@ -190,6 +204,21 @@
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="3" y1="12" x2="7" y2="12"/><line x1="17" y1="12" x2="21" y2="12"/></svg>
                         </button>
                     </div>
+                    <!-- Phase 4 (B1): hero plant-health score on the scanner card -->
+                    <div class="home-hero-health tone-ok" id="home-hero-health" hidden>
+                        <div class="home-hero-ring" aria-hidden="true">
+                            <svg viewBox="0 0 40 40">
+                                <circle class="hhr-track" cx="20" cy="20" r="17"/>
+                                <circle class="hhr-fill" id="home-hero-ring-fill" cx="20" cy="20" r="17" stroke-dasharray="106.81" stroke-dashoffset="106.81"/>
+                            </svg>
+                            <span class="home-hero-ring-val" id="home-hero-val">—</span>
+                        </div>
+                        <div class="home-hero-body">
+                            <span class="home-hero-lbl">PLANT HEALTH</span>
+                            <span class="home-hero-title" id="home-hero-title">Awaiting first scan</span>
+                            <span class="home-hero-sub" id="home-hero-sub">Run a scan to compute the hero score</span>
+                        </div>
+                    </div>
                 </section>
 
                 <aside class="dashboard-aside">
@@ -199,7 +228,7 @@
                         <span class="stat-live-dot" aria-hidden="true"></span>
                         <div class="stat-top">
                             <span class="stat-num mono" id="home-stat-healthy">—</span>
-                            <span class="stat-badge sb-ok">OK</span>
+                            <span class="stat-badge sb-ok" aria-hidden="true">🌱</span>
                         </div>
                         <span class="stat-label">Healthy Zones</span>
                         <span class="stat-trend st-up" id="home-stat-healthy-sub">Awaiting sensor data</span>
@@ -209,7 +238,7 @@
                         <span class="stat-live-dot" aria-hidden="true"></span>
                         <div class="stat-top">
                             <span class="stat-num mono" id="home-stat-warn">—</span>
-                            <span class="stat-badge sb-warn">!</span>
+                            <span class="stat-badge sb-warn" aria-hidden="true">⚠️</span>
                         </div>
                         <span class="stat-label">At Risk</span>
                         <span class="stat-trend st-flat" id="home-stat-warn-sub">Monitoring</span>
@@ -219,7 +248,7 @@
                         <span class="stat-live-dot" aria-hidden="true"></span>
                         <div class="stat-top">
                             <span class="stat-num mono" id="home-stat-crit">—</span>
-                            <span class="stat-badge sb-crit">✕</span>
+                            <span class="stat-badge sb-crit" aria-hidden="true">🔴</span>
                         </div>
                         <span class="stat-label">Critical</span>
                         <span class="stat-trend st-flat" id="home-stat-crit-sub">Monitoring</span>
@@ -319,25 +348,62 @@
 
                 </aside>
 
-                <!-- Log Card -->
-                <section class="log-card an" style="--d:.45s">
-                    <div class="log-head">
-                        <div class="log-head-l">
-                            <h2 class="log-title">Scan Log</h2>
-                            <span class="log-pulse" id="home-log-pulse" hidden><span class="log-pulse-dot"></span><span class="log-pulse-text mono" id="home-log-pulse-text">Monitoring…</span></span>
-                        </div>
-                        <span class="log-count mono" id="home-log-count">— entries</span>
+                <!-- Phase 4 (B1): pending warnings (hidden when empty) -->
+                <div class="home-log-wrap an" style="--d:.42s">
+                    <div class="home-warnings" id="home-warnings" hidden>
+                        <span class="home-warnings-head">
+                            <span aria-hidden="true">⚠️</span>
+                            Warnings
+                        </span>
+                        <div class="home-warnings-list" id="home-warnings-list"></div>
                     </div>
-                    <div class="log-grid" id="home-log-grid">
-                        <div class="home-log-empty" id="home-log-empty">
-                            <div class="home-log-empty-ico" aria-hidden="true">
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <!-- Log Card -->
+                    <section class="log-card">
+                        <div class="log-head">
+                            <div class="log-head-l">
+                                <h2 class="log-title">Scan Log</h2>
+                                <span class="log-pulse" id="home-log-pulse" hidden><span class="log-pulse-dot"></span><span class="log-pulse-text mono" id="home-log-pulse-text">Monitoring…</span></span>
                             </div>
-                            <strong>No scans yet</strong>
-                            <span>Run a scan to see results land here in real time.</span>
+                            <span class="log-count mono" id="home-log-count">— entries</span>
                         </div>
+                        <div class="log-grid" id="home-log-grid">
+                            <div class="home-log-empty" id="home-log-empty">
+                                <div class="home-log-empty-ico" aria-hidden="true">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                </div>
+                                <strong>No scans yet</strong>
+                                <span>Run a scan to see results land here in real time.</span>
+                            </div>
+                        </div>
+                    </section>
+                    <!-- Phase Final — health-score trend chart (last 7 scans). Hidden
+                         until at least 2 scan points exist so the canvas isn't
+                         a single dot. -->
+                    <section class="home-trend-card" id="home-trend-card" hidden>
+                        <div class="home-trend-head">
+                            <span class="home-trend-title">HEALTH TREND · LAST 7 SCANS</span>
+                            <span class="home-trend-tag" id="home-trend-tag">●</span>
+                        </div>
+                        <div class="home-trend-canvas-wrap">
+                            <canvas id="home-trend-canvas" aria-label="Plant health score over the last 7 scans"></canvas>
+                            <div class="home-trend-empty" id="home-trend-empty" hidden>Awaiting more scans…</div>
+                        </div>
+                    </section>
+                    <!-- Phase 4 (B1): latest care plan summary (hidden when no scan exists) -->
+                    <div class="home-care-card" id="home-care-card" hidden>
+                        <div class="home-care-head">
+                            <span class="home-care-title">CARE RECOMMENDATIONS</span>
+                            <span class="home-care-stage" id="home-care-stage">—</span>
+                        </div>
+                        <div class="home-care-grid">
+                            <div class="home-care-item"><span class="home-care-item-lbl"><span aria-hidden="true">💧</span>Water</span><span class="home-care-item-val" id="home-care-water">—</span></div>
+                            <div class="home-care-item"><span class="home-care-item-lbl"><span aria-hidden="true">☀️</span>Sunlight</span><span class="home-care-item-val" id="home-care-sun">—</span></div>
+                            <div class="home-care-item"><span class="home-care-item-lbl"><span aria-hidden="true">🌡️</span>Temperature</span><span class="home-care-item-val" id="home-care-temp">—</span></div>
+                            <div class="home-care-item"><span class="home-care-item-lbl"><span aria-hidden="true">💨</span>Humidity</span><span class="home-care-item-val" id="home-care-hum">—</span></div>
+                        </div>
+                        <p class="home-care-summary" id="home-care-summary">—</p>
                     </div>
-                </section>
+                </div>
             </div><!-- grid-layout -->
             </div><!-- /page-home -->
 
@@ -431,7 +497,7 @@
                             <div class="sys-metric-card">
                                 <div class="smc-ring">
                                     <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="var(--sage)" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="18" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
-                                    <span class="smc-ico">🔬</span>
+                                    <span class="smc-ico" aria-hidden="true">📸</span>
                                 </div>
                                 <div class="smc-info">
                                     <span class="smc-val mono" id="sm-scans">28</span>
@@ -442,7 +508,7 @@
                             <div class="sys-metric-card">
                                 <div class="smc-ring">
                                     <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="var(--gold)" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="60" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
-                                    <span class="smc-ico">⚡</span>
+                                    <span class="smc-ico" aria-hidden="true">⚡</span>
                                 </div>
                                 <div class="smc-info">
                                     <span class="smc-val mono" id="sm-time">4.2<small>s</small></span>
@@ -453,7 +519,7 @@
                             <div class="sys-metric-card">
                                 <div class="smc-ring">
                                     <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="var(--olive)" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="40" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
-                                    <span class="smc-ico">🌿</span>
+                                    <span class="smc-ico" aria-hidden="true">📅</span>
                                 </div>
                                 <div class="smc-info">
                                     <span class="smc-val mono" id="sm-species">12</span>
@@ -464,7 +530,7 @@
                             <div class="sys-metric-card">
                                 <div class="smc-ring">
                                     <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="#6ec47e" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="4" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
-                                    <span class="smc-ico">🎯</span>
+                                    <span class="smc-ico" aria-hidden="true">🎯</span>
                                 </div>
                                 <div class="smc-info">
                                     <span class="smc-val mono" id="sm-conf">96.4<small>%</small></span>
@@ -475,7 +541,7 @@
                             <div class="sys-metric-card">
                                 <div class="smc-ring">
                                     <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="var(--sage)" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="50" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
-                                    <span class="smc-ico">📍</span>
+                                    <span class="smc-ico" aria-hidden="true">📍</span>
                                 </div>
                                 <div class="smc-info">
                                     <span class="smc-val mono" id="sm-zones">4</span>
@@ -486,7 +552,7 @@
                             <div class="sys-metric-card">
                                 <div class="smc-ring">
                                     <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="#7ba4c7" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="30" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
-                                    <span class="smc-ico">📡</span>
+                                    <span class="smc-ico" aria-hidden="true">📡</span>
                                 </div>
                                 <div class="smc-info">
                                     <span class="smc-val mono" id="sm-devices">7</span>
@@ -654,19 +720,19 @@
                 </div>
                 <div class="garden-summary-row an" style="--d:.15s">
                     <div class="garden-sum-card garden-sum-ok" data-sum="healthy">
-                        <span class="garden-sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2C20 17.5 12 22 12 22z"/><path d="M9 12l2 2 4-4"/></svg></span>
+                        <span class="garden-sum-ico" aria-hidden="true">🌱</span>
                         <div class="garden-sum-body"><span class="garden-sum-val mono" id="garden-sum-healthy" data-value="0">0</span><span class="garden-sum-lbl">Healthy Zones</span></div>
                     </div>
                     <div class="garden-sum-card garden-sum-warn" data-sum="warning">
-                        <span class="garden-sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+                        <span class="garden-sum-ico" aria-hidden="true">⚠️</span>
                         <div class="garden-sum-body"><span class="garden-sum-val mono" id="garden-sum-warn" data-value="0">0</span><span class="garden-sum-lbl">Warning</span></div>
                     </div>
                     <div class="garden-sum-card garden-sum-crit" data-sum="critical">
-                        <span class="garden-sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+                        <span class="garden-sum-ico" aria-hidden="true">🔴</span>
                         <div class="garden-sum-body"><span class="garden-sum-val mono" id="garden-sum-crit" data-value="0">0</span><span class="garden-sum-lbl">Critical</span></div>
                     </div>
                     <div class="garden-sum-card garden-sum-off" data-sum="offline">
-                        <span class="garden-sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 12.55a8 8 0 0113.3-6"/><path d="M12 20v-8"/><line x1="2" y1="2" x2="22" y2="22"/></svg></span>
+                        <span class="garden-sum-ico" aria-hidden="true">📡</span>
                         <div class="garden-sum-body"><span class="garden-sum-val mono" id="garden-sum-offline" data-value="0">0</span><span class="garden-sum-lbl">Offline Devices</span></div>
                     </div>
                 </div>
@@ -725,10 +791,58 @@
                 </div>
                 <div class="settings-grid settings-control-grid an" style="--d:.2s">
 
+                    <!-- Phase 4 (A3): Demo Mode toggle. Frontend-only; never persists to backend. -->
+                    <div class="set-card set-card-wide set-card-demo">
+                        <div class="d-card-head">
+                            <span class="d-card-label">DEMO MODE</span>
+                            <span class="d-card-tag mono" id="set-demo-state">Off</span>
+                        </div>
+                        <div class="set-group">
+                            <div class="set-row">
+                                <div class="set-info">
+                                    <span class="set-name">Demo Mode</span>
+                                    <span class="set-desc">Use canned fixtures when the ESP32, backend, or internet are offline. Frontend-only — nothing is persisted.</span>
+                                </div>
+                                <div class="toggle-wrap">
+                                    <input type="checkbox" class="toggle" id="set-demo-mode">
+                                    <label for="set-demo-mode" class="toggle-lbl"></label>
+                                </div>
+                            </div>
+                            <!-- Phase Final — scenario toggle. Picks which canned story
+                                 the fixtures tell. Default = warning (more demo-impressive). -->
+                            <div class="set-row">
+                                <div class="set-info">
+                                    <span class="set-name">Scenario</span>
+                                    <span class="set-desc">Choose which canned plant state the fixtures present to the dashboard.</span>
+                                </div>
+                                <div class="set-select-wrap">
+                                    <select id="set-demo-scenario" class="set-select mono">
+                                        <option value="warning">Powdery mildew (warning)</option>
+                                        <option value="healthy">Thriving cucumber (healthy)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <p class="set-hint mono">When ON, a small <strong>DEMO</strong> chip appears in the topbar and the dashboard reads from realistic cucumber fixtures (24°C · 62% · 28k lux · pH 6.4 · Powdery Mildew @78%).</p>
+                        </div>
+                    </div>
+
+                    <!-- Phase 4 (B2): Device diagnostics (read-only). -->
+                    <div class="set-card set-card-wide set-card-devices">
+                        <div class="d-card-head">
+                            <span class="d-card-label">DEVICES</span>
+                            <span class="d-card-tag mono" id="set-devices-count">—</span>
+                        </div>
+                        <div class="set-devices-table" id="set-devices-table">
+                            <div class="set-devices-empty mono">Loading devices…</div>
+                        </div>
+                        <p class="set-hint mono">Live <code>GET /devices/diagnostics</code> · per-device freshness, retry counters, reachability.</p>
+                    </div>
+
                     <div class="set-card set-card-wide set-status-card">
                         <div class="d-card-head"><span class="d-card-label">SYSTEM STATUS</span><span class="d-card-tag mono" id="status-polled-at">—</span></div>
                         <div class="status-grid" id="status-grid">
                             <div class="status-item" data-status-key="backend">
+                                <span class="status-ico" aria-hidden="true">🟢</span>
                                 <span class="status-dot" id="st-dot-backend"></span>
                                 <div class="status-body">
                                     <span class="status-name">Backend API</span>
@@ -736,6 +850,7 @@
                                 </div>
                             </div>
                             <div class="status-item" data-status-key="yolo">
+                                <span class="status-ico" aria-hidden="true">🤖</span>
                                 <span class="status-dot" id="st-dot-yolo"></span>
                                 <div class="status-body">
                                     <span class="status-name">YOLO Model</span>
@@ -743,6 +858,7 @@
                                 </div>
                             </div>
                             <div class="status-item" data-status-key="sensor">
+                                <span class="status-ico" aria-hidden="true">📡</span>
                                 <span class="status-dot" id="st-dot-sensor"></span>
                                 <div class="status-body">
                                     <span class="status-name">Sensor Node</span>
@@ -750,6 +866,7 @@
                                 </div>
                             </div>
                             <div class="status-item" data-status-key="analytics">
+                                <span class="status-ico" aria-hidden="true">📊</span>
                                 <span class="status-dot" id="st-dot-analytics"></span>
                                 <div class="status-body">
                                     <span class="status-name">Analytics Service</span>
@@ -757,6 +874,7 @@
                                 </div>
                             </div>
                             <div class="status-item" data-status-key="camera">
+                                <span class="status-ico" aria-hidden="true">📷</span>
                                 <span class="status-dot" id="st-dot-camera"></span>
                                 <div class="status-body">
                                     <span class="status-name">Camera Permission</span>
@@ -886,47 +1004,10 @@
                     <p class="page-desc mono">Plant focus · Local MVP session · <span id="prof-live-tag" class="prof-live-tag mono">● Live</span> <span id="prof-polled-at" class="mono prof-polled-at">—</span></p>
                 </div>
 
-                <!-- Phase 3 — Plant Profile (the plant, not the operator) -->
-                <section class="plant-profile-card an" id="plant-profile-card" style="--d:.13s" aria-label="Plant profile">
-                    <div class="pp-head">
-                        <div class="pp-head-l">
-                            <div class="pp-avatar" aria-hidden="true">
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12"/><path d="M12 12c-3 0-6-2-6-6 4 0 6 2 6 6z"/><path d="M12 12c3 0 6-2 6-6-4 0-6 2-6 6z"/></svg>
-                            </div>
-                            <div class="pp-head-text">
-                                <div class="pp-eyebrow mono">PLANT PROFILE</div>
-                                <h3 class="pp-title" id="pp-title">Cucumber</h3>
-                                <p class="pp-sub mono" id="pp-sub">cucumber_001 · Zone Alpha</p>
-                            </div>
-                        </div>
-                        <div class="pp-head-r">
-                            <span class="pp-status pp-status-ok" id="pp-status">● Awaiting first scan</span>
-                        </div>
-                    </div>
-                    <div class="pp-stats">
-                        <div class="pp-stat"><span class="pp-stat-lbl mono">LATEST RESULT</span><span class="pp-stat-val" id="pp-latest-disease">—</span></div>
-                        <div class="pp-stat"><span class="pp-stat-lbl mono">CONFIDENCE</span><span class="pp-stat-val mono" id="pp-latest-conf">—</span></div>
-                        <div class="pp-stat"><span class="pp-stat-lbl mono">HEALTH SCORE</span><span class="pp-stat-val mono" id="pp-latest-health">—</span></div>
-                        <div class="pp-stat"><span class="pp-stat-lbl mono">SCAN COUNT</span><span class="pp-stat-val mono" id="pp-scan-count">0</span></div>
-                        <div class="pp-stat"><span class="pp-stat-lbl mono">LAST SCANNED</span><span class="pp-stat-val mono" id="pp-last-scanned">—</span></div>
-                    </div>
-                    <div class="pp-rec-block" id="pp-rec-block" hidden>
-                        <span class="pp-rec-ico" aria-hidden="true">✦</span>
-                        <p class="pp-rec" id="pp-rec">—</p>
-                    </div>
-                    <div class="pp-history">
-                        <div class="pp-history-head">
-                            <span class="pp-history-title mono">RECENT SCANS</span>
-                            <button type="button" class="pp-history-link" id="pp-open-history">View all →</button>
-                        </div>
-                        <div class="pp-history-list" id="pp-history-list">
-                            <div class="pp-history-empty">Run a scan to populate this plant's history.</div>
-                        </div>
-                    </div>
-                </section>
-
+                <!-- Row 1 — Operator / Session header. Full-width hero card so
+                     the operator clearly anchors the page above plant focus. -->
                 <h3 class="prof-section-title mono">OPERATOR · SESSION</h3>
-                <div class="prof-top-grid an" style="--d:.12s">
+                <div class="prof-operator-row an" style="--d:.12s">
                     <div class="prof-hero-card">
                         <div class="prof-hero-head">
                             <div class="prof-avatar" id="profile-avatar-display">DO</div>
@@ -960,6 +1041,14 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- Row 2 — AI Assistant Summary (full width, vertical story).
+                     Now sits above Plant Profile so the user reads the
+                     "what does the AI think?" summary before the per-plant
+                     focus card and its scan history. -->
+                <h3 class="prof-section-title mono">AI ASSISTANT SUMMARY</h3>
+                <div class="prof-ai-row an" style="--d:.14s">
                     <div class="prof-ai-card set-card">
                         <div class="d-card-head"><span class="d-card-label">AI ASSISTANT SUMMARY</span><span class="d-card-tag mono" id="prof-ai-tag">Live</span></div>
                         <div class="prof-ai-live" id="prof-ai-chips"></div>
@@ -970,35 +1059,93 @@
                             <div><dt>Environment</dt><dd id="prof-ai-env">—</dd></div>
                         </dl>
                         <div class="prof-ai-rec-block" id="prof-ai-rec-block">
-                            <span class="prof-ai-rec-ico" aria-hidden="true">✦</span>
-                            <p id="prof-ai-rec" class="prof-ai-rec">Run a scan to generate recommendations.</p>
+                            <p id="prof-ai-rec" class="prof-ai-rec">🧠 Run a scan to generate recommendations.</p>
                         </div>
                         <span class="prof-ai-time mono" id="prof-ai-time">—</span>
                         </div>
                         <div class="prof-ai-empty" id="prof-ai-empty" hidden>
-                            <span class="prof-ai-empty-ico">✦</span>
+                            <span class="prof-ai-empty-ico" aria-hidden="true">🧠</span>
                             <p>No scan data yet — run a plant scan to activate AI insights.</p>
                         </div>
                     </div>
                 </div>
-                <div class="prof-metrics-row an" style="--d:.16s">
-                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">🔬</span><span class="prof-metric-val mono" id="prof-metric-scans">0</span><span class="prof-metric-lbl">Total Scans</span><span class="prof-metric-trend" id="prof-trend-scans"></span></div>
-                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">◎</span><span class="prof-metric-val mono" id="prof-metric-conf">—</span><span class="prof-metric-lbl">Avg Confidence</span><span class="prof-metric-trend" id="prof-trend-conf"></span></div>
-                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">🌿</span><span class="prof-metric-val mono" id="prof-metric-zones">—</span><span class="prof-metric-lbl">Active Zones</span><span class="prof-metric-trend" id="prof-trend-zones"></span></div>
+
+                <!-- Row 3 — Plant Profile (Cucumber). Stand-alone full width
+                     card. Recent scans (.pp-history) extracted into its own
+                     row below; we mark this card pp-no-history so the CSS
+                     hides the nested .pp-history if it ever re-renders. -->
+                <h3 class="prof-section-title mono">PLANT PROFILE</h3>
+                <div class="prof-plant-row an" style="--d:.16s">
+                    <section class="plant-profile-card pp-no-history" id="plant-profile-card" aria-label="Plant profile">
+                        <div class="pp-head">
+                            <div class="pp-head-l">
+                                <div class="pp-avatar" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12"/><path d="M12 12c-3 0-6-2-6-6 4 0 6 2 6 6z"/><path d="M12 12c3 0 6-2 6-6-4 0-6 2-6 6z"/></svg>
+                                </div>
+                                <div class="pp-head-text">
+                                    <div class="pp-eyebrow mono">PLANT PROFILE</div>
+                                    <h3 class="pp-title" id="pp-title">Cucumber</h3>
+                                    <p class="pp-sub mono" id="pp-sub">cucumber_001 · Zone Alpha</p>
+                                </div>
+                            </div>
+                            <div class="pp-head-r">
+                                <span class="pp-status pp-status-ok" id="pp-status">🌱 Awaiting first scan</span>
+                            </div>
+                        </div>
+                        <div class="pp-stats">
+                            <div class="pp-stat"><span class="pp-stat-lbl mono">LATEST RESULT</span><span class="pp-stat-val" id="pp-latest-disease">—</span></div>
+                            <div class="pp-stat"><span class="pp-stat-lbl mono">CONFIDENCE</span><span class="pp-stat-val mono" id="pp-latest-conf">—</span></div>
+                            <div class="pp-stat"><span class="pp-stat-lbl mono">HEALTH SCORE</span><span class="pp-stat-val mono" id="pp-latest-health">—</span></div>
+                            <div class="pp-stat"><span class="pp-stat-lbl mono">SCAN COUNT</span><span class="pp-stat-val mono" id="pp-scan-count">0</span></div>
+                            <div class="pp-stat"><span class="pp-stat-lbl mono">LAST SCANNED</span><span class="pp-stat-val mono" id="pp-last-scanned">—</span></div>
+                        </div>
+                        <div class="pp-rec-block" id="pp-rec-block" hidden>
+                            <span class="pp-rec-ico" aria-hidden="true">🧠</span>
+                            <p class="pp-rec" id="pp-rec">—</p>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Row 4 — Recent Scans (extracted from .plant-profile-card
+                     so it reads as its own story beat in the vertical flow).
+                     IDs preserved so profile.js renderers continue to work. -->
+                <h3 class="prof-section-title mono">RECENT SCANS</h3>
+                <div class="prof-scans-row an" style="--d:.18s">
+                    <section class="pp-scans-card" aria-label="Recent scans for this plant">
+                        <div class="pp-history" id="pp-history">
+                            <div class="pp-history-head">
+                                <span class="pp-history-title mono">RECENT SCANS · CUCUMBER</span>
+                                <button type="button" class="pp-history-link" id="pp-open-history">View all →</button>
+                            </div>
+                            <div class="pp-history-list" id="pp-history-list">
+                                <div class="pp-history-empty">Run a scan to populate this plant's history.</div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Row 5 — Plant Health Details. The 6 metric chips that
+                     used to sit above the diagnostics now close the
+                     vertical story for the focused plant. -->
+                <h3 class="prof-section-title mono"><span aria-hidden="true">🩺</span> PLANT HEALTH DETAILS</h3>
+                <div class="prof-metrics-row an" style="--d:.2s">
+                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">📸</span><span class="prof-metric-val mono" id="prof-metric-scans">0</span><span class="prof-metric-lbl">Total Scans</span><span class="prof-metric-trend" id="prof-trend-scans"></span></div>
+                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">🎯</span><span class="prof-metric-val mono" id="prof-metric-conf">—</span><span class="prof-metric-lbl">Avg Confidence</span><span class="prof-metric-trend" id="prof-trend-conf"></span></div>
+                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">📍</span><span class="prof-metric-val mono" id="prof-metric-zones">—</span><span class="prof-metric-lbl">Active Zones</span><span class="prof-metric-trend" id="prof-trend-zones"></span></div>
                     <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">📡</span><span class="prof-metric-val mono" id="prof-metric-devices">—</span><span class="prof-metric-lbl">Connected Devices</span><span class="prof-metric-trend live" id="prof-trend-devices"></span></div>
-                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">🧬</span><span class="prof-metric-val" id="prof-metric-disease">—</span><span class="prof-metric-lbl">Latest Result</span></div>
-                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">💧</span><span class="prof-metric-val mono" id="prof-metric-sensor-ts">—</span><span class="prof-metric-lbl">Last Sensor</span></div>
+                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">🌱</span><span class="prof-metric-val" id="prof-metric-disease">—</span><span class="prof-metric-lbl">Latest Result</span></div>
+                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">🕒</span><span class="prof-metric-val mono" id="prof-metric-sensor-ts">—</span><span class="prof-metric-lbl">Last Sensor</span></div>
                 </div>
                 <div class="prof-mid-grid an" style="--d:.2s">
                     <div class="set-card prof-diag-card">
                         <div class="d-card-head"><span class="d-card-label">SYSTEM DIAGNOSTICS</span></div>
                         <div class="prof-diag-grid">
-                            <div class="prof-diag-item"><span class="prof-diag-dot pd-off" id="prof-diag-api"></span><span>Backend API</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-api">—</span></div>
-                            <div class="prof-diag-item"><span class="prof-diag-dot pd-off" id="prof-diag-yolo"></span><span>YOLO Model</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-yolo">—</span></div>
-                            <div class="prof-diag-item"><span class="prof-diag-dot pd-off" id="prof-diag-analytics"></span><span>Analytics</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-analytics">—</span></div>
-                            <div class="prof-diag-item"><span class="prof-diag-dot pd-off" id="prof-diag-camera"></span><span>Camera</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-camera">—</span></div>
-                            <div class="prof-diag-item"><span class="prof-diag-dot pd-off" id="prof-diag-sensor"></span><span>Sensor Feed</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-sensor">—</span></div>
-                            <div class="prof-diag-item"><span class="prof-diag-dot pd-off" id="prof-diag-health"></span><span>Health Engine</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-health">—</span></div>
+                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">🟢</span><span class="prof-diag-dot pd-off" id="prof-diag-api"></span><span>Backend API</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-api">—</span></div>
+                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">🤖</span><span class="prof-diag-dot pd-off" id="prof-diag-yolo"></span><span>YOLO Model</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-yolo">—</span></div>
+                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">📊</span><span class="prof-diag-dot pd-off" id="prof-diag-analytics"></span><span>Analytics</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-analytics">—</span></div>
+                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">📷</span><span class="prof-diag-dot pd-off" id="prof-diag-camera"></span><span>Camera</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-camera">—</span></div>
+                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">📡</span><span class="prof-diag-dot pd-off" id="prof-diag-sensor"></span><span>Sensor Feed</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-sensor">—</span></div>
+                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">🧠</span><span class="prof-diag-dot pd-off" id="prof-diag-health"></span><span>Health Engine</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-health">—</span></div>
                         </div>
                     </div>
                     <div class="set-card">
@@ -1222,9 +1369,7 @@
             </div>
             <div class="r-advisory" id="r-advisory">
                 <div class="r-advisory-head">
-                    <span class="r-advisory-ico" aria-hidden="true">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.7c.9.7 1.4 1.8 1.4 2.9V18h5.2v-.4c0-1.1.5-2.2 1.4-2.9A7 7 0 0012 2z"/></svg>
-                    </span>
+                    <span class="r-advisory-ico" aria-hidden="true">🧠</span>
                     <span class="r-advisory-title">AI Advisory</span>
                 </div>
                 <p class="r-advisory-body" id="r-rec">—</p>
@@ -1424,10 +1569,13 @@
     </nav>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Phase Final — Chart.js for the Home health-trend chart (single dep, CDN). -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <div id="pv-toast-root" class="pv-toast-root" aria-live="polite"></div>
 
     <script src="env.js"></script>
     <script src="config.js"></script>
+    <script src="demo_fixtures.js"></script>
     <script src="api.js"></script>
     <script src="analytics.js"></script>
     <script src="garden.js"></script>

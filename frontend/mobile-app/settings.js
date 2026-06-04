@@ -460,7 +460,7 @@
         if (!v) return;
         localStorage.setItem(storageKey, v);
         window[windowKey] = v;
-        showToast("Session identity updated");
+        showToast("✅ Session identity updated");
         syncIdentityFields();
       };
     };
@@ -474,7 +474,7 @@
         await window.plantSensorRefresh(true);
       }
       await refreshSystemStatus();
-      showToast("Sensor poll complete");
+      showToast("✅ Sensor poll complete");
     });
 
     document.getElementById("btn-clear")?.addEventListener("click", () => {
@@ -483,8 +483,142 @@
         localStorage.removeItem(k)
       );
       updateStorageEstimate();
-      showToast("Cached app data cleared");
+      showToast("✅ Cached app data cleared");
     });
+
+    // -----------------------------------------------------------------
+    // Phase 4 (A3): Demo Mode toggle wiring.
+    // The state lives in `localStorage.PLANT_DEMO_MODE` and is owned by
+    // `window.plantDemo` (see demo_fixtures.js). We only mirror it into
+    // the checkbox + topbar chip here so the settings UI stays in sync.
+    // -----------------------------------------------------------------
+    const demoBox = document.getElementById("set-demo-mode");
+    if (demoBox && window.plantDemo) {
+      demoBox.checked = window.plantDemo.isOn();
+      _renderDemoChip();
+      _renderDemoState();
+      demoBox.addEventListener("change", (e) => {
+        const on = !!e.target.checked;
+        window.plantDemo.setOn(on);
+        _renderDemoChip();
+        _renderDemoState();
+        showToast(on ? "✅ Demo Mode enabled — using fixtures" : "✅ Demo Mode disabled — using live backend");
+      });
+    }
+    window.addEventListener("plantvision:demo-mode-changed", () => {
+      const b = document.getElementById("set-demo-mode");
+      if (b && window.plantDemo) b.checked = window.plantDemo.isOn();
+      _renderDemoChip();
+      _renderDemoState();
+    });
+
+    // Phase Final — scenario dropdown (healthy vs warning).
+    const scenSel = document.getElementById("set-demo-scenario");
+    if (scenSel && window.plantDemo && typeof window.plantDemo.setScenario === "function") {
+      try { scenSel.value = window.plantDemo.scenario(); } catch (_) {}
+      scenSel.addEventListener("change", (e) => {
+        const v = window.plantDemo.setScenario(e.target.value);
+        showToast("✅ Demo scenario: " + (v === "healthy" ? "Thriving cucumber" : "Powdery mildew (warning)"));
+      });
+    }
+
+    // -----------------------------------------------------------------
+    // Phase 4 (B2): wire the Devices diagnostics refresh on the
+    // Settings page. We refresh on page-show + every 10s while the
+    // page is visible.
+    // -----------------------------------------------------------------
+    _ensureDevicesDiagnosticsPoll();
+  }
+
+  function _renderDemoChip() {
+    const chip = document.getElementById("sys-chip-demo");
+    if (!chip) return;
+    const on = !!(window.plantDemo && window.plantDemo.isOn());
+    chip.hidden = !on;
+    chip.title = on
+      ? "Demo Mode is active — backend, ESP32 and Supabase are bypassed. Toggle in Settings → Demo Mode."
+      : "Demo Mode is off";
+  }
+  function _renderDemoState() {
+    const t = document.getElementById("set-demo-state");
+    if (!t) return;
+    const on = !!(window.plantDemo && window.plantDemo.isOn());
+    t.textContent = on ? "On · using fixtures" : "Off · live backend";
+    t.style.color = on ? "var(--gold)" : "var(--sage)";
+  }
+
+  // -----------------------------------------------------------------
+  // Phase 4 (B2): Devices diagnostics table
+  // -----------------------------------------------------------------
+  let _devTimer = null;
+  function _ensureDevicesDiagnosticsPoll() {
+    _refreshDevicesDiagnostics();
+    if (_devTimer) clearInterval(_devTimer);
+    _devTimer = setInterval(_refreshDevicesDiagnostics, 10000);
+  }
+
+  function _fmtAgeSec(sec) {
+    if (sec == null || Number.isNaN(sec)) return "—";
+    if (sec < 60) return Math.round(sec) + "s";
+    if (sec < 3600) return Math.round(sec / 60) + "m";
+    if (sec < 86400) return Math.round(sec / 3600) + "h";
+    return Math.round(sec / 86400) + "d";
+  }
+
+  function _escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  async function _refreshDevicesDiagnostics() {
+    const host = document.getElementById("set-devices-table");
+    const counter = document.getElementById("set-devices-count");
+    if (!host) return;
+
+    let payload = null;
+    try {
+      if (typeof fetchDeviceDiagnostics === "function") {
+        payload = await fetchDeviceDiagnostics();
+      }
+    } catch (_) { /* swallowed below */ }
+
+    if (!payload || !Array.isArray(payload.devices)) {
+      if (counter) counter.textContent = "—";
+      host.innerHTML = '<div class="set-devices-empty mono">No diagnostics available (backend offline?).</div>';
+      return;
+    }
+
+    const devs = payload.devices;
+    if (counter) counter.textContent = devs.length + (devs.length === 1 ? " device" : " devices");
+
+    if (!devs.length) {
+      host.innerHTML = '<div class="set-devices-empty mono">No devices registered yet. Send a /sensor reading or call /devices/register.</div>';
+      return;
+    }
+
+    const head = '<div class="set-dev-row set-dev-head">'
+      + '<span>Slug</span><span>Zone</span><span>Freshness</span>'
+      + '<span>Last seen</span><span>Retries</span><span>Reach</span>'
+      + '</div>';
+    const rows = devs.map((d) => {
+      const fresh = d.freshness || "offline";
+      const cls = fresh === "live" ? "fresh-live" : fresh === "stale" ? "fresh-stale" : "fresh-off";
+      const reach = d.reachable === false ? "no" : "yes";
+      const retries = (d.retry_counters && (d.retry_counters.failed || 0)) || 0;
+      const age = (d.age_seconds != null) ? _fmtAgeSec(d.age_seconds) : "—";
+      return `<div class="set-dev-row ${cls}">`
+        + `<span class="mono">${_escapeHtml(d.slug)}</span>`
+        + `<span>${_escapeHtml(d.zone_id || "—")}</span>`
+        + `<span class="set-dev-fresh">${_escapeHtml(fresh)}</span>`
+        + `<span class="mono">${age}</span>`
+        + `<span class="mono">${retries}</span>`
+        + `<span class="mono">${reach}</span>`
+        + `</div>`;
+    }).join("");
+    host.innerHTML = head + rows;
   }
 
   function startStatusPolling() {
@@ -582,7 +716,14 @@
   applySettings();
   startStatusPolling();
 
+  // Phase 4 (A3): ensure the topbar DEMO chip reflects state on every
+  // page load, not only after the user visits Settings.
+  _renderDemoChip();
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", applySettings);
+    document.addEventListener("DOMContentLoaded", () => {
+      applySettings();
+      _renderDemoChip();
+    });
   }
 })();

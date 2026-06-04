@@ -1,6 +1,20 @@
 /**
  * Plant health API client — POST /predict only (MVP).
+ *
+ * Phase 4 (A3): Demo Mode short-circuits.
+ *   When `window.plantDemo && window.plantDemo.isOn()` returns true, the
+ *   listed fetchers below resolve to canned fixtures from
+ *   `demo_fixtures.js` instead of hitting the backend. This lets the UI
+ *   look "live" when the ESP32, the backend, or the internet is offline.
+ *   Demo mode never persists anything — fixtures are presentation-only.
  */
+
+function _pvDemoOn() {
+  return !!(window.plantDemo && typeof window.plantDemo.isOn === "function" && window.plantDemo.isOn());
+}
+function _pvFx() {
+  return (window.plantDemo && window.plantDemo.fixtures) || {};
+}
 
 /**
  * POST /predict with full scan-to-zone traceability.
@@ -16,6 +30,17 @@
  *                 telemetry / shown in result modal; never affects logic).
  */
 async function predictPlantImage(file, opts = {}) {
+  if (_pvDemoOn() && _pvFx().predictPlantImage) {
+    // No backend round-trip; honour overrides for source/plant_id so the
+    // result modal still shows the user's chosen zone / scan source.
+    const fixture = _pvFx().predictPlantImage();
+    if (opts && opts.zone_id)   fixture.zone_id = opts.zone_id;
+    if (opts && opts.device_id) fixture.device_id = opts.device_id;
+    if (opts && opts.user_id)   fixture.user_id = opts.user_id;
+    if (opts && opts.plant_id)  fixture.plant_id = opts.plant_id;
+    if (opts && opts.source)    fixture.metadata = Object.assign({}, fixture.metadata, { source: opts.source });
+    return Promise.resolve(fixture);
+  }
   const base = window.PLANT_API_BASE;
   if (!base) throw new Error("PLANT_API_BASE is not configured");
 
@@ -102,6 +127,9 @@ async function fetchModelsRegistry() {
 
 /** GET /sensor/latest — latest reading for user_id + zone_id + device_id. */
 async function fetchSensorLatest() {
+  if (_pvDemoOn() && _pvFx().sensorLatestEnvelope) {
+    return Promise.resolve(_pvFx().sensorLatestEnvelope());
+  }
   const base = window.PLANT_API_BASE;
   if (!base) throw new Error("PLANT_API_BASE is not configured");
 
@@ -187,7 +215,10 @@ function _parseIsoTs(iso) {
  */
 async function fetchLatestSensorContext() {
   const base = window.PLANT_API_BASE;
-  if (!base) return _sensorEmptyContext("no_base");
+  // Phase 4 (A3): when Demo Mode is on, fetchSensorLatest() short-
+  // circuits to a fixture even with no PLANT_API_BASE, so don't
+  // short-circuit on the "no base" branch in that case.
+  if (!base && !_pvDemoOn()) return _sensorEmptyContext("no_base");
 
   let payload = null;
   try {
@@ -264,6 +295,9 @@ window.plantSensor = {
 
 /** Analytics dashboard — lightweight aggregation endpoints. */
 async function fetchAnalyticsSummary() {
+  if (_pvDemoOn() && _pvFx().analyticsSummary) {
+    return Promise.resolve(_pvFx().analyticsSummary());
+  }
   const base = window.PLANT_API_BASE;
   if (!base) return null;
   const resp = await fetch(`${base}/analytics/summary`);
@@ -283,6 +317,9 @@ async function fetchAnalyticsHistory(limit = 20) {
  * @returns {Promise<{ source: string, total: number, zone: string|null, status_filter: string|null, scans: Array }|null>}
  */
 async function fetchScanHistory(opts = {}) {
+  if (_pvDemoOn() && _pvFx().scanHistory) {
+    return Promise.resolve(_pvFx().scanHistory(opts.limit || 5));
+  }
   const base = window.PLANT_API_BASE;
   if (!base) return null;
   const params = new URLSearchParams();
@@ -304,6 +341,9 @@ async function fetchScanDetail(scanId) {
 
 /** Phase 3: per-zone scan counts + status breakdown for Garden badges. */
 async function fetchZoneScanCounts() {
+  if (_pvDemoOn() && _pvFx().zoneScanCounts) {
+    return Promise.resolve(_pvFx().zoneScanCounts());
+  }
   const base = window.PLANT_API_BASE;
   if (!base) return null;
   const resp = await fetch(`${base}/scans/zone-counts`);
@@ -312,6 +352,9 @@ async function fetchZoneScanCounts() {
 
 /** Phase 3 correction — Plant Profile aggregate (latest scan, count, history). */
 async function fetchPlantProfile(plantId) {
+  if (_pvDemoOn() && _pvFx().plantProfile) {
+    return Promise.resolve(_pvFx().plantProfile(plantId));
+  }
   const base = window.PLANT_API_BASE;
   if (!base || !plantId) return null;
   const resp = await fetch(`${base}/scans/plant/${encodeURIComponent(plantId)}`);
@@ -354,6 +397,9 @@ async function fetchAnalyticsInsights() {
 /** GET /analytics/garden — live garden map dashboard. */
 /** GET /health/plant — rule-based plant health score. */
 async function fetchPlantHealth() {
+  if (_pvDemoOn() && _pvFx().plantHealth) {
+    return Promise.resolve(_pvFx().plantHealth());
+  }
   const base = window.PLANT_API_BASE;
   if (!base) return null;
   const userId = encodeURIComponent(window.PLANT_USER_ID || "demo_user");
@@ -471,6 +517,55 @@ async function fetchDbHealth() {
   if (!base) return null;
   try {
     const resp = await fetch(`${base}/health/db`, { method: "GET" });
+    if (!resp.ok) return null;
+    return resp.json();
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Phase 4 (B1): POST /report (JSON body) — unified plant report used by
+ * the Home dashboard's hero score + warnings strip + care card. Falls
+ * back to ``null`` on any error so the UI can degrade gracefully.
+ *
+ * @param {string} plantId
+ * @returns {Promise<object|null>}
+ */
+async function fetchUnifiedReport(plantId) {
+  const pid = (plantId || "cucumber_001").trim() || "cucumber_001";
+  if (_pvDemoOn() && _pvFx().unifiedReport) {
+    return Promise.resolve(_pvFx().unifiedReport(pid));
+  }
+  const base = window.PLANT_API_BASE;
+  if (!base) return null;
+  try {
+    const resp = await fetch(`${base}/report`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        plant_id: pid,
+        user_id: window.PLANT_USER_ID || "demo_user",
+        zone_id: window.PLANT_ZONE_ID || "zone_alpha",
+        device_id: window.PLANT_DEVICE_ID || "esp32_001",
+      }),
+    });
+    if (!resp.ok) return null;
+    return resp.json();
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Phase 4 (B2): GET /devices/diagnostics — per-device freshness +
+ * retry counters + reachability. Returns ``null`` on any error.
+ */
+async function fetchDeviceDiagnostics() {
+  const base = window.PLANT_API_BASE;
+  if (!base) return null;
+  try {
+    const resp = await fetch(`${base}/devices/diagnostics`, { method: "GET" });
     if (!resp.ok) return null;
     return resp.json();
   } catch (_) {

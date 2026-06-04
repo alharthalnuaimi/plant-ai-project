@@ -197,20 +197,21 @@ function _setResultIcon(tone){
   wrap.style.animation = 'none';
   void wrap.offsetWidth;
   wrap.style.animation = '';
-  const svgs = {
-    ok:  '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
-    warn:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
-    crit:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
-  };
-  wrap.innerHTML = svgs[tone] || svgs.ok;
+  // Emoji-first design language — the result-modal hero icon now uses
+  // an approved emoji (🌱 / ⚠️ / 🔴) instead of a stroked SVG.
+  const emojis = { ok: '🌱', warn: '⚠️', crit: '🔴' };
+  wrap.innerHTML = '<span class="r-ico-emoji" aria-hidden="true">' + (emojis[tone] || emojis.ok) + '</span>';
 }
 
 function _resultHeadline(result, tone, userOk){
-  if(!userOk) return 'Low Confidence';
-  if(_isHealthyDisease(result?.disease)) return 'Healthy Plant';
-  if(tone === 'crit') return 'Critical Detection';
-  if(tone === 'warn') return 'Disease Detected';
-  return 'Analysis Complete';
+  // Hybrid icon/emoji pass — a single leading emoji accents the
+  // headline based on tone (kept the SVG ring; emoji lives in
+  // user-facing copy only). Never two emojis in a row.
+  if(!userOk) return '⚠️ Low Confidence';
+  if(_isHealthyDisease(result?.disease)) return '🌱 Healthy Plant';
+  if(tone === 'crit') return '🔴 Critical Detection';
+  if(tone === 'warn') return '⚠️ Disease Detected';
+  return '📷 Analysis Complete';
 }
 
 function showPredictResult(result){
@@ -338,7 +339,7 @@ function showScanError(message){
   const card = document.getElementById('res-modal-card');
   if(card) card.setAttribute('data-tone', 'crit');
   _setResultIcon('crit');
-  if(titleEl) titleEl.textContent = 'Scan Failed';
+  if(titleEl) titleEl.textContent = '🔴 Scan Failed';
   if(speciesEl) speciesEl.textContent = '—';
   ['r-conf','r-hp','r-risk','r-surv'].forEach(id => {
     const el = document.getElementById(id);
@@ -517,6 +518,25 @@ function setSidebarMini(state, label, tip){
   if(txt && label) txt.textContent = label;
 }
 
+// Phase Final — additive offline banner (lives inline at the top of
+// .content). Suppressed when Demo Mode is on because fixtures stand in
+// for the backend. Never blocks the layout — uses [hidden].
+function _setOfflineBanner(visible, opts){
+  const b = document.getElementById('pv-offline-banner');
+  if(!b) return;
+  const demoOn = !!(window.plantDemo && window.plantDemo.isOn && window.plantDemo.isOn());
+  const shouldShow = !!visible && !demoOn;
+  if(shouldShow){
+    if(opts && opts.text){
+      const t = document.getElementById('pv-offline-banner-text');
+      if(t) t.textContent = opts.text;
+    }
+    b.hidden = false;
+  } else {
+    b.hidden = true;
+  }
+}
+
 async function refreshApiChip(){
   if(typeof checkBackendHealth !== 'function') return;
   try {
@@ -527,17 +547,20 @@ async function refreshApiChip(){
       if(aiText) aiText.textContent = 'AI Ready';
       setSysChip('sys-chip-net', 'ok', 'System Online');
       setSidebarMini('online', 'AI', 'AI Core ready');
+      _setOfflineBanner(false);
     } else {
       setSysChip('sys-chip-ai', 'crit', 'AI Offline');
       const aiText = document.getElementById('sys-ai');
       if(aiText) aiText.textContent = 'AI Offline';
       setSysChip('sys-chip-net', 'warn', 'Reconnecting…');
       setSidebarMini('offline', 'AI', 'AI Core offline');
+      _setOfflineBanner(true, { text: 'Backend offline — switch to Demo Mode in Settings to continue without a live connection.' });
     }
   } catch(_){
     setSysChip('sys-chip-ai', 'crit', 'AI Offline');
     setSysChip('sys-chip-net', 'warn', 'Reconnecting…');
     setSidebarMini('offline', 'AI', 'AI Core offline');
+    _setOfflineBanner(true, { text: 'Backend offline — switch to Demo Mode in Settings to continue without a live connection.' });
   }
 
   // Phase 2 — reflect DB persistence state on the sidebar mini
@@ -560,8 +583,15 @@ refreshApiChip();
 setInterval(refreshApiChip, 30000);
 
 // Network online/offline browser events
-window.addEventListener('offline', ()=>setSysChip('sys-chip-net','crit','Offline'));
-window.addEventListener('online', ()=>{ setSysChip('sys-chip-net','ok','System Online'); refreshApiChip(); });
+window.addEventListener('offline', ()=>{ setSysChip('sys-chip-net','crit','Offline'); _setOfflineBanner(true, { text: 'No internet connection — switch to Demo Mode to keep exploring the dashboard.' }); });
+window.addEventListener('online', ()=>{ setSysChip('sys-chip-net','ok','System Online'); _setOfflineBanner(false); refreshApiChip(); });
+
+// Demo Mode toggle auto-dismisses the offline banner (fixtures stand in).
+window.addEventListener('plantvision:demo-mode-changed', () => {
+  const demoOn = !!(window.plantDemo && window.plantDemo.isOn && window.plantDemo.isOn());
+  if(demoOn) _setOfflineBanner(false);
+  else refreshApiChip();
+});
 
 // Show FPS chip only if ?debug=1 in URL
 if(new URLSearchParams(window.location.search).has('debug')){
@@ -977,7 +1007,7 @@ zmDelete.addEventListener('click', ()=>{
       closeZoneModal();
     } else {
       zmDelete.dataset.confirm = 'true';
-      zmDelete.textContent = '⚠ Confirm Delete?';
+      zmDelete.textContent = '⚠️ Confirm Delete?';
       zmDelete.style.background = 'var(--coral-dim)';
       zmDelete._resetTimer = setTimeout(()=>{
         zmDelete.dataset.confirm = '';
@@ -1556,7 +1586,7 @@ function getBotReply(msg){
   for(const b of botResponses){
     if(b.k.some(k=> lower.includes(k))) return b.r;
   }
-  return "I can help with plant care, disease identification, sensor readings, and garden management. Try asking about watering, pH levels, light requirements, or specific plant species! 🌿";
+  return "I can help with plant care, disease identification, sensor readings, and garden management. Try asking about watering, pH levels, light requirements, or specific plant species! 🌱";
 }
 
 function escapeChatHtml(text){
@@ -1585,7 +1615,11 @@ function addRichMsg(card){
     return `<div class="chat-bubble-row"><strong>${escapeChatHtml(r.label)}</strong><span class="chat-bubble-val${tone}">${escapeChatHtml(r.value)}</span></div>`;
   }).join('');
   const foot = card.foot ? `<div class="chat-bubble-foot">${escapeChatHtml(card.foot)}</div>` : '';
-  const title = card.title ? `<div class="chat-bubble-title">${escapeChatHtml(card.title)}</div>` : '';
+  // Hybrid emoji pass — rich AI bubble title is treated as the
+  // assistant's "header" surface, so a single 🧠 prefix lives
+  // here (NOT on every chat line). Plain chat-msg-bot bubbles
+  // stay emoji-free so we don't spam the conversation.
+  const title = card.title ? `<div class="chat-bubble-title"><span aria-hidden="true">🧠</span>${escapeChatHtml(card.title)}</div>` : '';
   div.innerHTML = `<div class="chat-bubble chat-bubble-rich"><div class="chat-bubble-card">${title}${rows}${foot}</div></div><span class="chat-time mono">${time}</span>`;
   chatBody.appendChild(div);
   chatBody.scrollTop = chatBody.scrollHeight;
@@ -2266,14 +2300,22 @@ const btnBell = document.getElementById('btn-bell');
 const notifMarkAll = document.getElementById('notif-mark-all');
 const notifClearAll = document.getElementById('notif-clear-all');
 
-// Default notifications
+// Default notifications.
+// Notification icons are RENDERED INLINE inside `.notif-ico`, so they
+// must come from the approved emoji set (notifications are a content
+// surface, not chrome). Mapping per the design language pass:
+//   alert (warning) -> ⚠️, alert (critical) -> 🔴
+//   scan complete   -> 📷  (use 🌱/⚠️/🔴 for outcome-flavoured ones)
+//   zone (water)    -> 💧  (water/irrigation concept)
+//   ai recommend.   -> 🧠
+//   system message  -> 📢, success/sensor connect -> ✅
 const defaultNotifications = [
-  { id:'n1', type:'alert', icon:'⚠️', title:'Fungus Detected — Zone D', desc:'Greenhouse zone shows signs of leaf spot fungus on 2 plants. Immediate attention recommended.', time: Date.now() - 4*3600000, read:false },
-  { id:'n2', type:'scan', icon:'🔬', title:'Scan Complete — Monstera', desc:'Monstera deliciosa passed health check with 96.4% confidence. No diseases detected.', time: Date.now() - 7200000, read:false },
-  { id:'n3', type:'zone', icon:'🌿', title:'Zone B Needs Water', desc:'Soil moisture in Herb Garden dropped below 30%. Consider watering basil and mint.', time: Date.now() - 8*3600000, read:false },
-  { id:'n4', type:'sensor', icon:'📡', title:'ESP32-D3 Connected', desc:'New device ESP32-D3 (192.168.1.16) successfully paired with Zone D Greenhouse.', time: Date.now() - 18*3600000, read:true },
-  { id:'n5', type:'system', icon:'⚙️', title:'Neural Engine Updated', desc:'AI model updated to v4.2.1. Detection accuracy improved by 3.2% across all species.', time: Date.now() - 86400000, read:true },
-  { id:'n6', type:'scan', icon:'🔬', title:'Scan Complete — Pothos', desc:'Pothos Aureum passed health check with 99.1% confidence. Excellent condition.', time: Date.now() - 3600000, read:true },
+  { id:'n1', type:'alert',  icon:'🔴', title:'Fungus Detected — Zone D',  desc:'Greenhouse zone shows signs of leaf spot fungus on 2 plants. Immediate attention recommended.', time: Date.now() - 4*3600000, read:false },
+  { id:'n2', type:'scan',   icon:'🌱', title:'Scan Complete — Monstera',  desc:'Monstera deliciosa passed health check with 96.4% confidence. No diseases detected.', time: Date.now() - 7200000, read:false },
+  { id:'n3', type:'zone',   icon:'💧', title:'Zone B Needs Water',        desc:'Soil moisture in Herb Garden dropped below 30%. Consider watering basil and mint.', time: Date.now() - 8*3600000, read:false },
+  { id:'n4', type:'sensor', icon:'✅', title:'ESP32-D3 Connected',        desc:'New device ESP32-D3 (192.168.1.16) successfully paired with Zone D Greenhouse.', time: Date.now() - 18*3600000, read:true },
+  { id:'n5', type:'system', icon:'📢', title:'Neural Engine Updated',     desc:'AI model updated to v4.2.1. Detection accuracy improved by 3.2% across all species.', time: Date.now() - 86400000, read:true },
+  { id:'n6', type:'scan',   icon:'🌱', title:'Scan Complete — Pothos',    desc:'Pothos Aureum passed health check with 99.1% confidence. Excellent condition.', time: Date.now() - 3600000, read:true },
 ];
 
 let notifications = JSON.parse(localStorage.getItem('pv-notifications')) || [...defaultNotifications];
@@ -2445,7 +2487,15 @@ const resObserver = new MutationObserver((mutations) => {
       const conf = document.getElementById('r-conf')?.textContent || '—';
       const health = document.getElementById('r-hp')?.textContent || '—';
       const risk = document.getElementById('r-risk')?.textContent || '—';
-      pushNotification('scan', '🔬', `Scan Complete — ${species}`, `Health: ${health}, Risk: ${risk}, Confidence: ${conf}.`);
+      // Outcome-flavoured notification icon: read the tone the result
+      // modal just settled on, then pick the matching approved emoji.
+      // Falls back to 📷 ("Analysis Complete") when tone is unknown.
+      const tone = document.getElementById('res-modal-card')?.getAttribute('data-tone') || '';
+      const scanIcon = tone === 'crit' ? '🔴'
+                     : tone === 'warn' ? '⚠️'
+                     : tone === 'ok'   ? '🌱'
+                     : '📷';
+      pushNotification('scan', scanIcon, `Scan Complete — ${species}`, `Health: ${health}, Risk: ${risk}, Confidence: ${conf}.`);
     }
   });
 });
@@ -2466,15 +2516,15 @@ function checkSensorAlerts(){
     const data = deviceSensorData[d.uid];
     if(!data) return;
     if(data.soil < soilTh){
-      pushNotification('alert', '💧', `Low Soil Moisture — ${d.name}`, `Zone ${d.zoneId.toUpperCase()} sensor reads ${data.soil}% soil moisture. Plants may need watering.`);
+      pushNotification('alert', '⚠️', `Low Soil Moisture — ${d.name}`, `Zone ${d.zoneId.toUpperCase()} sensor reads ${data.soil}% soil moisture. Plants may need watering.`);
       lastSensorAlert = Date.now();
     }
     if(data.temp > tempTh){
-      pushNotification('alert', '🌡️', `High Temperature Alert — ${d.name}`, `Zone ${d.zoneId.toUpperCase()} reports ${data.temp}°C. Consider ventilation or shade.`);
+      pushNotification('alert', '⚠️', `High Temperature Alert — ${d.name}`, `Zone ${d.zoneId.toUpperCase()} reports ${data.temp}°C. Consider ventilation or shade.`);
       lastSensorAlert = Date.now();
     }
     if(data.ph < phMin){
-      pushNotification('sensor', '⚗️', `Low pH Warning — ${d.name}`, `Zone ${d.zoneId.toUpperCase()} soil pH at ${data.ph}. Optimal range is 6.0–7.0.`);
+      pushNotification('alert', '⚠️', `Low pH Warning — ${d.name}`, `Zone ${d.zoneId.toUpperCase()} soil pH at ${data.ph}. Optimal range is 6.0–7.0.`);
       lastSensorAlert = Date.now();
     }
   });
@@ -2494,7 +2544,6 @@ renderNotifications(false);
       renderZoneChips();
       renderMapMarkers();
       renderDevicePanel();
-      console.log('✓ Hydrated zones from Supabase');
     }
   } catch(_) { /* offline */ }
 
@@ -2538,8 +2587,6 @@ renderNotifications(false);
     localStorage.setItem('pv-notif-counter', notifIdCounter.toString());
     renderNotifications(false);
   }
-
-  console.log('✓ Synced from server');
 })();
 
 // ====== UPTIME COUNTER ======

@@ -213,7 +213,7 @@
 
     if (body) body.hidden = !hasData;
     if (empty) empty.hidden = hasData;
-    if (tag) tag.textContent = scan ? "● Live" : health ? "◆ Ready" : "○ Idle";
+    if (tag) tag.textContent = scan ? "● Live" : health ? "● Ready" : "○ Idle";
 
     if (chips) {
       const hPct = health ? health.plant_health : null;
@@ -241,8 +241,8 @@
       }
     }
     if (recEl) {
-      recEl.textContent =
-        health?.recommendation || "Run a scan to generate AI recommendations.";
+      const base = health?.recommendation || "Run a scan to generate AI recommendations.";
+      recEl.textContent = "🧠 " + base;
     }
     if (timeEl) {
       const ts = localStorage.getItem("pv-last-scan-ts");
@@ -272,14 +272,17 @@
     if (!list) return;
     if (!events || !events.length) {
       list.innerHTML =
-        '<div class="prof-act-empty prof-act-empty-premium"><div class="garden-empty-pulse"><span class="garden-empty-icon">◎</span></div><strong>Monitoring active</strong><span>Waiting for scan or sensor events…</span></div>';
+        '<div class="prof-act-empty prof-act-empty-premium"><div class="garden-empty-pulse"><span class="garden-empty-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></span></div><strong>Monitoring active</strong><span>Waiting for scan or sensor events…</span></div>';
       return;
     }
-    const typeIcon = { scan: "🔬", sensor: "📡", alert: "⚠", ai: "✦", device: "◉", system: "◇" };
+    // Activity feed = content surface → approved emoji set only.
+    // scan = 📷 outcome, sensor/device = ✅ ("event landed"),
+    // alert/critical = 🔴, ai-recommendation = 🧠, system = 📢.
+    const typeIcon = { scan: "📷", sensor: "✅", alert: "🔴", ai: "🧠", device: "✅", system: "📢" };
     list.innerHTML = events
       .slice(0, 12)
       .map((e) => {
-        const ico = typeIcon[e.event_type] || "•";
+        const ico = typeIcon[e.event_type] || "✅";
         const sev =
           e.event_type === "alert"
             ? "alert"
@@ -373,12 +376,16 @@
   }
 
   function _ppStatusFromScan(scan) {
-    if (!scan) return { cls: "ok", label: "● Awaiting first scan" };
+    // Single design language — pp-status is a content-tone pill, so
+    // every state gets exactly one leading emoji from the approved
+    // set. Unclassified maps to ⚠️ (warning-tone neutral) so the page
+    // never falls back to a non-approved bullet glyph.
+    if (!scan) return { cls: "ok", label: "🌱 Awaiting first scan" };
     const st = scan.status || "WARN";
-    if (st === "PASS") return { cls: "ok",   label: "● Healthy" };
-    if (st === "WARN") return { cls: "warn", label: "● Monitor" };
-    if (st === "CRITICAL") return { cls: "crit", label: "● Critical" };
-    return { cls: "unk", label: "● Unclassified" };
+    if (st === "PASS") return { cls: "ok",   label: "🌱 Healthy" };
+    if (st === "WARN") return { cls: "warn", label: "⚠️ Monitor" };
+    if (st === "CRITICAL") return { cls: "crit", label: "🔴 Critical" };
+    return { cls: "unk", label: "⚠️ Unclassified" };
   }
 
   function _ppFmtAgo(iso) {
@@ -563,7 +570,7 @@
         : mode.cls === "warn"
           ? "● Stale"
           : mode.cls === "sim"
-            ? "◆ Simulation"
+            ? "● Simulation"
             : "○ " + mode.label;
     }
     if (polled) polled.textContent = "Updated " + fmtTime(Math.floor(Date.now() / 1000));
@@ -633,7 +640,7 @@
       localStorage.removeItem(k)
     );
     if (window.plantVisionSettings && window.plantVisionSettings.showToast) {
-      window.plantVisionSettings.showToast("Local cache cleared");
+      window.plantVisionSettings.showToast("✅ Local cache cleared");
     }
     refresh(true);
   }

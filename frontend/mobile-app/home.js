@@ -51,7 +51,7 @@
       badge.textContent = "● Live Mode";
       badge.title = "Live sensor stream detected";
     } else {
-      badge.textContent = "◆ Simulation";
+      badge.textContent = "● Simulation";
       badge.title = "Simulation mode — toggle a real sensor in Settings → Sensors";
     }
     badge.classList.toggle("home-mode-live", isLive && !stale);
@@ -186,7 +186,11 @@
   }
 
   async function refresh() {
-    if (!window.PLANT_API_BASE) {
+    // In Demo Mode the fixtures answer every fetch — we still want to
+    // run the rest of the pipeline so the UI renders fake-but-coherent
+    // data even when window.PLANT_API_BASE is unset.
+    const demoOn = !!(window.plantDemo && window.plantDemo.isOn && window.plantDemo.isOn());
+    if (!demoOn && !window.PLANT_API_BASE) {
       setMode(false);
       return;
     }
@@ -197,9 +201,10 @@
     let health = null;
     let isLive = false;
     let sensorCtx = null;
+    let report = null;
 
     try {
-      const [gardenRes, histRes, evRes, healthRes, ctx] = await Promise.all([
+      const [gardenRes, histRes, evRes, healthRes, ctx, reportRes] = await Promise.all([
         typeof fetchGardenDashboard === "function" ? fetchGardenDashboard() : Promise.resolve({ ok: false, data: null }),
         // Prefer the rich shape (image_url, plant_id, classified status) so
         // the Home log can render thumbnails + premium placeholders.
@@ -209,6 +214,12 @@
         typeof fetchPlantHealth === "function" ? fetchPlantHealth() : Promise.resolve(null),
         window.plantSensor && typeof window.plantSensor.get === "function"
           ? window.plantSensor.get()
+          : Promise.resolve(null),
+        // Phase 4 (B1): unified /report — gives us care + warnings in one
+        // call. Returns null if the JSON path 400s (no plant_id yet);
+        // that's OK — we fall back to /health/plant + /sensor/latest.
+        typeof fetchUnifiedReport === "function"
+          ? fetchUnifiedReport(window.PLANT_ID || "cucumber_001")
           : Promise.resolve(null),
       ]);
 
@@ -222,6 +233,7 @@
       if (Array.isArray(evRes)) events = evRes;
       if (healthRes && healthRes.plant_health !== undefined) health = healthRes;
       sensorCtx = ctx || null;
+      if (reportRes && reportRes.scores) report = reportRes;
       // Unified source of truth: a fresh sensor reading always promotes
       // Home to Live mode, even before any scans have happened.
       if (sensorCtx && (sensorCtx.mode === "live" || sensorCtx.mode === "stale")) {
@@ -237,6 +249,281 @@
     updateLogPulse(events && events[0]);
     renderLogEntries(history);
     showLogEmpty(!history || history.length === 0);
+    // Phase 4 (B1)
+    renderHeroHealth(health, history && history[0]);
+    renderWarnings(report, health, sensorCtx);
+    renderCareCard(report);
+    // Phase Final — health-score trend chart (last 7 scans).
+    renderHealthTrend();
+  }
+
+  // -----------------------------------------------------------------
+  // Phase Final — Health-score trend chart (last 7 scans on Home).
+  //
+  // Loads Chart.js from CDN (see index.html). Pulls /scans/history
+  // ?limit=7 (Demo Mode short-circuit honoured via api.js), plots
+  // health_score over created_at. Hidden when fewer than 2 points
+  // exist or Chart.js failed to load — caller never crashes.
+  // -----------------------------------------------------------------
+  let _trendChart = null;
+  async function renderHealthTrend() {
+    const card = $("home-trend-card");
+    const canvas = $("home-trend-canvas");
+    const empty = $("home-trend-empty");
+    if (!card || !canvas) return;
+    if (typeof window.Chart !== "function") {
+      // CDN blocked / offline — degrade gracefully.
+      card.hidden = true;
+      return;
+    }
+
+    let payload = null;
+    try {
+      payload = typeof fetchScanHistory === "function"
+        ? await fetchScanHistory({ limit: 7 })
+        : null;
+    } catch (_) { payload = null; }
+
+    const scans = (payload && Array.isArray(payload.scans)) ? payload.scans : [];
+    // Keep only scans with a usable health_score, then oldest → newest.
+    const series = scans
+      .filter((s) => typeof s.health_score === "number" && !Number.isNaN(s.health_score))
+      .sort((a, b) => {
+        const ta = a.created_at ? Date.parse(a.created_at) : (a.timestamp || 0) * 1000;
+        const tb = b.created_at ? Date.parse(b.created_at) : (b.timestamp || 0) * 1000;
+        return ta - tb;
+      })
+      .slice(-7);
+
+    if (series.length < 2) {
+      card.hidden = false;
+      if (empty) empty.hidden = false;
+      // Destroy any prior chart so the empty message is visible.
+      if (_trendChart) { _trendChart.destroy(); _trendChart = null; }
+      return;
+    }
+
+    card.hidden = false;
+    if (empty) empty.hidden = true;
+
+    const labels = series.map((s) => {
+      const t = s.created_at ? new Date(s.created_at) : new Date((s.timestamp || 0) * 1000);
+      return t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    });
+    const data = series.map((s) => Math.round(s.health_score));
+    const lastScore = data[data.length - 1];
+
+    // Tone the line + tag with the same thresholds as the hero ring.
+    let toneColor = "#8ca88c"; // --sage
+    if (lastScore < 50) toneColor = "#b07070"; // --coral
+    else if (lastScore < 75) toneColor = "#c0a06a"; // --gold
+    const tag = $("home-trend-tag");
+    if (tag) tag.style.color = toneColor;
+
+    const ds = {
+      label: "Plant health",
+      data: data,
+      borderColor: toneColor,
+      backgroundColor: toneColor + "22",
+      tension: 0.32,
+      borderWidth: 2,
+      pointRadius: 3,
+      pointBackgroundColor: toneColor,
+      pointBorderColor: "rgba(255,255,255,0.6)",
+      pointBorderWidth: 1,
+      fill: true,
+    };
+
+    if (_trendChart) {
+      _trendChart.data.labels = labels;
+      _trendChart.data.datasets = [ds];
+      _trendChart.update("none");
+      return;
+    }
+
+    try {
+      _trendChart = new window.Chart(canvas.getContext("2d"), {
+        type: "line",
+        data: { labels: labels, datasets: [ds] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 280 },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: "rgba(35,40,48,0.95)",
+              titleColor: "#d4dae2",
+              bodyColor: "#d4dae2",
+              borderColor: "rgba(140,168,140,0.32)",
+              borderWidth: 1,
+              cornerRadius: 6,
+              displayColors: false,
+              callbacks: {
+                label: (ctx) => " Health " + ctx.parsed.y + " / 100",
+              },
+            },
+          },
+          scales: {
+            x: {
+              ticks: { color: "rgba(148,163,156,0.7)", font: { family: "IBM Plex Mono", size: 9 } },
+              grid: { color: "rgba(255,255,255,0.04)" },
+            },
+            y: {
+              min: 0,
+              max: 100,
+              ticks: { color: "rgba(148,163,156,0.7)", font: { family: "IBM Plex Mono", size: 9 }, stepSize: 25 },
+              grid: { color: "rgba(255,255,255,0.04)" },
+            },
+          },
+        },
+      });
+    } catch (_) {
+      card.hidden = true;
+    }
+  }
+
+  // -----------------------------------------------------------------
+  // Phase 4 (B1) — Hero plant-health ring on the scanner card.
+  // -----------------------------------------------------------------
+  const HHR_CIRC = 2 * Math.PI * 17; // r=17 → circumference ≈ 106.81
+  function renderHeroHealth(health, latestScan) {
+    const card = $("home-hero-health");
+    if (!card) return;
+    const score = health && typeof health.plant_health === "number"
+      ? Math.max(0, Math.min(100, Math.round(health.plant_health)))
+      : null;
+    if (score == null) {
+      card.hidden = true;
+      return;
+    }
+    card.hidden = false;
+    const val = $("home-hero-val");
+    if (val) val.textContent = String(score);
+    const fill = $("home-hero-ring-fill");
+    if (fill) {
+      fill.setAttribute("stroke-dasharray", HHR_CIRC.toFixed(2));
+      fill.setAttribute("stroke-dashoffset", (HHR_CIRC * (1 - score / 100)).toFixed(2));
+    }
+    let tone = "tone-ok";
+    if (score < 50) tone = "tone-crit";
+    else if (score < 75) tone = "tone-warn";
+    card.classList.remove("tone-ok", "tone-warn", "tone-crit");
+    card.classList.add(tone);
+
+    const title = $("home-hero-title");
+    const sub = $("home-hero-sub");
+    if (title) {
+      if (latestScan && latestScan.disease) {
+        title.textContent = latestScan.disease;
+      } else if (tone === "tone-crit") title.textContent = "Critical — act now";
+      else if (tone === "tone-warn") title.textContent = "Needs attention";
+      else title.textContent = "Healthy plant";
+    }
+    if (sub) {
+      const risk = (health.disease_risk || "—").toString();
+      const env = (health.environment_stress || "stable").toString();
+      sub.textContent = "Risk " + risk + " · Env " + env;
+    }
+  }
+
+  // -----------------------------------------------------------------
+  // Phase 4 (B1) — Warnings strip
+  //   Source priority: /report.warnings (rich) → health.recommendation
+  //   → sensor stress heuristic. Hidden when nothing actionable.
+  // -----------------------------------------------------------------
+  function renderWarnings(report, health, sensorCtx) {
+    const host = $("home-warnings");
+    const list = $("home-warnings-list");
+    if (!host || !list) return;
+    const items = [];
+    if (report && Array.isArray(report.warnings)) {
+      report.warnings.forEach((w) => {
+        items.push({
+          severity: w.severity || "warning",
+          message: w.message || (w.category ? w.category + " out of range" : "warning"),
+        });
+      });
+    }
+    if (!items.length && health && health.disease_risk && health.disease_risk !== "low" && health.recommendation) {
+      items.push({ severity: health.disease_risk === "high" ? "critical" : "warning", message: health.recommendation });
+    }
+    if (!items.length && sensorCtx && sensorCtx.reading && sensorCtx.reading.status) {
+      const st = sensorCtx.reading.status;
+      if (st.overall_environment_status === "stressed") {
+        items.push({ severity: "warning", message: "Environment stressed — see sensor readings" });
+      }
+    }
+    if (!items.length) {
+      host.hidden = true;
+      list.innerHTML = "";
+      return;
+    }
+    host.hidden = false;
+    const html = items.slice(0, 4).map((w) => {
+      const sev = (w.severity || "warning").toLowerCase();
+      const cls = sev === "critical" ? "sev-critical" : "sev-warning";
+      const emoji = sev === "critical" ? "🔴" : "⚠️";
+      const msg = String(w.message).length > 108 ? String(w.message).slice(0, 107) + "…" : w.message;
+      return '<span class="home-warn-chip ' + cls + '"><span class="home-warn-chip-dot"></span><span aria-hidden="true">' + emoji + '</span> ' + _escape(msg) + '</span>';
+    }).join("");
+    list.innerHTML = html;
+  }
+
+  // -----------------------------------------------------------------
+  // Phase 4 (B1) — Care card (latest care plan)
+  // -----------------------------------------------------------------
+  function renderCareCard(report) {
+    const card = $("home-care-card");
+    if (!card) return;
+    if (!report || !report.care_plan && !(report.scores && report.plant_id)) {
+      // Hide when there's no scan yet (i.e. /report has no plant context).
+      card.hidden = true;
+      return;
+    }
+    const template = (report.care_plan && report.care_plan.template) || null;
+    const water = template && template.watering && template.watering.frequency
+      ? template.watering.frequency
+      : (template && template.watering && template.watering.soil_moisture_target
+          ? _range(template.watering.soil_moisture_target, "%")
+          : "—");
+    const sun = template && template.sunlight && template.sunlight.hours_per_day
+      ? _range(template.sunlight.hours_per_day, "h")
+      : "—";
+    const temp = template && template.temperature_c ? _range(template.temperature_c, "°C") : "—";
+    const hum = template && template.humidity_pct ? _range(template.humidity_pct, "%") : "—";
+    const stage = (report.current_growth_stage) || (report.care_plan && report.care_plan.current_stage && report.care_plan.current_stage.name) || "—";
+    const summary = report.analysis_summary
+      || (report.care_recommendations && report.care_recommendations[0] && report.care_recommendations[0].message)
+      || "Care plan available — see Garden + Profile pages for full details.";
+
+    // Hide entirely when we have no template (i.e. report came back without
+    // a care_plan AND the explanation block is empty) — avoids an empty card.
+    if (!template && !report.analysis_summary && !(report.care_recommendations && report.care_recommendations.length)) {
+      card.hidden = true;
+      return;
+    }
+    card.hidden = false;
+
+    const set = (id, txt) => { const el = $(id); if (el && el.textContent !== txt) el.textContent = txt; };
+    set("home-care-stage", stage ? stage.toUpperCase() : "—");
+    set("home-care-water", water);
+    set("home-care-sun", sun);
+    set("home-care-temp", temp);
+    set("home-care-hum", hum);
+    set("home-care-summary", summary);
+  }
+
+  function _range(arr, unit) {
+    if (!Array.isArray(arr) || arr.length < 2) return "—";
+    return arr[0] + "–" + arr[1] + (unit || "");
+  }
+  function _escape(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   function statusTagClass(st) {
@@ -329,9 +616,19 @@
     }
   }
 
+  function _markBootstrap(on) {
+    // Show pulsing skeleton on the three Home stat cards until the
+    // first refresh resolves. Pure visual — no contract change.
+    const cards = document.querySelectorAll(".stats-row .stat-card");
+    cards.forEach((c) => c.classList.toggle("is-bootstrap", !!on));
+  }
+
   function start() {
     if (pollTimer) return;
-    refresh();
+    _markBootstrap(true);
+    // refresh() is async — clear the bootstrap class once the first
+    // pass resolves (success OR failure both end the skeleton).
+    Promise.resolve(refresh()).finally(() => _markBootstrap(false));
     pollTimer = setInterval(refresh, POLL_MS);
   }
 
