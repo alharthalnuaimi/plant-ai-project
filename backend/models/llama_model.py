@@ -5,7 +5,7 @@ Structured survival probability always comes from `services.survival` (rule-base
 """
 
 from __future__ import annotations
-
+from google import genai
 import json
 import os
 from dataclasses import dataclass
@@ -52,6 +52,30 @@ class LlamaClient:
         msg = data.get("message") or {}
         return str(msg.get("content", "")).strip()
 
+@dataclass
+class GeminiClient:
+    api_key: str
+    model: str
+
+    def generate_chat(
+        self,
+        messages: list[dict[str, str]],
+    ) -> str:
+
+        prompt = "\n\n".join(
+            f"{m['role'].upper()}:\n{m['content']}"
+            for m in messages
+        )
+
+        client = genai.Client(api_key=self.api_key)
+
+        response = client.models.generate_content(
+            model=self.model,
+            contents=prompt,
+        )
+
+        return response.text.strip()
+    
 
 def get_llama_client() -> LlamaClient | None:
     base = os.getenv("OLLAMA_BASE_URL", "").strip()
@@ -60,6 +84,18 @@ def get_llama_client() -> LlamaClient | None:
     model = os.getenv("OLLAMA_MODEL", "llama3.1")
     return LlamaClient(base_url=base, model=model)
 
+def get_gemini_client() -> GeminiClient | None:
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+
+    if not api_key:
+        return None
+
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
+    return GeminiClient(
+        api_key=api_key,
+        model=model,
+    )
 
 def fallback_narrative(context: dict[str, Any]) -> str:
     """Deterministic copy when Ollama is offline — keeps demos working."""
@@ -104,13 +140,32 @@ def parse_reasoning_response(text: str, fallback_context: dict[str, Any]) -> tup
     if not text:
         fb = fallback_narrative(fallback_context)
         return ("Monitor watering and heat stress closely.", fb)
+
     try:
-        data = json.loads(text)
+        cleaned = text.strip()
+
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]
+
+        if cleaned.startswith("```"):
+            cleaned = cleaned[3:]
+
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+
+        cleaned = cleaned.strip()
+        print("CLEANED TEXT =")
+        print(cleaned)
+        data = json.loads(cleaned)
+        print("PARSED JSON =", data)
         recommendation = str(data.get("recommendation", "")).strip()
         explanation = str(data.get("explanation", "")).strip()
+
         if recommendation and explanation:
             return recommendation, explanation
-    except json.JSONDecodeError:
-        pass
+
+    except Exception as e:
+        print("PARSE ERROR =", e)
+
     fb = fallback_narrative(fallback_context)
     return ("Increase watering consistency and reduce heat exposure.", fb)

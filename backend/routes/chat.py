@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from models.llama_model import (
     build_reasoning_prompts,
     fallback_narrative,
-    get_llama_client,
+    get_gemini_client,
     parse_reasoning_response,
 )
 from schemas.contracts import SurvivalSensorInput, SurvivalResponse, VisionResult
@@ -40,7 +40,7 @@ async def chat(req: ChatRequest) -> dict:
         "survival": survival.model_dump(),
     }
 
-    client = get_llama_client()
+    client = get_gemini_client()
     if client is None:
         recommendation = "Increase watering consistency and reduce prolonged heat exposure."
         text = fallback_narrative(
@@ -54,11 +54,14 @@ async def chat(req: ChatRequest) -> dict:
     else:
         try:
             raw = client.generate_chat(build_reasoning_prompts(context, req.user_question))
+            print("\n========== GEMINI RAW ==========")
+            print(raw)
+            print("================================\n")
             recommendation, text = parse_reasoning_response(raw, context)
             if not raw:
-                source = "fallback_empty_ollama"
+                source = "fallback_empty_gemini"
             else:
-                source = "ollama"
+                source = "gemini"
         except Exception:
             recommendation = "Increase watering consistency and reduce prolonged heat exposure."
             text = fallback_narrative(context)

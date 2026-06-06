@@ -45,15 +45,16 @@ Future versions will combine:
 
 | Feature | Status | Description |
 |--------|--------|-------------|
-| AI Disease Detection | ✅ Working | Detect cucumber disease from uploaded images |
+| AI Disease Detection | ✅ Working | Detect plant diseases from uploaded images using YOLOv8 |
 | Frontend Scan Upload | ✅ Working | Upload image and receive live AI result |
 | FastAPI Backend | ✅ Working | Handles prediction and sensor APIs |
-| YOLOv8 Trained Model | ✅ Working | Real trained cucumber disease model |
+| YOLOv8 Trained Model | ✅ Working | Multi-class plant disease detection model |
 | Sensor API | ✅ Working | Accept sensor readings via JSON |
 | Frontend Environment Dashboard | ✅ Working | Displays latest sensor/environment values |
 | ESP32 Firmware Structure | ✅ Ready | Placeholder firmware for sensor node |
-| Survival Prediction | 🟡 Partial | Backend logic exists, future integration |
-| LLM Recommendations | 🔵 Planned | Future Ollama/Llama reasoning layer |
+| Survival Prediction | ✅ Working | Calculates plant survival probability using vision and sensor inputs |
+| Gemini Plant Assistant | ✅ Working | Context-aware chatbot powered by Google Gemini |
+| AI Recommendations | ✅ Working | Generates recommendations based on scan and survival analysis |
 
 ---
 
@@ -72,12 +73,21 @@ FastAPI Backend
       ├── /predict
       ├── /sensor
       ├── /sensor/latest
-      └── /survival
+      ├── /survival
+      └── /chat
               │
               ▼
 AI Inference Layer
       │
       └── YOLOv8 Plant Disease Detection
+              │
+              ▼
+              ▼
+AI Reasoning Layer
+      │
+      ├── Google Gemini
+      ├── Survival Analysis
+      └── Plant Assistant Chat
               │
               ▼
 ESP32 Sensor Node
@@ -164,8 +174,22 @@ plant-ai-project/
 │   └── team_workflow.md
 │
 └── README.md
+
+# 🔑 Gemini Configuration
+
+PlantVision AI uses Google Gemini for contextual plant-health reasoning.
+
+Required environment variable:
+
+```bash
+GEMINI_API_KEY=your_api_key_here
+```
+
+If Gemini is unavailable, the backend automatically switches to a built-in fallback narrative engine so the chatbot remains operational.
+
+
 🚀 Backend Setup
-Start Backend
+
 
 Open CMD:
 
@@ -201,14 +225,14 @@ Test:
 
 POST /predict
 
-Upload cucumber leaf image.
+Upload plant leaf image.
 
 Expected:
 
 {
-  "disease": "diseased",
-  "confidence": 0.98,
-  "accepted": true,
+  "disease": "--",
+  "confidence": --,
+  "accepted": --,
   "inference_ms": 100
 }
 2. Frontend Scan Test
@@ -252,6 +276,38 @@ Expected:
 source = live
 
 Frontend updates within ~5 seconds.
+
+### 4. Chat Assistant Test
+
+Endpoint:
+
+POST /chat
+
+Example:
+
+```json
+{
+  "vision": {
+    "disease": "rose_nutrient_deficient",
+    "confidence": 0.98,
+    "stress_hint": "from_yolo_only"
+  },
+  "sensors": {
+    "soil_moisture": 50,
+    "temperature": 25,
+    "humidity": 60,
+    "species": "rose"
+  },
+  "user_question": "Explain why this disease happens."
+}
+```
+
+Expected:
+
+- AI-generated explanation
+- Recommendation
+- Survival probability
+- Disease-aware reasoning
 
 🌐 Network Testing
 
@@ -319,13 +375,18 @@ Dataset Management	dataset/
 Documentation	docs/
 🎯 Current MVP Achievements
 
-✅ Working trained YOLOv8 cucumber disease model
+✅ Working trained YOLOv8 rose disease model
 ✅ Live backend inference
 ✅ FastAPI API documentation
 ✅ Frontend scan integration
 ✅ Sensor API backend
 ✅ Environment frontend updates
 ✅ Team project structure
+✅ Gemini-powered plant assistant
+✅ Scan-aware chatbot context
+✅ Survival probability engine
+✅ AI-generated recommendations
+✅ Automatic fallback reasoning engine
 
 🚀 Future Improvements
 AI Improvements
@@ -356,9 +417,16 @@ This combines:
 AI image prediction
 sensor readings
 survival logic
+
 Future AI
-Ollama / Llama recommendations
-conversational plant assistant
+
+Multi-turn memory
+Advanced agronomic reasoning
+RAG-based agricultural knowledge retrieval
+Multi-language plant assistant
+Voice-enabled plant advisor
+
+
 🏆 Project Evaluation
 
 Student / MVP prototype score:

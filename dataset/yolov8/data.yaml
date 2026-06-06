@@ -1,16 +1,13 @@
-# YOLOv8 dataset manifest — replace names with YOUR local taxonomy.
-# Paths are relative to this file's directory (dataset/yolov8/).
+train: C:\Users\sasuki\Desktop\project\plant-ai-project\dataset\yolov8\images\train
+val: C:\Users\sasuki\Desktop\project\plant-ai-project\dataset\yolov8\images\val
+test: C:\Users\sasuki\Desktop\project\plant-ai-project\dataset\yolov8\images\test
 
-path: .
-train: images/train
-val: images/val
-test: images/test
+nc: 3
+names: ['Bacterial Wilt Money Plant', 'Healthy Money Plant', 'Manganese Toxicity Money Plant']
 
-names:
-  0: healthy
-  1: diseased
-  2: dehydrated
-  3: nutrient_deficient
-
-# For detection: place label .txt files under labels/train and labels/val (same stem as image).
-# For YOLO-cls (classification): use Ultralytics folder layout or train with task=classify — see training/README.md
+roboflow:
+  workspace: laithas-workspace
+  project: laithas-workspace
+  version: dataset
+  license: Private
+  url: https://app.roboflow.com/laithas-workspace/laithas-workspace/dataset
