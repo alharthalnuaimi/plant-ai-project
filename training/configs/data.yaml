@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 5
+names: ['healthy', 'healty ', 'sick', 'sick ', 'underwater']
+
+roboflow:
+  workspace: plant-gpcmi
+  project: plant-gpcmi
+  version: dataset
+  license: Private
+  url: https://app.roboflow.com/plant-gpcmi/plant-gpcmi/dataset

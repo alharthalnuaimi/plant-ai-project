@@ -168,8 +168,8 @@ def get_vision_predictor() -> VisionPredictor:
          weights — UI gets a clean response with `model_name == "stub_vision"`.
     """
 
-    descriptor = resolve_model_descriptor()
-    weights = descriptor.weights_path
+    #descriptor = resolve_model_descriptor()
+    weights = weights = r"C:\Users\sasuki\Desktop\project\plant-ai-project\artifacts\train_runs\v0.2.0\weights\rose_best.pt"
     if weights and os.path.isfile(weights):
         try:
             predictor = YoloVisionPredictor(weights)
@@ -182,6 +182,7 @@ def get_vision_predictor() -> VisionPredictor:
                 exc,
             )
         except Exception as exc:  # noqa: BLE001 — keep the API alive
+            print("\n🚨 CRITICAL YOLO ERROR ACCURRED!!! 🚨\n", str(exc), "\n")
             logger.exception(
                 "YOLO load failed for weights=%s — falling back to stub: %s", weights, exc
             )
