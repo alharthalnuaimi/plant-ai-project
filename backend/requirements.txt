@@ -14,5 +14,4 @@ asyncpg>=0.29.0
 
 # Optional: real YOLOv8 plant/disease detection (install when you have weights)
 # ultralytics>=8.0.0
--------------------------------------------------------------------------------
 google-genai>=1.0.0
