@@ -2893,3 +2893,120 @@ textarea:focus-visible,
    bump font-size slightly so the leading emoji reads cleanly. */
 .pp-status{font-size:11px}
 
+/* ====================================================================
+   === Responsive polish pass ===
+   --------------------------------------------------------------------
+   Zoom-resilient (100/125/150/175%) + smooth scaling across breakpoints:
+     ≥1680  ultrawide / 27"+
+     1280-1679  standard desktop / laptop  (default styles already cover)
+     1024-1279  small laptop / large tablet landscape
+     768-1023   tablet portrait / split-screen
+     480-767    large phone landscape
+     ≤479       phone portrait
+   All new rules live below this banner so the diff is easy to audit.
+   ==================================================================== */
+
+/* ---------- defensive utilities (apply at every width) ---------- */
+img,video,canvas{max-width:100%}
+.home-dashboard,.garden-layout,.data-grid,.profile-layout,
+.settings-grid,.grid-layout{min-width:0}
+.home-dashboard>*,.garden-layout>*,.data-grid>*,
+.profile-layout>*,.settings-grid>*,.grid-layout>*{min-width:0}
+.topbar-left,.topbar-right,.topbar-brand{min-width:0}
+.topbar-right{flex-wrap:wrap;justify-content:flex-end;row-gap:6px}
+.stats-row>*,.garden-summary-row>*,.sys-metrics-grid>*,
+.prof-metrics-row>*{min-width:0}
+.entry,.entry-body,.alert-body,.dev-acc-title,
+.zone-chip,.zone-chip-main{min-width:0}
+.alert-msg,.entry-title,.pp-name,.zone-chip-line,
+.dev-name,.dev-acc-sub{overflow-wrap:anywhere}
+
+/* ---------- generic modal max-height fallback ----------
+   Excludes .zm-modal and .sd-modal which already manage their own
+   max-height + inner scroller; this catches confirm/result/scan modals
+   so they never grow past the viewport at 150-175% browser zoom. */
+.ov>.modal:not(.zm-modal):not(.sd-modal){
+  max-height:min(90vh,720px);
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+}
+
+/* ---------- ≥1680px : ultrawide / 27"+ ---------- */
+@media(min-width:1680px){
+  .home-dashboard,.data-grid,.garden-layout,
+  .settings-grid,.grid-layout{max-width:1600px}
+  .garden-summary-row{max-width:1600px}
+  .stats-row{gap:16px}
+}
+
+/* ---------- 1280-1679px : standard desktop / laptop ---------- */
+/* Default layout already targets this range; only tighten the
+   garden summary chips so 4-up doesn't overcrowd at 1280 narrow. */
+@media(min-width:1280px) and (max-width:1679px){
+  .garden-summary-row{gap:14px}
+}
+
+/* ---------- 1024-1279px : small laptop / large tablet landscape ----------
+   Bridge between mobile (≤1024) and desktop (≥1280). Without an
+   in-between, the home dashboard's 2-col grid can crowd at 125%
+   browser zoom (effective viewport ~820px). Tighten paddings and
+   ensure summary chips stay 4-up. */
+@media(min-width:1024px) and (max-width:1279px){
+  .content{padding:22px 22px}
+  .topbar{padding:0 22px}
+  .home-dashboard{gap:16px}
+  .data-grid,.settings-grid{gap:16px}
+  .garden-layout{gap:16px;grid-template-columns:minmax(0,1.4fr) minmax(280px,0.85fr)}
+  .garden-summary-row{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  .stats-row{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  .sys-metrics-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .prof-metrics-row{grid-template-columns:repeat(3,minmax(0,1fr))}
+  /* Hide the debug FPS chip in this range to keep the topbar tidy at zoom. */
+  .sys-chip-fps{display:none}
+}
+
+/* ---------- 768-1023px : tablet portrait / split-screen ----------
+   The existing ≤1024px rules collapse most grids to 1 column; we only
+   layer a few topbar/chip refinements here so the dense top row never
+   pushes off-screen at 150-175% zoom. */
+@media(min-width:768px) and (max-width:1023px){
+  .content{padding:18px}
+  .topbar{padding:0 18px}
+  .sys-strip{flex-wrap:wrap;row-gap:4px}
+  .sys-strip .sys-chip-text{font-size:9.5px}
+  /* Stats row keeps 3-up at this width — it's already legible. */
+  .stats-row{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .garden-summary-row{grid-template-columns:repeat(4,minmax(0,1fr))}
+  /* Profile metric grid: 3 columns reads better than 1 at tablet. */
+  .prof-metrics-row{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+/* ---------- 480-767px : large phone landscape ---------- */
+@media(min-width:480px) and (max-width:767px){
+  .stats-row{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .garden-summary-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .scanner-card,.zone-sensor-card,.actions-card,.log-card,
+  .map-card,.set-card,.d-card{padding:16px}
+  /* Allow chip rows to wrap rather than force horizontal scroll. */
+  .scan-zone-picker,.sys-strip,.topbar-right{flex-wrap:wrap}
+  .sys-strip{row-gap:4px}
+  .set-row{flex-wrap:wrap;row-gap:8px}
+  .prof-metrics-row{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* ---------- ≤479px : phone portrait ---------- */
+@media(max-width:479px){
+  .content{padding:12px 12px 24px}
+  .topbar{padding:0 10px;gap:6px}
+  .topbar-title{font-size:12px;letter-spacing:1.1px}
+  .garden-summary-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  .sys-metrics-grid,.prof-metrics-row{grid-template-columns:repeat(2,minmax(0,1fr))}
+  /* Modal padding scales with viewport. */
+  .modal{padding:24px 18px}
+  /* Pin the zone-edit modal to the viewport on portrait phones. */
+  #zone-modal.active .zm-modal{right:12px;left:12px;width:auto;max-width:calc(100vw - 24px);transform:translateY(-50%) scale(1)}
+  /* Final containment net for any rogue overflow at very narrow widths. */
+  .page>.grid-layout,.page>.data-grid,.page>.garden-layout,
+  .page>.settings-grid,.page>.profile-layout{overflow-x:hidden}
+}
+/* === End responsive polish pass === */

@@ -44,6 +44,26 @@ async function loadFromServer(){
   } catch(e){ return null; }
 }
 
+// Small toast helper that's safe to call before settings.js has finished
+// wiring window.plantVisionSettings.showToast. Falls back to console.
+function pvToast(message){
+  try {
+    if(window.plantVisionSettings && typeof window.plantVisionSettings.showToast === 'function'){
+      window.plantVisionSettings.showToast(message);
+      return;
+    }
+  } catch(_){}
+  // Minimal inline toast so persistence errors are never silent.
+  const root = document.getElementById('pv-toast-root');
+  if(!root){ console.warn('[pv-toast]', message); return; }
+  const el = document.createElement('div');
+  el.className = 'pv-toast';
+  el.textContent = message;
+  root.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('pv-toast-show'));
+  setTimeout(() => { el.classList.remove('pv-toast-show'); setTimeout(() => el.remove(), 300); }, 2600);
+}
+
 // --- HUD confidence chip (live after scan, subtle demo idle) ---
 setInterval(()=>{
   const c=document.getElementById('s-conf');
@@ -825,7 +845,11 @@ async function hydrateZonesFromBackend(){
   if(typeof fetchZones !== 'function') return false;
   const res = await fetchZones();
   if(!res || !res.ok || !Array.isArray(res.zones) || res.zones.length === 0) return false;
-  if(res.source !== 'postgres') return false;
+  // Trust the backend as the source of truth regardless of postgres vs memory:
+  // in memory mode the FastAPI process still seeds + retains user adds/deletes
+  // between requests, and any optimistic local changes will have already been
+  // POSTed by the add/delete handlers below. This is what lets a hard refresh
+  // show the same zones the user just added/removed.
   const backendZones = res.zones;
   let devicesByZone = {};
   if(typeof fetchDevices === 'function'){
@@ -885,7 +909,7 @@ function renderZoneChips(){
   });
   // Bind edit/delete buttons
   list.querySelectorAll('.zb-edit').forEach(b=>b.addEventListener('click',()=>openZoneModal(b.dataset.id)));
-  list.querySelectorAll('.zb-del').forEach(b=>b.addEventListener('click',()=>deleteZone(b.dataset.id)));
+  list.querySelectorAll('.zb-del').forEach(b=>b.addEventListener('click',()=>requestDeleteZone(b.dataset.id)));
 }
 
 function renderMapMarkers(){
@@ -987,7 +1011,34 @@ function closeZoneModal(){
 if(zmCancel) zmCancel.addEventListener('click', closeZoneModal);
 if(zmCancelBtn) zmCancelBtn.addEventListener('click', closeZoneModal);
 
-zmSave.addEventListener('click', ()=>{
+// Helper: write the local zones cache + Node dev /api/state, WITHOUT
+// triggering syncZonesToBackend() (the add/delete handlers do their own
+// scoped POST/DELETE so we don't double-fire requests).
+function _persistZonesLocal(){
+  try { localStorage.setItem('pv-zones', JSON.stringify(zones)); } catch(_){}
+  try { syncToServer('zones', zones); } catch(_){}
+}
+function _notifyZonesChanged(){
+  if(window.plantGarden && typeof window.plantGarden.onZonesChanged === 'function'){
+    window.plantGarden.onZonesChanged();
+  } else {
+    renderDevicePanel();
+  }
+}
+function _allocateZoneSlug(name){
+  // Pick the next free single-letter local id (a..z), then a..z with
+  // suffix on collision. zone_id (the Supabase slug) mirrors the id so
+  // the backend has a stable, meaningful slug.
+  const usedIds = new Set(zones.map(z => z.id));
+  for(let code = 97; code < 123; code++){
+    const c = String.fromCharCode(code);
+    if(!usedIds.has(c)) return { id: c, zone_id: 'zone_' + c };
+  }
+  const fallback = 'z' + Date.now().toString(36).slice(-4);
+  return { id: fallback, zone_id: 'zone_' + fallback };
+}
+
+zmSave.addEventListener('click', async ()=>{
   const name = zmName.value.trim();
   if(!name){
     zmName.classList.add('zm-input-error');
@@ -1001,26 +1052,84 @@ zmSave.addEventListener('click', ()=>{
     return;
   }
   const devices = getModalDevices();
+
   if(editingZone){
+    // ---- EDIT EXISTING ZONE ----
+    // Optimistic local update first so the UI reacts instantly.
+    const prev = { name: editingZone.name, status: editingZone.status, plants: editingZone.plants, lat: editingZone.lat, lng: editingZone.lng, devices: editingZone.devices };
     editingZone.name = name;
     editingZone.status = zmStatus.value;
     editingZone.plants = parseInt(zmPlants.value)||0;
     editingZone.lat = pendingLatLng.lat;
     editingZone.lng = pendingLatLng.lng;
     editingZone.devices = devices;
-  } else {
-    const nextId = String.fromCharCode(97 + zones.length); // a,b,c...
-    zones.push({ id:nextId, lat:pendingLatLng.lat, lng:pendingLatLng.lng, name, plants:parseInt(zmPlants.value)||0, status:zmStatus.value, devices });
+    _persistZonesLocal();
+    renderZoneChips();
+    renderMapMarkers();
+    _notifyZonesChanged();
+    closeZoneModal();
+
+    if(typeof saveZone === 'function'){
+      const saved = await saveZone(_zoneToBackend(editingZone));
+      if(!saved){
+        // Roll back the optimistic edit.
+        Object.assign(editingZone, prev);
+        _persistZonesLocal();
+        renderZoneChips();
+        renderMapMarkers();
+        _notifyZonesChanged();
+        pvToast('⚠️ Could not save zone — kept previous values');
+      }
+    }
+    return;
   }
-  saveZones();
+
+  // ---- ADD NEW ZONE ----
+  const ids = _allocateZoneSlug(name);
+  const newZone = {
+    id: ids.id,
+    zone_id: ids.zone_id,
+    lat: pendingLatLng.lat,
+    lng: pendingLatLng.lng,
+    name,
+    plants: parseInt(zmPlants.value)||0,
+    status: zmStatus.value,
+    devices,
+  };
+  zones.push(newZone);
+  _persistZonesLocal();
   renderZoneChips();
   renderMapMarkers();
-  if(window.plantGarden && typeof window.plantGarden.onZonesChanged === 'function'){
-    window.plantGarden.onZonesChanged();
-  } else {
-    renderDevicePanel();
-  }
+  _notifyZonesChanged();
   closeZoneModal();
+
+  if(typeof saveZone === 'function'){
+    const saved = await saveZone(_zoneToBackend(newZone));
+    if(!saved){
+      // Roll back the optimistic insert.
+      zones = zones.filter(z => z.id !== newZone.id);
+      _persistZonesLocal();
+      renderZoneChips();
+      renderMapMarkers();
+      _notifyZonesChanged();
+      pvToast('⚠️ Could not save zone — backend unreachable');
+      return;
+    }
+    // Reconcile the optimistic record with the backend's authoritative
+    // row (id, created_at, normalised status, etc).
+    const idx = zones.findIndex(z => z.id === newZone.id);
+    if(idx !== -1){
+      zones[idx].zone_id = saved.slug || zones[idx].zone_id;
+      zones[idx].name = saved.name || zones[idx].name;
+      if(saved.status) zones[idx].status = _zoneStatusFromBackend(saved.status);
+      if(typeof saved.plants_count === 'number') zones[idx].plants = saved.plants_count;
+      _persistZonesLocal();
+      renderZoneChips();
+      renderMapMarkers();
+      _notifyZonesChanged();
+    }
+    pvToast('✅ Zone saved');
+  }
 });
 
 zmDelete.addEventListener('click', ()=>{
@@ -1042,25 +1151,47 @@ zmDelete.addEventListener('click', ()=>{
   }
 });
 
-// Actual delete execution (no confirm dialog)
-function executeDeleteZone(id){
-  zones = zones.filter(z=>z.id!==id);
+// Actual delete execution (no confirm dialog).
+// Strategy: optimistic remove from the local zones array + the map, then
+// call backend DELETE /zones/{slug}. On failure: restore the zone so the
+// UI matches the backend's authoritative state and surface a toast.
+async function executeDeleteZone(id){
+  const idx = zones.findIndex(z => z.id === id);
+  if(idx === -1) return;
+  const removed = zones[idx];
+  const removedIndex = idx;
+  const slug = removed.zone_id || removed.id;
+
+  zones = zones.filter(z => z.id !== id);
   if(mapMarkers[id]){
     if(gardenMap) gardenMap.removeLayer(mapMarkers[id]);
     delete mapMarkers[id];
   }
-  saveZones();
+  _persistZonesLocal();
   renderZoneChips();
   renderMapMarkers();
-  if(window.plantGarden && typeof window.plantGarden.onZonesChanged === 'function'){
-    window.plantGarden.onZonesChanged();
-  } else {
-    renderDevicePanel();
+  _notifyZonesChanged();
+
+  if(typeof deleteZone === 'function'){
+    const ok = await deleteZone(slug);
+    if(!ok){
+      // Restore the optimistic delete at its original index.
+      zones.splice(removedIndex, 0, removed);
+      _persistZonesLocal();
+      renderZoneChips();
+      renderMapMarkers();
+      _notifyZonesChanged();
+      pvToast('⚠️ Could not delete zone — backend unreachable');
+      return;
+    }
+    pvToast('✅ Zone deleted');
   }
 }
 
-// deleteZone from chip buttons — inline 2-click confirm
-function deleteZone(id){
+// Chip-button delete trigger — inline 2-click confirm.
+// NOTE: deliberately not named `deleteZone` so we don't shadow the
+// api.js `deleteZone(slug)` helper that POSTs DELETE /zones/{slug}.
+function requestDeleteZone(id){
   // Find the delete button for this zone
   const btn = document.querySelector(`.zb-del[data-id="${id}"]`);
   if(!btn) return;
