@@ -131,8 +131,13 @@ const camHint = document.getElementById('cam-hint');
 const camCaptureBtn = document.getElementById('cam-capture');
 const camUseBtn = document.getElementById('cam-use');
 const camCancelBtn = document.getElementById('cam-cancel');
+const camSwitchBtn = document.getElementById('cam-switch');
 let camStream = null;
 let capturedBlob = null;
+// Rear camera is the default; flipped to "user" only after an explicit toggle.
+// Tracked outside the open/close lifecycle so a user's last choice persists
+// across modal re-opens within the same session.
+let currentFacingMode = 'environment';
 
 function clearScanTimer(){
   if(timer){ clearInterval(timer); timer = null; }
@@ -440,10 +445,25 @@ function triggerScanUpload(){
 
 function stopCameraStream(){
   if(camStream){
-    camStream.getTracks().forEach(t => t.stop());
+    try { camStream.getTracks().forEach(t => { try { t.stop(); } catch(_){} }); } catch(_){}
     camStream = null;
   }
-  if(camPreview) camPreview.srcObject = null;
+  if(camPreview){
+    try { camPreview.pause(); } catch(_){}
+    camPreview.srcObject = null;
+  }
+}
+
+// Toggle the CSS mirror so the user-facing camera previews un-mirrored
+// from the operator's perspective. The capture canvas always uses the raw
+// frame, so saved images match what the back camera actually saw.
+function applyPreviewMirror(){
+  if(!camPreview) return;
+  if(currentFacingMode === 'user'){
+    camPreview.classList.add('mirror');
+  } else {
+    camPreview.classList.remove('mirror');
+  }
 }
 
 function closeCameraModal(){
@@ -464,33 +484,119 @@ function closeCameraModal(){
   cameraModal?.classList.remove('active');
 }
 
+// Resolve the video constraints we want to send to getUserMedia for the
+// given facingMode. Honours the resolution/torch hints from settings.js
+// when they exist, otherwise falls back to a minimal ideal-environment
+// request. Always uses `{ ideal: ... }` (never `exact`) so devices that
+// only expose one camera still succeed.
+function _buildCameraConstraints(facingMode){
+  let base = null;
+  try {
+    if(window.plantVisionSettings && typeof window.plantVisionSettings.getCameraConstraints === 'function'){
+      base = window.plantVisionSettings.getCameraConstraints();
+    }
+  } catch(_){}
+  const video = (base && typeof base.video === 'object' && base.video) ? { ...base.video } : {};
+  video.facingMode = { ideal: facingMode };
+  return { video, audio: false };
+}
+
+async function _acquireCameraStream(facingMode){
+  try {
+    return await navigator.mediaDevices.getUserMedia(_buildCameraConstraints(facingMode));
+  } catch (err) {
+    const name = err && err.name;
+    if(name === 'OverconstrainedError' || name === 'NotFoundError' || name === 'NotReadableError'){
+      // Some devices (laptops, sandboxed browsers) don't expose the
+      // requested camera at all — retry with no facingMode constraint
+      // so the browser can pick any working video device.
+      return await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    }
+    throw err;
+  }
+}
+
 async function openCameraModal(){
   closeScanSourceModal();
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-    alert('Camera is not supported in this browser. Please upload an image instead.');
+    pvToast('Camera not supported in this browser. Please upload an image.');
     triggerScanUpload();
     return;
   }
+  // Always start clean — if a previous open left a stream around (e.g. a
+  // permission prompt was dismissed mid-open) we must not leak its tracks.
+  stopCameraStream();
   try {
-    const constraints = window.plantVisionSettings && typeof window.plantVisionSettings.getCameraConstraints === 'function'
-      ? window.plantVisionSettings.getCameraConstraints()
-      : { video: { facingMode: { ideal: 'environment' } }, audio: false };
-    camStream = await navigator.mediaDevices.getUserMedia(constraints);
+    camStream = await _acquireCameraStream(currentFacingMode);
     if(window.plantVisionSettings && typeof window.plantVisionSettings.applyTorchIfNeeded === 'function'){
-      await window.plantVisionSettings.applyTorchIfNeeded(camStream);
+      try { await window.plantVisionSettings.applyTorchIfNeeded(camStream); } catch(_){}
     }
     if(camPreview){
       camPreview.srcObject = camStream;
       camPreview.hidden = false;
+      // iOS Safari requires playsInline + an explicit play() after srcObject.
+      try { await camPreview.play(); } catch(_){}
     }
+    applyPreviewMirror();
     capturedBlob = null;
     if(camUseBtn) camUseBtn.hidden = true;
     if(camCaptureBtn) camCaptureBtn.hidden = false;
     cameraModal?.classList.add('active');
   } catch (err) {
     console.warn('Camera permission error:', err);
-    alert('Could not access the camera. Check permissions or upload an image instead.');
+    stopCameraStream();
+    closeCameraModal();
+    const denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
+    pvToast(denied
+      ? 'Camera permission denied. Please allow camera access or upload an image.'
+      : 'Could not start the camera. Try uploading an image instead.');
     triggerScanUpload();
+  }
+}
+
+async function switchCameraFacing(){
+  if(!cameraModal?.classList.contains('active')) return;
+  const next = currentFacingMode === 'environment' ? 'user' : 'environment';
+  // Stop the live preview tracks BEFORE asking for a new stream — otherwise
+  // some Android browsers refuse to hand us the second camera while the
+  // first one is still in-use, and we'd end up with two parallel tracks.
+  stopCameraStream();
+  try {
+    camStream = await _acquireCameraStream(next);
+    currentFacingMode = next;
+    if(window.plantVisionSettings && typeof window.plantVisionSettings.applyTorchIfNeeded === 'function'){
+      try { await window.plantVisionSettings.applyTorchIfNeeded(camStream); } catch(_){}
+    }
+    if(camPreview){
+      camPreview.srcObject = camStream;
+      camPreview.hidden = false;
+      try { await camPreview.play(); } catch(_){}
+    }
+    applyPreviewMirror();
+    // Reset capture state — any preview-captured frame is now from the
+    // previous camera and would be misleading.
+    capturedBlob = null;
+    if(camCanvas){ camCanvas.hidden = true; }
+    if(camUseBtn) camUseBtn.hidden = true;
+    if(camCaptureBtn) camCaptureBtn.hidden = false;
+    if(camHint) camHint.textContent = next === 'user'
+      ? 'Front camera — point at the leaf, then capture'
+      : 'Point at a leaf, then capture';
+  } catch (err) {
+    console.warn('Camera switch failed:', err);
+    // Try to recover the previous camera so the modal isn't left blank.
+    try {
+      camStream = await _acquireCameraStream(currentFacingMode);
+      if(camPreview){
+        camPreview.srcObject = camStream;
+        try { await camPreview.play(); } catch(_){}
+      }
+      applyPreviewMirror();
+    } catch(_){
+      stopCameraStream();
+      closeCameraModal();
+    }
+    pvToast('Could not switch cameras on this device.');
   }
 }
 
@@ -502,6 +608,10 @@ function captureCameraPhoto(){
   camCanvas.width = w;
   camCanvas.height = h;
   const ctx = camCanvas.getContext('2d');
+  // Always draw the raw frame — the on-screen `transform: scaleX(-1)`
+  // mirror for the front camera is purely a UX affordance for the
+  // operator. The saved photo should reflect the sensor's view, so the
+  // backend gets a faithful image regardless of which camera was used.
   ctx.drawImage(camPreview, 0, 0, w, h);
   camCanvas.hidden = false;
   camPreview.hidden = true;
@@ -540,6 +650,7 @@ document.getElementById('scan-opt-cancel')?.addEventListener('click', closeScanS
 camCaptureBtn?.addEventListener('click', captureCameraPhoto);
 camUseBtn?.addEventListener('click', useCameraPhoto);
 camCancelBtn?.addEventListener('click', closeCameraModal);
+camSwitchBtn?.addEventListener('click', e => { e.preventDefault(); switchCameraFacing(); });
 
 // Backend health indicator (chip-style status)
 function setSysChip(id, state, text){
@@ -2229,11 +2340,27 @@ async function openChatCameraPanel(){
     addMsg('Camera is not supported in this browser. Use the Home scan upload instead.', false);
     return;
   }
+  // Mirror the Home camera flow: prefer rear camera, fall back to any
+  // available device if the browser can't honour the facingMode hint.
+  stopChatCameraStream();
   try {
-    chatCamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    try {
+      chatCamStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+    } catch (inner) {
+      const n = inner && inner.name;
+      if(n === 'OverconstrainedError' || n === 'NotFoundError' || n === 'NotReadableError'){
+        chatCamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      } else {
+        throw inner;
+      }
+    }
     if(chatCamPreview){
       chatCamPreview.srcObject = chatCamStream;
       chatCamPreview.hidden = false;
+      try { await chatCamPreview.play(); } catch(_){}
     }
     chatCapturedBlob = null;
     if(chatCamUseBtn) chatCamUseBtn.hidden = true;

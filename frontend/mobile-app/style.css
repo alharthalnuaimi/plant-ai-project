@@ -3010,3 +3010,280 @@ img,video,canvas{max-width:100%}
   .page>.settings-grid,.page>.profile-layout{overflow-x:hidden}
 }
 /* === End responsive polish pass === */
+
+/* ====================================================================
+   === Responsive polish pass v2 — back-camera + zoom + narrow viewport ===
+   --------------------------------------------------------------------
+   Layered ON TOP of the v1 block above. Only new rules / overrides — the
+   v1 block is left intact so the diff stays auditable.
+
+   What this pass fixes:
+     * Camera modal: rear-cam mirror policy + switch button styling +
+       size clamps so the <video> preview never blows out at high zoom.
+     * Topbar / sys-strip: hard wrap protection at 768–1024 with
+       125-175 % browser zoom (effective ~614–820 px viewport).
+     * Home AI Assistant chip rows (chat-qa) wrap instead of clipping.
+     * Analytics SMC grid: explicit 3 → 2 → 1 reflow + safer chart
+       canvas constraints so Chart.js (and the bare <canvas> trends)
+       stop overflowing their parents on tablet/zoom.
+     * Profile metrics: 6 → 4 → 3 → 2 → 1 reflow + scans-row breathing.
+     * Settings: .set-row wraps the control under the label at narrow.
+     * Modals: inner overflow + viewport-relative pinning on ≤479,
+       confirm-delete + zone-add + scan-detail all respected.
+     * Typography: clamp() on page-title + card padding so 175 % zoom
+       doesn't push the layout sideways.
+   No new dependencies, no class renames, no theme changes.
+   ==================================================================== */
+
+/* ---------- defensive utilities v2 ---------- */
+/* svg was missing from the v1 max-width:100% net. */
+img,video,canvas,svg{max-width:100%}
+/* `min-width:0` on more nested containers so flex/grid children can
+   actually shrink to 0 instead of pushing parents wider. */
+.dashboard-aside,.dashboard-aside>*,
+.scanner-card,.scanner-header,.scanner-foot,.scanner-head-l,.scanner-head-r,
+.home-log-wrap>*,.home-care-grid,.home-care-grid>*,
+.d-card,.d-card>*,.d-card-head,
+.chat-qa-wrap,.chat-quick-actions,
+.set-card,.set-card>*,.set-group,.set-row,.set-info,.set-control,
+.prof-bottom-grid>*,.prof-top-grid>*,.prof-mid-grid>*,
+.prof-diag-grid>*,.prof-scans-row>*,
+.smc-info,.sys-metric-card,.garden-sum-card,.garden-sum-body{min-width:0}
+/* Long-text guard for additional surfaces that can overflow at zoom. */
+.dev-acc-preview,.gzs-sub,.pp-sub,.scanner-meta-bot,
+.set-name,.set-desc,.set-val-trunc,
+.home-care-summary,.home-warnings-list,
+.prof-hero-name,.prof-hero-sub,
+.notif-title,.notif-desc,.event-msg{overflow-wrap:anywhere}
+
+/* ---------- typography clamp ---------- */
+.page-title{font-size:clamp(18px,1.4vw + 12px,26px)}
+.topbar-title{font-size:clamp(12px,.7vw + 10px,16px)}
+
+/* ---------- camera modal — v2 ---------- */
+/* Mirror policy: only the user-facing camera previews mirrored. The
+   canvas capture is NEVER mirrored (see captureCameraPhoto in app.js),
+   so saved/backend images always match the sensor's view. */
+.cam-preview.mirror{transform:scaleX(-1)}
+/* Hard clamp so the live preview never blows out at high zoom or on
+   ultrawide tablets in portrait. `min(70vh, 480px)` matches the spec. */
+.cam-preview-wrap{
+  width:100%;
+  max-width:100%;
+  aspect-ratio:4/3;
+  max-height:min(70vh,480px);
+  border-radius:var(--rs);
+  overflow:hidden;
+}
+.cam-preview,.cam-canvas{
+  width:100%;
+  max-width:100%;
+  height:auto;
+  max-height:min(70vh,480px);
+  object-fit:cover;
+  display:block;
+}
+/* Floating switch-camera affordance, positioned over the preview.
+   Matches the existing dark-glass chip language used elsewhere in
+   the modal (see .cam-hud / .scanner-hud-label). */
+.cam-switch{
+  position:absolute;
+  top:10px;
+  right:10px;
+  z-index:5;
+  width:38px;
+  height:38px;
+  border-radius:50%;
+  border:1px solid rgba(140,168,140,.28);
+  background:rgba(15,18,16,.62);
+  color:var(--sage);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  padding:0;
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  transition:transform .15s ease,background .2s ease,border-color .2s ease;
+  box-shadow:0 4px 12px rgba(0,0,0,.32);
+}
+.cam-switch:hover{background:rgba(140,168,140,.18);border-color:rgba(140,168,140,.42);transform:translateY(-1px)}
+.cam-switch:active{transform:scale(.94)}
+.cam-switch:focus-visible{outline:2px solid rgba(140,168,140,.55);outline-offset:2px}
+[data-theme="light"] .cam-switch{background:rgba(255,255,255,.7);color:var(--sage);border-color:rgba(90,122,90,.32)}
+[data-theme="light"] .cam-switch:hover{background:rgba(90,122,90,.12)}
+
+/* ---------- topbar — wrap protection at 768-1024 + zoom ---------- */
+/* At 125 % zoom on a 1024 viewport (effective 820 px) the sys-strip +
+   buttons + title combo overflows. Wrap the right side instead. */
+@media(min-width:768px) and (max-width:1023px){
+  .topbar{flex-wrap:wrap;row-gap:6px;min-height:var(--topbar-h);height:auto;padding-top:6px;padding-bottom:6px}
+  .topbar-right{flex-wrap:wrap;justify-content:flex-end;gap:6px}
+  .sys-strip{flex-wrap:wrap;row-gap:4px;padding-right:6px;margin-right:4px}
+  .sys-strip .sys-chip-text{display:none}
+  .topbar-sub{display:none}
+}
+/* The 1024-1279 range with 150 % zoom (effective 683-853) also benefits
+   from the same wrap policy. */
+@media(min-width:1024px) and (max-width:1279px){
+  .topbar{flex-wrap:wrap;row-gap:6px;min-height:var(--topbar-h);height:auto}
+  .topbar-right{flex-wrap:wrap;justify-content:flex-end;gap:8px}
+  .sys-strip{flex-wrap:wrap;row-gap:4px}
+}
+
+/* ---------- Home AI Assistant / chat quick-action chips ---------- */
+/* The chat-qa rail is horizontally scrollable by design, but at narrow
+   widths the rail can overflow the chat-widget. Lock it. */
+.chat-qa-wrap{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.chat-quick-actions{flex-wrap:nowrap}
+@media(max-width:560px){
+  .chat-quick-actions{gap:6px}
+  .chat-qa-chip{padding:6px 10px;font-size:10px}
+}
+
+/* ---------- Home warnings / care card wrap ---------- */
+.home-warnings-list{display:flex;flex-direction:column;gap:6px;min-width:0}
+.home-care-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+@media(max-width:560px){
+  .home-care-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* ---------- Analytics — SMC ring grid 3 → 2 → 1 ---------- */
+/* v1 already drops to 2-up at ≤768; the 1024-1279 range needs 3-up
+   protection (and ≤420 should collapse to 1-up so labels breathe). */
+@media(min-width:1024px) and (max-width:1279px){
+  .sys-metrics-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .sys-metric-card{padding:12px}
+}
+@media(max-width:420px){
+  .sys-metrics-grid{grid-template-columns:1fr;gap:6px}
+}
+
+/* ---------- Analytics — Chart.js + bare <canvas> sizing ---------- */
+/* Chart.js sets explicit canvas width/height on resize. Forcing
+   `width:100%;height:auto` on the canvas + giving the parent a
+   bounded height keeps it from blowing out at any zoom. */
+.chart-line-wrap,
+.home-trend-canvas-wrap,
+.chart-area-split>*{min-width:0;max-width:100%}
+.chart-line-wrap canvas,
+.home-trend-canvas-wrap canvas,
+.d-card canvas:not(.env-spark){
+  max-width:100%;
+  height:auto !important;
+}
+/* env-spark is a tiny inline sparkline — let it keep its fixed size. */
+.env-spark{flex-shrink:0}
+/* Analytics history rows — wrap into a card view at very narrow widths.
+   Existing rules collapse columns; this just removes the horizontal
+   scroll that would otherwise appear at 125-150 % zoom. */
+.scan-table,.scan-table-head,.scan-table-row{min-width:0;max-width:100%}
+@media(max-width:420px){
+  .scan-table-head{display:none}
+  .scan-table-row{grid-template-columns:1fr;gap:4px;padding:10px 10px}
+  .scan-table-row .col-status,
+  .scan-table-row .col-conf,
+  .scan-table-row .col-time{justify-self:start}
+}
+
+/* ---------- Garden — map + zone chip rail + alerts ---------- */
+.garden-map-canvas{max-height:min(56vh,420px)}
+@media(min-width:768px) and (max-width:1023px){
+  .garden-map-canvas{min-height:240px;height:280px}
+}
+/* Zone chips: wrap by default; keep a 1-line height per row. */
+.zone-chip{max-width:100%;min-width:0}
+.zone-chip-line{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zone-chip-actions{flex-shrink:0}
+/* Garden alerts list — never wider than its card. */
+.alert-list,.alert-card,.garden-alert-list{min-width:0;max-width:100%}
+.alert-msg{display:block;min-width:0}
+
+/* ---------- Profile — 6 → 4 → 3 → 2 → 1 reflow + sections ---------- */
+/* v1 covers 768 (3-up) and 480-767 (2-up). Fill the gaps. */
+@media(min-width:1024px) and (max-width:1279px){
+  .prof-metrics-row{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  .prof-bottom-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(min-width:768px) and (max-width:1023px){
+  .prof-metrics-row{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  .prof-bottom-grid{grid-template-columns:1fr;gap:14px}
+  .prof-diag-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:360px){
+  .prof-metrics-row,.sys-metrics-grid{grid-template-columns:1fr}
+  .prof-diag-grid{grid-template-columns:1fr}
+}
+/* The 5 stacked profile sections: enforce min-width:0 + breathing room. */
+.prof-top-grid,.prof-mid-grid,.prof-bottom-grid,.prof-scans-row{min-width:0;max-width:100%}
+.prof-scans-row>.pp-scans-card{min-width:0;max-width:100%}
+/* Recent scans grid — auto-fit to viewport width. */
+.pp-history-list{min-width:0;max-width:100%}
+.pp-history-row{min-width:0}
+.pp-history-row .pp-row-disease{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------- Settings — form rows + status grid ---------- */
+.set-row{min-width:0;flex-wrap:wrap;row-gap:6px}
+.set-info{min-width:0;flex:1 1 200px}
+.set-control{flex-shrink:0;margin-left:auto}
+@media(max-width:560px){
+  .set-row{flex-direction:column;align-items:stretch}
+  .set-control{margin-left:0;justify-content:flex-start;align-self:flex-start;flex-wrap:wrap}
+  .set-control-dual{max-width:100%}
+  .set-card{padding:16px}
+  .set-row-slider .set-control{width:100%}
+  .set-range,.set-ph-range{width:100%;max-width:100%}
+  .set-val-trunc{max-width:100%}
+}
+/* Status card: auto-fit grid already used; tighten min track. */
+.set-status-card .status-grid{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+
+/* ---------- Modals — generic overflow + ≤479 viewport pinning ---------- */
+/* v1 caps .ov > .modal (excluding zm + sd) at min(90vh, 720px). On very
+   narrow phone-portrait widths, expand to nearly the full viewport
+   so the modal isn't a tiny strip surrounded by overlay. */
+@media(max-width:479px){
+  .ov>.modal:not(.zm-modal):not(.sd-modal){
+    width:calc(100% - 16px);
+    max-width:calc(100% - 16px);
+    max-height:calc(100vh - 32px);
+    padding:20px 16px;
+    border-radius:18px;
+  }
+  /* The scan-detail and zone-add modals have their own scroll plumbing
+     but still need to honour the narrow viewport. */
+  #zone-modal.active .zm-modal{
+    right:8px;
+    left:8px;
+    width:auto;
+    max-width:calc(100vw - 16px);
+    max-height:calc(100vh - 24px);
+  }
+  #sd-modal{padding:10px}
+  #sd-modal .sd-modal{max-width:calc(100vw - 20px);max-height:calc(100vh - 20px)}
+}
+/* Ensure the inner scroller is always present for the result / confirm
+   / scan-source modals at every breakpoint — v1 set max-height + overflow
+   but did not opt explicit children into shrink behaviour. */
+.ov>.modal:not(.zm-modal):not(.sd-modal)>*{min-width:0;max-width:100%}
+
+/* ---------- Camera modal — viewport pin at narrow widths ---------- */
+@media(max-width:479px){
+  .cam-modal{width:calc(100% - 16px);max-width:calc(100% - 16px);padding:18px 14px}
+  .cam-preview-wrap{aspect-ratio:3/4;max-height:min(60vh,420px)}
+  .cam-preview,.cam-canvas{max-height:min(60vh,420px)}
+  .cam-switch{top:8px;right:8px;width:34px;height:34px}
+  .cam-btns{gap:6px}
+  .cam-btns .rb{padding:11px;font-size:11px}
+}
+/* On tablet portrait the camera modal can over-tall its preview. */
+@media(min-width:480px) and (max-width:1023px){
+  .cam-preview-wrap{max-height:min(60vh,440px)}
+  .cam-preview,.cam-canvas{max-height:min(60vh,440px)}
+}
+
+/* ---------- Final safety net: never horizontal-scroll the page ---------- */
+.page,.content{max-width:100%}
+.page>*{min-width:0;max-width:100%}
+
+/* === End responsive polish pass v2 === */
