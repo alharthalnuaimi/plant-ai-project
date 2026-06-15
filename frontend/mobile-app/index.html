@@ -143,6 +143,11 @@
             <div class="page page-home active" id="page-home">
             <div class="grid-layout home-dashboard">
 
+                <!-- ====================================================
+                     LEFT COLUMN — Scanner / Trend / Log (independent flow)
+                     ==================================================== -->
+                <div class="home-col home-col-left">
+
                 <!-- Scanner Card -->
                 <section class="scanner-card an" style="--d:.15s">
                     <div class="scanner-header">
@@ -223,7 +228,45 @@
                     </div>
                 </section>
 
-                <aside class="dashboard-aside">
+                <!-- Health Trend (moved into left col so it stacks under the scanner) -->
+                <section class="home-trend-card" id="home-trend-card" hidden>
+                    <div class="home-trend-head">
+                        <span class="home-trend-title">HEALTH TREND · LAST 7 SCANS</span>
+                        <span class="home-trend-tag" id="home-trend-tag">●</span>
+                    </div>
+                    <div class="home-trend-canvas-wrap">
+                        <canvas id="home-trend-canvas" aria-label="Plant health score over the last 7 scans"></canvas>
+                        <div class="home-trend-empty" id="home-trend-empty" hidden>Awaiting more scans…</div>
+                    </div>
+                </section>
+
+                <!-- Scan Log (moved into left col so the column flows: scanner → trend → log) -->
+                <section class="log-card">
+                    <div class="log-head">
+                        <div class="log-head-l">
+                            <h2 class="log-title">Scan Log</h2>
+                            <span class="log-pulse" id="home-log-pulse" hidden><span class="log-pulse-dot"></span><span class="log-pulse-text mono" id="home-log-pulse-text">Monitoring…</span></span>
+                        </div>
+                        <span class="log-count mono" id="home-log-count">— entries</span>
+                    </div>
+                    <div class="log-grid" id="home-log-grid">
+                        <div class="home-log-empty" id="home-log-empty">
+                            <div class="home-log-empty-ico" aria-hidden="true">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            </div>
+                            <strong>No scans yet</strong>
+                            <span>Run a scan to see results land here in real time.</span>
+                        </div>
+                    </div>
+                </section>
+
+                </div><!-- /home-col-left -->
+
+                <!-- ====================================================
+                     RIGHT COLUMN — Stats / Zone / Actions / Care / Warnings
+                     ==================================================== -->
+                <div class="home-col home-col-right">
+
                 <!-- Stats Row (live from /analytics/garden) -->
                 <div class="stats-row an" style="--d:.25s" id="home-stats-row">
                     <div class="stat-card stat-card-ok" data-stat="healthy">
@@ -348,71 +391,32 @@
                     </div>
                 </div>
 
-                <!-- Phase 3: Health trend chart promoted to a dashboard quadrant
-                     (was inside .home-log-wrap below the grid). Stays hidden
-                     until ≥2 scan points exist; Phase 4 worker un-hides it.
-                     With .dashboard-aside set to display:contents at base and
-                     overridden in the new Phase 3 ≥1280 block, this section
-                     acts as a direct grid item of .home-dashboard so it can
-                     receive grid-area:trends. -->
-                <section class="home-trend-card" id="home-trend-card" hidden>
-                    <div class="home-trend-head">
-                        <span class="home-trend-title">HEALTH TREND · LAST 7 SCANS</span>
-                        <span class="home-trend-tag" id="home-trend-tag">●</span>
+                <!-- Care Recommendations (moved out of home-log-wrap into right col) -->
+                <div class="home-care-card" id="home-care-card" hidden>
+                    <div class="home-care-head">
+                        <span class="home-care-title">CARE RECOMMENDATIONS</span>
+                        <span class="home-care-stage" id="home-care-stage">—</span>
                     </div>
-                    <div class="home-trend-canvas-wrap">
-                        <canvas id="home-trend-canvas" aria-label="Plant health score over the last 7 scans"></canvas>
-                        <div class="home-trend-empty" id="home-trend-empty" hidden>Awaiting more scans…</div>
+                    <div class="home-care-grid">
+                        <div class="home-care-item"><span class="home-care-item-lbl"><span aria-hidden="true">💧</span>Water</span><span class="home-care-item-val" id="home-care-water">—</span></div>
+                        <div class="home-care-item"><span class="home-care-item-lbl"><span aria-hidden="true">☀️</span>Sunlight</span><span class="home-care-item-val" id="home-care-sun">—</span></div>
+                        <div class="home-care-item"><span class="home-care-item-lbl"><span aria-hidden="true">🌡️</span>Temperature</span><span class="home-care-item-val" id="home-care-temp">—</span></div>
+                        <div class="home-care-item"><span class="home-care-item-lbl"><span aria-hidden="true">💨</span>Humidity</span><span class="home-care-item-val" id="home-care-hum">—</span></div>
                     </div>
-                </section>
-
-                </aside>
-
-                <!-- Phase 4 (B1): pending warnings (hidden when empty) -->
-                <div class="home-log-wrap an" style="--d:.42s">
-                    <div class="home-warnings" id="home-warnings" hidden>
-                        <span class="home-warnings-head">
-                            <span aria-hidden="true">⚠️</span>
-                            Warnings
-                        </span>
-                        <div class="home-warnings-list" id="home-warnings-list"></div>
-                    </div>
-                    <!-- Log Card -->
-                    <section class="log-card">
-                        <div class="log-head">
-                            <div class="log-head-l">
-                                <h2 class="log-title">Scan Log</h2>
-                                <span class="log-pulse" id="home-log-pulse" hidden><span class="log-pulse-dot"></span><span class="log-pulse-text mono" id="home-log-pulse-text">Monitoring…</span></span>
-                            </div>
-                            <span class="log-count mono" id="home-log-count">— entries</span>
-                        </div>
-                        <div class="log-grid" id="home-log-grid">
-                            <div class="home-log-empty" id="home-log-empty">
-                                <div class="home-log-empty-ico" aria-hidden="true">
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                                </div>
-                                <strong>No scans yet</strong>
-                                <span>Run a scan to see results land here in real time.</span>
-                            </div>
-                        </div>
-                    </section>
-                    <!-- Phase 3: trend chart relocated above to act as the
-                         "trends" quadrant of the home dashboard 2×2 grid. -->
-                    <!-- Phase 4 (B1): latest care plan summary (hidden when no scan exists) -->
-                    <div class="home-care-card" id="home-care-card" hidden>
-                        <div class="home-care-head">
-                            <span class="home-care-title">CARE RECOMMENDATIONS</span>
-                            <span class="home-care-stage" id="home-care-stage">—</span>
-                        </div>
-                        <div class="home-care-grid">
-                            <div class="home-care-item"><span class="home-care-item-lbl"><span aria-hidden="true">💧</span>Water</span><span class="home-care-item-val" id="home-care-water">—</span></div>
-                            <div class="home-care-item"><span class="home-care-item-lbl"><span aria-hidden="true">☀️</span>Sunlight</span><span class="home-care-item-val" id="home-care-sun">—</span></div>
-                            <div class="home-care-item"><span class="home-care-item-lbl"><span aria-hidden="true">🌡️</span>Temperature</span><span class="home-care-item-val" id="home-care-temp">—</span></div>
-                            <div class="home-care-item"><span class="home-care-item-lbl"><span aria-hidden="true">💨</span>Humidity</span><span class="home-care-item-val" id="home-care-hum">—</span></div>
-                        </div>
-                        <p class="home-care-summary" id="home-care-summary">—</p>
-                    </div>
+                    <p class="home-care-summary" id="home-care-summary">—</p>
                 </div>
+
+                <!-- Pending warnings (last item in right col, hidden when empty) -->
+                <div class="home-warnings" id="home-warnings" hidden>
+                    <span class="home-warnings-head">
+                        <span aria-hidden="true">⚠️</span>
+                        Warnings
+                    </span>
+                    <div class="home-warnings-list" id="home-warnings-list"></div>
+                </div>
+
+                </div><!-- /home-col-right -->
+
             </div><!-- grid-layout -->
             </div><!-- /page-home -->
 
