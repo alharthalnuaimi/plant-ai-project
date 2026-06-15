@@ -4151,3 +4151,282 @@ img,video,canvas,svg{max-width:100%}
 }
 
 /* === End Home layout emergency override === */
+
+
+/* ====================================================================
+   === Mobile Scan Module header polish ===
+   --------------------------------------------------------------------
+   The Final MVP block already stacks .scanner-header to column at ≤480
+   and makes head-l / head-r each a horizontal row, but two things still
+   look off:
+     1. .scanner-head-l uses `justify-content: flex-start` → the title
+        and Live/Simulation badge are bunched on the left instead of
+        title-left / badge-right.
+     2. .scan-zone-picker uses `flex: 1 1 auto` → it stretches across
+        the row and reads like an empty search bar, when it should be
+        a compact intrinsic-width pill.
+
+   Target on phone:
+       Row 1:  SCAN MODULE                          ● Live Mode
+       Row 2:  [ 📍 Zone Alpha ▼ ]                  SN-4821
+
+   This block layers ON TOP of the Final MVP / Emergency blocks. No
+   `!important`, no HTML/JS changes.
+   ==================================================================== */
+
+/* ---- ≤480 phone ---- */
+@media(max-width:480px){
+  .scanner-header{
+    padding:12px 14px;
+    row-gap:8px;
+  }
+
+  /* Row 1: title left, mode badge pushed to the right */
+  .scanner-head-l{
+    justify-content:space-between;
+    gap:12px;
+    min-height:30px;
+  }
+  .scanner-label{
+    min-width:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    flex:1 1 auto;
+  }
+  .home-mode-badge{
+    flex-shrink:0;
+    padding:3px 8px;
+    font-size:9px;
+  }
+
+  /* Row 2: compact pill left, SN right */
+  .scanner-head-r{
+    justify-content:space-between;
+    gap:10px;
+    min-height:30px;
+  }
+  .scan-zone-picker{
+    flex:0 1 auto;
+    min-width:0;
+    max-width:75%;
+    width:auto;
+    padding:5px 10px;
+    border-radius:999px;
+  }
+  .scan-zone-picker .scan-zone-lbl{display:none}
+  .scan-zone-select{
+    min-width:0;
+    max-width:100%;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    padding-right:14px;
+    font-size:11.5px;
+  }
+  .scanner-id{
+    flex-shrink:0;
+    font-size:9px;
+    letter-spacing:1px;
+  }
+}
+
+/* ---- 481–767 small tablet / large phone landscape ---- */
+@media(min-width:481px) and (max-width:767px){
+  .scanner-head-l{
+    justify-content:space-between;
+    gap:12px;
+  }
+  .scanner-label{
+    min-width:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    flex:1 1 auto;
+  }
+  .scan-zone-picker{
+    flex:0 1 auto;
+    min-width:0;
+    max-width:60%;
+    padding:5px 12px;
+  }
+  .scan-zone-select{
+    min-width:0;
+    max-width:100%;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+}
+
+/* === End Mobile Scan Module header polish === */
+
+
+/* ====================================================================
+   === Home dashboard professional layout (final) ===
+   --------------------------------------------------------------------
+   Layered ON TOP of v1 + v2 + Phase 1 + Phase 3 + Final MVP +
+   Emergency Override. Final 4-row × 2-column dashboard at >=1280:
+
+       Row 1: [ Scan Module          ] [ Health Stats        ]
+       Row 2: [ Health Trend         ] [ Zone Sensors        ]
+       Row 3: [ Scan Log             ] [ Quick Actions       ]
+       Row 4: [ Care Recommendations ] [ Warnings / Notes    ]
+
+   Tablet 1024-1279, mobile <=1023: single column with the user's
+   specified ordering. The emergency override's safety rails
+   (min-height:0, align-items:start, scanner-view aspect-ratio +
+   bounded max-height) are intact and continue to defend this layout.
+
+   Implementation:
+     * .home-log-wrap is flattened to display:contents so its three
+       children (warnings, log-card, care) become direct grid items
+       of .home-dashboard. Mirrors the trick Phase 3 used for
+       .dashboard-aside (line 3556). The wrapper element stays in
+       DOM so any future JS query keeps working.
+     * .dashboard-aside is already display:contents at base (line 253)
+       and at >=1280 via Phase 3 (line 3556). No new rule needed.
+     * Margins on .home-warnings (margin-bottom:12px, line 2218) and
+       .home-care-card (margin-top:12px, line 2226) are zeroed so the
+       grid `gap` is the single source of truth.
+     * Phase 3's "scanner / trends / zone (full-width)" area names are
+       superseded by the new "scan / trend / zone (single cell)"
+       template via source-order cascade at equal specificity.
+     * No !important; pure source-order cascade.
+   ==================================================================== */
+
+/* ---------- >=1280 — 4 rows x 2 columns ---------- */
+@media(min-width:1280px){
+  /* Allow the page wrapper to host the wider dashboard (v1 caps .page
+     at 1400px @ >=1280 / 1440px @ >=1680). */
+  .page-home{max-width:1600px}
+
+  .home-dashboard{
+    display:grid;
+    grid-template-columns:minmax(0,1.15fr) minmax(0,0.85fr);
+    grid-template-rows:auto auto auto auto;
+    grid-template-areas:
+      "scan   stats"
+      "trend  zone"
+      "log    actions"
+      "care   warnings";
+    gap:20px;
+    align-items:start;
+    align-content:start;
+    max-width:1600px;
+    margin-left:auto;
+    margin-right:auto;
+  }
+
+  /* Flatten the log wrapper so its three children become direct grid
+     items, mirroring Phase 3's .dashboard-aside trick. */
+  .home-dashboard .home-log-wrap{display:contents}
+
+  /* Grid-area assignments. Re-declared explicitly so they override
+     Phase 3's old "scanner / trends / zone (full-width)" assignments
+     and v1's "scan/aside/log" template via source order. */
+  .home-dashboard .scanner-card    {grid-area:scan;     grid-column:auto; grid-row:auto}
+  .home-dashboard .stats-row       {grid-area:stats;    grid-column:auto; grid-row:auto}
+  .home-dashboard .home-trend-card {grid-area:trend;    grid-column:auto; grid-row:auto; margin-top:0}
+  .home-dashboard .zone-sensor-card{grid-area:zone;     grid-column:auto; grid-row:auto; width:auto}
+  .home-dashboard .log-card        {grid-area:log;      grid-column:auto; grid-row:auto}
+  .home-dashboard .actions-card    {grid-area:actions;  grid-column:auto; grid-row:auto}
+  .home-dashboard .home-care-card  {grid-area:care;     grid-column:auto; grid-row:auto; margin-top:0}
+  .home-dashboard .home-warnings   {grid-area:warnings; grid-column:auto; grid-row:auto; margin-bottom:0}
+
+  /* Scanner card: bound the outer card so it stays compact.
+     Preview is already capped (aspect-ratio 4/3, max-height 420 via
+     emergency override). 420 + header ~50 + foot ~50 ~= 520. */
+  .home-dashboard .scanner-card{
+    min-height:0;
+    max-height:520px;
+    height:auto;
+  }
+
+  /* Standardize padding on the simpler cards so the new grid reads
+     as one system. Scanner-card is left alone (it has no padding by
+     design — its inner header/view/foot handle their own spacing). */
+  .home-dashboard .home-trend-card,
+  .home-dashboard .zone-sensor-card,
+  .home-dashboard .home-care-card{
+    padding:18px 20px;
+  }
+
+  /* Promote zone-sensor-card to first-class card status (Phase 3 had
+     made it a quieter "secondary row" surface; the new layout puts
+     it side-by-side with health-trend so it should feel equal). */
+  .home-dashboard .zone-sensor-card{
+    box-shadow:var(--shadow-card);
+  }
+
+  /* Care + Warnings rows: the Phase 3 quadrant block didn't reach
+     these (they lived inside .home-log-wrap). Apply consistent card
+     surface so row 4 reads as a peer of rows 1-3. */
+  .home-dashboard .home-care-card{
+    box-shadow:var(--shadow-card);
+  }
+}
+
+/* ---------- >=1440 — slightly wider gutters, same max-width ---------- */
+@media(min-width:1440px){
+  .home-dashboard{gap:22px}
+}
+
+/* ---------- >=1680 — extra breathing room ---------- */
+@media(min-width:1680px){
+  .page-home{max-width:1600px}
+  .home-dashboard{gap:24px; max-width:1600px}
+}
+
+/* ---------- <=1279 — tablet + mobile: single column with user-specified order ----------
+   Same ordering for tablet (1024-1279) and mobile (<=1023). The
+   underlying single-column grid is set by Phase 3 (1024-1279 block
+   at line 3681) and v1 (<=1024 block at line 1656); we only add the
+   wrapper-flatten + order ladder here. */
+@media(max-width:1279px){
+  /* Flatten the log wrapper so order applies across all 8+1 sections,
+     not just within the wrapper. */
+  .home-dashboard .home-log-wrap{display:contents}
+
+  /* User-specified ordering. env-strip slotted at order:3 between
+     stats and zone (per the spec's note about integer ordering). */
+  .home-dashboard .scanner-card     {order:1}
+  .home-dashboard .stats-row        {order:2}
+  .home-dashboard .env-strip        {order:3}
+  .home-dashboard .zone-sensor-card {order:4}
+  .home-dashboard .actions-card     {order:5}
+  .home-dashboard .home-trend-card  {order:6; margin-top:0}
+  .home-dashboard .home-warnings    {order:7; margin-bottom:0}
+  .home-dashboard .log-card         {order:8}
+  .home-dashboard .home-care-card   {order:9; margin-top:0}
+
+  /* The three children that used to live inside .home-log-wrap now
+     act as direct grid items; ensure they fill the single column. */
+  .home-dashboard .home-warnings,
+  .home-dashboard .log-card,
+  .home-dashboard .home-care-card{
+    grid-column:1;
+    width:100%;
+  }
+}
+
+/* ---------- 1024-1279 — tablet card padding standardization ---------- */
+@media(min-width:1024px) and (max-width:1279px){
+  .home-dashboard .home-trend-card,
+  .home-dashboard .zone-sensor-card,
+  .home-dashboard .home-care-card{
+    padding:18px 20px;
+  }
+}
+
+/* ---------- <=767 — phone: tightest paddings ---------- */
+@media(max-width:767px){
+  .home-dashboard .home-trend-card,
+  .home-dashboard .zone-sensor-card,
+  .home-dashboard .home-care-card,
+  .home-dashboard .actions-card{
+    padding:var(--mvp-card-pad-mobile,14px) 16px;
+  }
+}
+
+/* === End Home dashboard professional layout (final) === */
