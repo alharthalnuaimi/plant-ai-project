@@ -11,6 +11,7 @@ even when Postgres is offline.
 from . import (
     analytics_events_repo,
     assistant_repo,
+    audit_repo,
     devices_repo,
     scans_repo,
     sensor_repo,
@@ -20,6 +21,7 @@ from . import (
 __all__ = [
     "analytics_events_repo",
     "assistant_repo",
+    "audit_repo",
     "devices_repo",
     "scans_repo",
     "sensor_repo",

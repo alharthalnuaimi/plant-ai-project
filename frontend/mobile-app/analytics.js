@@ -126,8 +126,12 @@
   }
 
   function _friendlyPlantName(scan) {
+    // Phase B — the "Cucumber" fallback when a scan had a plant_id but no
+    // explicit plant_name was a stale demo placeholder. Default to a
+    // generic "Plant" label so we never claim a species we don't actually
+    // know about.
     if (!scan) return "Plant specimen";
-    return scan.plant_name || (scan.plant_id ? "Cucumber" : "Plant specimen");
+    return scan.plant_name || (scan.plant_id ? "Plant" : "Plant specimen");
   }
 
   function _friendlyConfidence(scan) {
@@ -339,36 +343,41 @@
   }
 
   function renderRuntimeMetrics(s, isLive) {
+    // Phase 4: when the backend signals empty state (`source === "demo"`)
+    // we DO NOT show the canned 0.912 / 420ms numbers — they would lie
+    // about model performance. Show "—" until a real scan lands.
+    const isDemoSrc = s && s.source === "demo";
+    const hasScans = !!(s && Number(s.total_scans) > 0);
     const confPct = (s.avg_confidence * 100).toFixed(1);
     const passPct = (s.pass_rate != null ? s.pass_rate : 0).toFixed(1);
     const latSec = (s.avg_inference_ms / 1000).toFixed(1) + "s";
     const scans = String(s.total_scans);
     const scanCap = Math.min(100, (s.total_scans / 50) * 100);
 
-    setText("perf-avg-conf", confPct + "%");
-    setText("perf-pass-rate", passPct + "%");
-    setText("perf-latency", latSec);
+    setText("perf-avg-conf", (isDemoSrc || !hasScans) ? "—" : confPct + "%");
+    setText("perf-pass-rate", (isDemoSrc || !hasScans) ? "—" : passPct + "%");
+    setText("perf-latency", (isDemoSrc || !hasScans) ? "—" : latSec);
     setText("perf-scans", scans);
 
     const note = document.getElementById("perf-note");
     if (note) {
       note.textContent = isLive
         ? "Measured from live /predict responses — not offline validation metrics."
-        : "Demo estimates until your first scan completes.";
+        : "No scans yet — runtime metrics will populate after your first /predict response.";
     }
     const src = document.getElementById("perf-source-tag");
-    if (src) src.textContent = isLive ? "● Live runtime" : "● Demo baseline";
+    if (src) src.textContent = isLive ? "● Live runtime" : (hasScans ? "● Live runtime" : "○ Awaiting first scan");
 
     const barConf = document.getElementById("perf-bar-conf");
     const barPass = document.getElementById("perf-bar-pass");
     const barLat = document.getElementById("perf-bar-lat");
     const barScans = document.getElementById("perf-bar-scans");
-    if (barConf) barConf.style.setProperty("--w", confPct + "%");
-    if (barPass) barPass.style.setProperty("--w", passPct + "%");
+    if (barConf) barConf.style.setProperty("--w", (isDemoSrc || !hasScans) ? "0%" : confPct + "%");
+    if (barPass) barPass.style.setProperty("--w", (isDemoSrc || !hasScans) ? "0%" : passPct + "%");
     if (barLat)
       barLat.style.setProperty(
         "--w",
-        Math.min(100, (s.avg_inference_ms / 8000) * 100) + "%"
+        (isDemoSrc || !hasScans) ? "0%" : Math.min(100, (s.avg_inference_ms / 8000) * 100) + "%"
       );
     if (barScans) barScans.style.setProperty("--w", scanCap + "%");
   }
@@ -706,30 +715,59 @@
 
   function renderSummary(s) {
     if (!s) return;
-    const key = stableStringify(s);
+    // Include the explicit Demo Mode toggle in the cache key so the
+    // SMC `is-demo` ribbon refreshes when the user flips Demo Mode in
+    // Settings (the summary payload itself doesn't change).
+    const _explicitDemoKey = !!(window.plantDemo && window.plantDemo.isOn && window.plantDemo.isOn());
+    const key = stableStringify({ s, demo: _explicitDemoKey });
     if (lastSnapshot.summary === key) return;
     lastSnapshot.summary = key;
 
+    // Phase 4 — empty-state honesty:
+    // The backend `_demo_summary()` returns prettified placeholder values
+    // (0.912 confidence, 420ms latency, 1 zone, 1 device, …) when no
+    // scans have happened yet. We DO NOT render those as real metrics —
+    // surface "—" / "0" instead, and let the topbar DEMO chip + the
+    // "● Demo" / "Awaiting first scan" tag explain why. When the user
+    // explicitly opts into Demo Mode (`window.plantDemo.isOn()`), the
+    // fixtures are intentional and we keep them but mark each card as
+    // demo-sourced via the `is-demo` class.
     const detPct = s.detection_rate;
     const confPct = (s.avg_confidence * 100).toFixed(1);
     const isLive = s.source === "live";
+    const isDemoSrc = s.source === "demo";
+    const hasScans = Number(s.total_scans) > 0;
+    const explicitDemo = !!(window.plantDemo && window.plantDemo.isOn && window.plantDemo.isOn());
+    const showFake = !hasScans && !explicitDemo; // honest empty state
 
-    setText("metric-detection", detPct + "%");
+    setText("metric-detection", showFake ? "—" : detPct + "%");
     setText(
       "metric-detection-sub",
-      isLive ? "Issue detection rate" : "Demo baseline"
+      isLive ? "Issue detection rate" : (explicitDemo ? "Demo fixture" : "No scans yet")
     );
-    setRing("ring-detection", detPct);
-    setText("d-ring-num", confPct + "%");
-    setText("d-ring-lbl", isLive ? "Avg confidence" : "Demo avg");
-    setRing("ring-confidence", parseFloat(confPct));
+    setRing("ring-detection", showFake ? 0 : detPct);
+    setText("d-ring-num", showFake ? "—" : confPct + "%");
+    setText("d-ring-lbl", isLive ? "Avg confidence" : (explicitDemo ? "Demo avg" : "No scans yet"));
+    setRing("ring-confidence", showFake ? 0 : parseFloat(confPct));
 
-    setText("sm-scans", String(s.total_scans));
-    setText("sm-time", (s.avg_inference_ms / 1000).toFixed(1));
-    setText("sm-conf", confPct);
-    setText("sm-zones", String(s.active_zones));
-    setText("sm-devices", String(s.connected_devices));
-    setText("sm-species", String(s.scans_today));
+    // SMC cards (Total Scans / Avg Scan Time / Scans Today / Avg
+    // Confidence / Active Zones / Connected Devices). Real total/today
+    // are ALWAYS the actual count (0 is a real, honest value). The other
+    // four come from the demo placeholder in empty state, so we replace
+    // them with "—" until a real scan lands.
+    setText("sm-scans", String(hasScans ? s.total_scans : 0));
+    setText("sm-time", showFake ? "—" : (s.avg_inference_ms / 1000).toFixed(1));
+    setText("sm-conf", showFake ? "—" : confPct);
+    setText("sm-zones", showFake ? "—" : String(s.active_zones));
+    setText("sm-devices", showFake ? "—" : String(s.connected_devices));
+    setText("sm-species", String(hasScans ? s.scans_today : 0));
+
+    // Mark each SMC card as demo-sourced when in explicit Demo Mode so
+    // every fixture-surfaced number is visually flagged. Cleared again
+    // as soon as the user toggles Demo Mode off.
+    document.querySelectorAll("#page-data .sys-metric-card").forEach((c) => {
+      c.classList.toggle("is-demo", explicitDemo || isDemoSrc);
+    });
 
     renderScanOutcomes(s.scan_outcomes, isLive);
     renderRuntimeMetrics(s, isLive);
@@ -741,7 +779,8 @@
       if (sensorCtx && sensorCtx.mode === "stale") label = "● Sensor Stale";
       else if (sensorCtx && sensorCtx.mode === "live" && (s.total_scans || 0) === 0) label = "● Sensor Live";
       else if (isLive) label = "● Live";
-      else label = "● Demo";
+      else if (explicitDemo) label = "● Demo Mode";
+      else label = "○ Awaiting first scan";
       if (liveTag.textContent !== label) liveTag.textContent = label;
       liveTag.style.color = (label.includes("Live") || label.includes("Stale")) ? "var(--sage)" : "var(--t3)";
     }
@@ -1226,6 +1265,12 @@
     refreshDashboard({ force: true });
     // Refresh the dedicated history page in background so it's ready next visit.
     refreshHistoryPage();
+  });
+  // Phase 4: refresh whenever the user flips Demo Mode so the per-card
+  // DEMO ribbon and "—" / fixture numbers swap immediately instead of
+  // waiting for the next 5s poll cycle.
+  window.addEventListener("plantvision:demo-mode-changed", () => {
+    refreshDashboard({ force: true });
   });
 
   window.plantAnalytics = {

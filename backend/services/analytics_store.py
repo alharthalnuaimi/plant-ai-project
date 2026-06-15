@@ -485,6 +485,32 @@ def get_latest_scan(
     return None
 
 
+def get_latest_scan_for_plant(
+    plant_id: str | None,
+    user_id: str | None = None,
+) -> dict[str, Any] | None:
+    """Phase 3 — newest scan for a given plant_id slug.
+
+    Matches on ``metadata.plant_id`` (set by /predict's optional plant_id
+    form field). For the default ``cucumber_001`` we also accept rows that
+    have no plant_id set, so the care endpoint can still resolve a zone +
+    timestamp for the legacy MVP scans.
+    """
+
+    pid = (plant_id or "").strip()
+    is_default = pid == "cucumber_001"
+    for item in _scans:
+        if user_id and item.get("user_id") != user_id:
+            continue
+        meta = item.get("metadata") or {}
+        meta_pid = (meta.get("plant_id") or "").strip()
+        if meta_pid == pid:
+            return dict(item)
+        if is_default and not meta_pid:
+            return dict(item)
+    return None
+
+
 def get_history(limit: int = 20) -> list[ScanHistoryItem]:
     return [ScanHistoryItem(**s) for s in list(_scans)[:limit]]
 

@@ -1,4 +1,4 @@
-"""Schemas for /zones and /devices CRUD (Phase 2 persistence)."""
+"""Schemas for /zones and /devices CRUD."""
 
 from __future__ import annotations
 

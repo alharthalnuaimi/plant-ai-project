@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from pathlib import Path
 
@@ -8,11 +9,13 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from schemas.contracts import OrchestratorRequest, OrchestratorResponse, SurvivalSensorInput, VisionResult
 from services.config_loader import get_runtime_config
 from services.orchestrator import run_analysis_pipeline
-from services import analytics_store, sensor_store
+from services import analytics_store, sensor_store, storage
 from services.plant_health import enrich_vision_result
 from services.prediction import run_vision_prediction
 
 router = APIRouter(tags=["predict"])
+
+log = logging.getLogger("plantvision.predict")
 
 UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -51,6 +54,15 @@ async def predict(
     source: str = Form(default="upload"),
     plant_id: str = Form(default=""),
     plant_name: str = Form(default=""),
+    # Phase 3 — plant identification controls (additive, all optional)
+    species_id: str = Form(
+        default="",
+        description="Optional manual species lock (e.g. 'cucumber'). Skips the identifier model.",
+    ),
+    identify: bool = Form(
+        default=True,
+        description="Run plant identification (default true). Disable for fastest path on known plants.",
+    ),
 ) -> VisionResult:
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Expected an image upload")
@@ -63,16 +75,54 @@ async def predict(
     did = _normalize_device_id(device_id)
     src = (source or "upload").strip().lower() or "upload"
 
-    # Optional: persist for demo/debug
-    fname = f"{uuid.uuid4().hex}_{file.filename or 'image'}"
-    dest = UPLOAD_DIR / fname
-    dest.write_bytes(data)
+    # Phase 4 — try Supabase Storage first; gracefully fall back to the
+    # legacy `backend/uploads/` write path when Storage is disabled OR
+    # the upload errors out. The downstream persistence layer just reads
+    # `meta["saved_path"]` so both branches are wire-compatible.
+    storage_used = False
+    fallback = True
+    image_storage_path: str
+    image_public_url: str | None = None
+
+    if storage.is_enabled():
+        upload_res = await storage.upload_scan_image(
+            file_bytes=data,
+            filename=file.filename or "image",
+            content_type=file.content_type or "image/jpeg",
+        )
+        if upload_res.ok and upload_res.object_path:
+            storage_used = True
+            fallback = False
+            image_storage_path = upload_res.object_path
+            image_public_url = upload_res.public_url
+        else:
+            log.warning(
+                "predict storage upload failed; using local fallback (error=%s)",
+                upload_res.error,
+            )
+
+    if not storage_used:
+        fname = f"{uuid.uuid4().hex}_{file.filename or 'image'}"
+        dest = UPLOAD_DIR / fname
+        dest.write_bytes(data)
+        image_storage_path = dest.relative_to(UPLOAD_DIR.parent).as_posix()
+
+    log.info(
+        "predict image persisted storage_used=%s fallback=%s path=%s",
+        storage_used,
+        fallback,
+        image_storage_path,
+    )
 
     # Run inference. If a real model is configured but throws (e.g. corrupt
     # weights at runtime), translate that into a 503 so the UI can show a
     # clean "Vision engine unavailable" banner instead of a 500 stacktrace.
     try:
-        pred = run_vision_prediction(data)
+        pred = run_vision_prediction(
+            data,
+            identify=bool(identify),
+            species_id=(species_id or None),
+        )
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -82,9 +132,15 @@ async def predict(
         ) from exc
 
     meta = dict(pred.metadata)
-    saved_rel = dest.relative_to(UPLOAD_DIR.parent).as_posix()
-    meta["saved_path"] = saved_rel
-    meta["image_url"] = "/" + saved_rel  # served by the /uploads static mount
+    meta["saved_path"] = image_storage_path
+    if image_public_url:
+        # Surface the Supabase public URL in two places so existing
+        # consumers (frontend `image_url`, scan-history surface) keep
+        # working without any frontend changes.
+        meta["image_url"] = image_public_url
+        meta["image_public_url"] = image_public_url
+    else:
+        meta["image_url"] = "/" + image_storage_path  # served by /uploads static mount
     meta["user_id"] = uid
     meta["zone_id"] = zid
     meta["device_id"] = did
@@ -97,6 +153,25 @@ async def predict(
         meta["plant_id"] = pid
     if pname:
         meta["plant_name"] = pname
+
+    # Mirror plant identification into metadata so persisted scans (and the
+    # Plant Profile aggregate route) can read identity without re-running
+    # the model. Backwards-compatible: legacy rows simply won't have these.
+    if pred.plant is not None:
+        meta["plant_identification"] = {
+            "species_id": pred.plant.species_id,
+            "common_name": pred.plant.common_name,
+            "scientific_name": pred.plant.scientific_name,
+            "family": pred.plant.family,
+            "genus": pred.plant.genus,
+            "confidence": pred.plant.confidence,
+            "source": pred.plant.source,
+        }
+        # Convenience: when no manual plant_name was supplied, default the
+        # display name to the identified common_name. Keeps the analytics
+        # / scan-history grids visually consistent.
+        if not pname and pred.plant.common_name:
+            meta.setdefault("plant_name", pred.plant.common_name)
 
     # Snapshot the latest sensor reading for this user/zone/device so the
     # scan detail view can show env conditions even after backend restart.

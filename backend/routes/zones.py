@@ -1,4 +1,4 @@
-"""CRUD routes for growing zones (Phase 2 persistence)."""
+"""CRUD routes for growing zones (Supabase-backed, in-memory fallback)."""
 
 from __future__ import annotations
 

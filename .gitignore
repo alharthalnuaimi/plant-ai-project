@@ -25,6 +25,14 @@
 *.env
 !.env.example
 
+# Generic secret file extensions
+*.pem
+*.key
+*.pfx
+*.p12
+credentials.json
+service-account.json
+
 # ESP32 firmware secrets — keep firmware/esp32/config.example.h for onboarding
 firmware/esp32/config.h
 
@@ -156,11 +164,16 @@ pnpm-debug.log*
 # -----------------------------------------------------------------------------
 # 8. IDE
 # -----------------------------------------------------------------------------
+.cursor/
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+
+# If you ever want to track project-scoped Cursor rules for the team,
+# add an exception below, e.g.:
+#   !.cursor/rules/
 
 
 # -----------------------------------------------------------------------------
@@ -201,6 +214,10 @@ screenshots/
 # User-uploaded scan images (kept locally per developer)
 backend/uploads/
 uploads/
+
+# Local storage / persistence directories
+storage/
+backend/storage/
 
 # Local Obsidian Vault folder (personal project memory)
 vault/

@@ -168,16 +168,33 @@
     el.className = "prof-metric-trend" + (cls ? " " + cls : "");
   }
   function renderMetrics(summary, health, history) {
+    // Phase 4 — empty-state honesty: when the backend signals
+    // `source === "demo"` (no scans yet), we DO NOT render its placeholder
+    // 0.912 / 1 / 1 numbers as if they were real session metrics. Show
+    // "—" for the fake fields and "0" for the truly-real total scans.
+    // When the user explicitly opts into Demo Mode, fixtures are
+    // intentional and we keep them; we mark each card as demo-sourced.
+    const explicitDemo = !!(window.plantDemo && window.plantDemo.isOn && window.plantDemo.isOn());
+    const isDemoSrc = !!(summary && summary.source === "demo");
+    const hasScans = !!(summary && Number(summary.total_scans) > 0);
+    const showFake = !hasScans && !explicitDemo;
+
     const scans = summary ? summary.total_scans : 0;
-    const conf = summary ? ((summary.avg_confidence || 0) * 100).toFixed(1) + "%" : "—";
+    const conf = (summary && hasScans)
+      ? ((summary.avg_confidence || 0) * 100).toFixed(1) + "%"
+      : (explicitDemo && summary ? ((summary.avg_confidence || 0) * 100).toFixed(1) + "%" : "—");
     const scansEl = $("prof-metric-scans");
     if (scansEl) animateCounter(scansEl, String(scans));
     const confEl = $("prof-metric-conf");
     if (confEl) confEl.textContent = conf;
     const zonesEl = $("prof-metric-zones");
-    if (zonesEl) zonesEl.textContent = summary ? String(summary.active_zones) : "—";
+    if (zonesEl) zonesEl.textContent = (summary && (hasScans || explicitDemo))
+      ? String(summary.active_zones)
+      : "—";
     const devEl = $("prof-metric-devices");
-    if (devEl) devEl.textContent = summary ? String(summary.connected_devices) : "—";
+    if (devEl) devEl.textContent = (summary && (hasScans || explicitDemo))
+      ? String(summary.connected_devices)
+      : "—";
     const last = history && history[0];
     const disEl = $("prof-metric-disease");
     if (disEl) disEl.textContent = last ? last.disease : health ? health.class_name || "—" : "—";
@@ -185,18 +202,31 @@
       setTrend("prof-trend-scans", "↑ +" + (scans - _prevScans) + " scans", "up");
     } else if (scans > 0) {
       setTrend("prof-trend-scans", "● session active", "live");
+    } else {
+      setTrend("prof-trend-scans", showFake ? "No scans yet" : "", "");
     }
     _prevScans = scans;
-    if (summary && summary.avg_confidence < 0.55) {
+    if (summary && hasScans && summary.avg_confidence < 0.55) {
       setTrend("prof-trend-conf", "↓ confidence drift", "warn");
-    } else if (summary && summary.avg_confidence >= 0.7) {
+    } else if (summary && hasScans && summary.avg_confidence >= 0.7) {
       setTrend("prof-trend-conf", "↑ stable reads", "up");
+    } else if (showFake) {
+      setTrend("prof-trend-conf", "Awaiting data", "");
     }
-    setTrend("prof-trend-zones", summary ? summary.active_zones + " monitored" : "", "");
+    setTrend("prof-trend-zones", (summary && (hasScans || explicitDemo)) ? summary.active_zones + " monitored" : "", "");
     const devTrend = $("prof-trend-devices");
-    if (devTrend && summary && summary.connected_devices > 0) {
-      devTrend.textContent = "● live sensor active";
+    if (devTrend) {
+      devTrend.textContent = (summary && (hasScans || explicitDemo) && summary.connected_devices > 0)
+        ? "● live sensor active"
+        : "";
     }
+
+    // Mark profile metric cards as demo-sourced when the values are
+    // fixture-driven, so the user sees a clear DEMO marker on every
+    // surfaced number.
+    document.querySelectorAll("#page-profile .prof-metric-card").forEach((c) => {
+      c.classList.toggle("is-demo", explicitDemo || isDemoSrc);
+    });
   }
   function renderAiSummary(scan, health, sensor) {
     const scanEl = $("prof-ai-scan");
@@ -607,7 +637,17 @@
       lastScanEl.textContent = ts ? fmtAgo(parseInt(ts, 10)) : "—";
     }
     const analyticsMode = $("prof-runtime-analytics");
-    if (analyticsMode) analyticsMode.textContent = summary?.source === "demo" ? "Simulation" : "Live";
+    if (analyticsMode) {
+      // "Simulation" only when the backend is actively running on canned
+      // fixtures (`source === "demo"`) AND no scans have happened yet.
+      // Once the first real scan lands, the source flips to "live" and so
+      // do we.
+      const _hasRealScans = !!(summary && Number(summary.total_scans) > 0);
+      const _explicitDemo = !!(window.plantDemo && window.plantDemo.isOn && window.plantDemo.isOn());
+      analyticsMode.textContent = _explicitDemo
+        ? "Demo Mode"
+        : (summary?.source === "demo" || !_hasRealScans ? "Awaiting first scan" : "Live");
+    }
 
     if (force && window.plantAssistant) window.plantAssistant.refreshContext();
   }
@@ -675,6 +715,9 @@
       if (typeof switchPage === "function") switchPage("page-settings");
     });
     window.addEventListener("plantvision:settings-changed", syncPreferenceToggles);
+    // Phase 4: refresh metrics + DEMO ribbon as soon as the user flips
+    // Demo Mode rather than waiting for the 8s polling cycle.
+    window.addEventListener("plantvision:demo-mode-changed", () => refresh(true));
   }
 
   window.plantProfile = { refresh, onNavigate, refreshPlantProfile };

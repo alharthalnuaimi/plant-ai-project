@@ -21,7 +21,7 @@ from pydantic import BaseModel
 
 from db.connection import get_pool, is_postgres_enabled
 from repositories import scans_repo
-from services import analytics_store
+from services import analytics_store, storage
 
 log = logging.getLogger("plantvision.scans")
 
@@ -117,12 +117,34 @@ def _row_to_item(row: dict[str, Any]) -> ScanListItem:
         meta = {}
 
     image_path = row.get("image_path") or meta.get("saved_path")
-    image_url = meta.get("image_url") or (("/" + image_path) if image_path else None)
     # Normalise legacy Windows-style separators so the browser/static mount can serve them.
-    if image_url:
-        image_url = image_url.replace("\\", "/")
     if image_path:
         image_path = image_path.replace("\\", "/")
+
+    # Phase 4 — when scans are written via Supabase Storage we surface the
+    # public URL directly. Precedence:
+    #   1. metadata.image_public_url (set by the predict route on a
+    #      successful Storage upload).
+    #   2. image_path that looks like a Storage object key (no leading
+    #      slash + lives under "scans/") → compute the public URL via the
+    #      storage helper.
+    #   3. metadata.image_url (legacy / explicit override).
+    #   4. fall back to "/<image_path>" so the existing /uploads static
+    #      mount keeps serving local-fallback thumbnails.
+    public_meta_url = meta.get("image_public_url")
+    is_storage_object = bool(
+        image_path
+        and not image_path.startswith("/")
+        and image_path.startswith("scans/")
+    )
+    if public_meta_url:
+        image_url = public_meta_url
+    elif is_storage_object:
+        image_url = storage.public_url(image_path)
+    else:
+        image_url = meta.get("image_url") or (("/" + image_path) if image_path else None)
+    if image_url:
+        image_url = image_url.replace("\\", "/")
     created = row.get("created_at")
     created_iso = created.isoformat() if hasattr(created, "isoformat") else str(created or "")
 

@@ -132,7 +132,7 @@
       else if (lastScan.status === "CRITICAL") status.classList.add("st-crit");
       if (idEl && lastScan.scan_id) idEl.textContent = lastScan.scan_id;
     } else {
-      meta.textContent = isLive ? "Plant Vision · Live mode · Cucumber" : "Plant Vision v4.2 · Simulation · Cucumber";
+      meta.textContent = isLive ? "Plant Vision · Live mode" : "Plant Vision v4.2 · Simulation";
       status.textContent = "● Awaiting leaf — point camera at a target plant";
       status.classList.remove("st-warn", "st-crit");
     }
@@ -708,4 +708,17 @@
   } else {
     start();
   }
+
+  // Phase 4: react to Demo Mode toggles immediately so Home's hero ring,
+  // warnings strip, care card, and trend chart swap between live + fixture
+  // without waiting for the poll cycle.
+  window.addEventListener("plantvision:demo-mode-changed", () => {
+    // Reset cache keys so the next refresh re-renders even when payloads
+    // happen to be byte-identical.
+    lastModeKey = "";
+    lastStatsKey = "";
+    lastFootKey = "";
+    lastPulseKey = "";
+    refresh();
+  });
 })();

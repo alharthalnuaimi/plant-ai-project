@@ -4,14 +4,24 @@
 
 ```text
 frontend/
-├── _imports/          # Raw ZIP from teammates (plant-MB-main.zip)
-└── mobile-app/        # Extracted PlantVision web app
-    ├── config.js      # FastAPI base URL
-    ├── api.js         # POST /predict client
-    ├── app.js         # UI logic (scan wired to backend)
-    ├── index.html
+└── mobile-app/        # PlantVision web app (vanilla HTML/CSS/JS)
+    ├── config.js      # FastAPI base URL + user/zone/device IDs
+    ├── env.js         # Optional public backend URL override
+    ├── api.js         # Backend client (predict, sensor, scans, care, report, …)
+    ├── app.js         # Core UI logic, navigation, persistence
+    ├── home.js        # Home dashboard panels
+    ├── analytics.js   # Data / scan history dashboard
+    ├── garden.js      # Garden map + zone management
+    ├── profile.js     # Profile + settings panes
+    ├── assistant.js   # Floating AI chat widget
+    ├── settings.js    # Settings page wiring
+    ├── style.css      # Full design system
+    ├── index.html     # Single-page app shell
     └── server.js      # Optional Node static server (port 3000)
 ```
+
+> `frontend/_imports/` is git-ignored and only used for ad-hoc developer
+> drops of upstream ZIPs; nothing in the running app reads from it.
 
 ## Detected framework
 
@@ -82,27 +92,22 @@ May block `fetch` to another origin (CORS). Prefer Option A or any static server
 
 Top bar **AI Core** shows `API OK` when `GET /health` succeeds.
 
-## API contract (MVP)
+## Integrated backend endpoints
 
-```http
-POST /predict
-Content-Type: multipart/form-data
-Field: file  (image)
-```
+The frontend talks to FastAPI via `frontend/mobile-app/api.js`:
 
-Response (example):
+| Route                                   | Used by                                       |
+|-----------------------------------------|-----------------------------------------------|
+| `POST /predict`                         | Home scan modal (disease + plant ID block)    |
+| `POST /sensor` / `GET /sensor/latest`   | Live environment strip + sensor cache hydrate |
+| `GET /health`, `/health/db`, `/health/sensor` | Sidebar status chip + diagnostics       |
+| `GET /analytics/*`, `GET /scans/*`      | Data page (summary, history, zone counts)     |
+| `GET /care/{plant_id}`                  | Care recommendations panel                    |
+| `POST /report`                          | Unified plant report (multipart + JSON paths) |
+| `GET/POST/PUT/DELETE /zones`, `/devices`| Garden map management                         |
 
-```json
-{
-  "disease": "diseased",
-  "confidence": 0.9832,
-  "accepted": true,
-  "inference_ms": 3925.81,
-  "model_name": "yolov8"
-}
-```
-
-Only `/predict` is integrated. Sensors, Ollama, survival, and `/analyze` are not used in this MVP frontend pass.
+Every call is non-blocking and degrades to demo / cached data when the
+backend is offline, so the app keeps rendering during outages.
 
 ## Troubleshooting
 

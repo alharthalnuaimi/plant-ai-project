@@ -209,6 +209,18 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);display:flex;-
 /* Phase 4 (A3): Demo Mode badge */
 .sys-chip-demo{color:var(--gold);background:var(--gold-dim);border-color:rgba(192,160,106,.32);font-weight:700;letter-spacing:.8px}
 .sys-chip-demo .sys-chip-dot{background:var(--gold);box-shadow:0 0 10px rgba(192,160,106,.6);animation:pulse 2s ease infinite}
+/* Phase 4 (replace demo statistics with live data): per-card DEMO marker.
+   Applied via JS (analytics.js / profile.js) to .sys-metric-card and
+   .prof-metric-card whenever the value being displayed is fixture-driven
+   (either Demo Mode is on, or backend reports source === "demo"). The
+   marker is a small ribbon in the top-right; never blocks numeric content.
+   No layout-impacting work — card geometry is unchanged. */
+.sys-metric-card.is-demo,
+.prof-metric-card.is-demo{position:relative}
+.sys-metric-card.is-demo::after,
+.prof-metric-card.is-demo::after{content:"DEMO";position:absolute;top:6px;right:6px;font:700 8px var(--mono,monospace);letter-spacing:.8px;color:var(--gold);background:var(--gold-dim);border:1px solid rgba(192,160,106,.32);padding:1px 5px;border-radius:4px;pointer-events:none;z-index:2}
+.sys-metric-card.is-demo .smc-val,
+.prof-metric-card.is-demo .prof-metric-val{opacity:.85}
 .sys-chip-fps{font-family:var(--mono);color:var(--t3)}
 .sys-chip-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 .sys-chip-text{white-space:nowrap}
@@ -3287,3 +3299,744 @@ img,video,canvas,svg{max-width:100%}
 .page>*{min-width:0;max-width:100%}
 
 /* === End responsive polish pass v2 === */
+
+/* ====================================================================
+   === Phase 1 polish — analytics rings, profile header, camera switch ===
+   --------------------------------------------------------------------
+   Layered ON TOP of v1 + v2. Surgical fixes only — no rule below
+   redefines or undoes anything in the earlier passes.
+
+   What this pass fixes (matches the user-reported defect list):
+     1. Home/Garden/Analytics layout at 125/150/175% browser zoom —
+        soften the hard pixel min-heights on the scanner column and
+        tighten the high-zoom (effective ≤900px) breakpoint so the
+        2-col home dashboard collapses earlier instead of overflowing.
+     2. Resize jitter: card titles, page-titles and zone chips no
+        longer push their containers wider than the grid track.
+     3. Mobile (≤480) breathing room and tighter ring sizes so emoji
+        glyphs always sit inside their containers.
+     4. Analytics SMC ring emoji visibly overflowing the 48px ring —
+        font-size 24 → 18 (mobile 20 → 15), explicit line-height:1,
+        and `overflow:hidden` on the ring so any future glyph stays
+        contained. Same defensive caps for prof-metric and garden-sum
+        chips so the icon family reads as one.
+     5. Settings: every .set-row now has a min-height so toggles /
+        sliders / selects vertically align, and .set-group rows pick
+        up consistent vertical rhythm.
+     7. Camera switch button: pill-shape 48×56, big Lucide
+        switch-camera glyph, micro "SWITCH" label, first-open pulse.
+
+   Items 6 (rogue 🩺) and the JS pulse hook are HTML/JS-side and
+   live outside this block.
+   No new dependencies, no class renames, no token changes.
+   ==================================================================== */
+
+/* ---------- 4. SMC ring — emoji containment ----------
+   The ring SVG draws a 32-viewBox-unit inner circle (radius 16,
+   stroke 3) inside a 40-unit viewBox, scaled to a 48px container.
+   That leaves an inner clear diameter of ~36px. A 24px emoji with
+   Segoe/Apple's natural ~1.2em glyph box renders ~28-30px tall —
+   which on Windows + Segoe UI Emoji visibly clips the ring outline.
+   Drop to 18px (15px on mobile) so the glyph centres well inside
+   the ring, and clip anything that escapes. */
+.smc-ring{overflow:hidden}
+.smc-ring .smc-ico{
+  font-size:18px;
+  line-height:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0;
+}
+@media(max-width:768px){
+  .smc-ring .smc-ico{font-size:15px}
+}
+/* Same defensive containment on the other ring/chip icon families
+   that share the same emoji pipeline. Container sizes (40px / 36px)
+   are unchanged — only the glyph box shrinks slightly so it never
+   visibly bleeds past the rounded-square boundary. */
+.prof-metric-ico{font-size:16px;line-height:1;overflow:hidden}
+.garden-sum-ico{font-size:18px;line-height:1;overflow:hidden}
+@media(max-width:768px){
+  .prof-metric-ico{font-size:14px}
+  .garden-sum-ico{font-size:15px}
+}
+
+/* ---------- 7. Camera switch button — pill + label + pulse ----------
+   The previous v2 button was a 38px round glass chip with a generic
+   "camera with flash" SVG that users mistook for "take photo".
+   Redesign: 48×56 pill with the standard Lucide switch-camera glyph
+   (two arrows wrapping a camera body) PLUS a "SWITCH" caption below,
+   so the affordance is obvious. The first time the modal opens in a
+   session the button pulses for 1.5s (gated in app.js by
+   `_camSwitchPulsedThisSession`). */
+.cam-switch{
+  width:48px;
+  height:56px;
+  border-radius:16px;
+  flex-direction:column;
+  gap:2px;
+  padding:6px 4px;
+}
+.cam-switch-ico{flex-shrink:0}
+.cam-switch-lbl{
+  font-size:8px;
+  letter-spacing:.8px;
+  line-height:1;
+  color:var(--sage);
+  opacity:.85;
+  text-transform:uppercase;
+  font-weight:700;
+}
+.cam-switch:hover .cam-switch-lbl{opacity:1}
+[data-theme="light"] .cam-switch-lbl{color:var(--sage)}
+
+@keyframes camSwitchPulse{
+  0%   {transform:scale(1);   box-shadow:0 4px 12px rgba(0,0,0,.32),0 0 0 0 rgba(140,168,140,.55)}
+  35%  {transform:scale(1.08);box-shadow:0 6px 18px rgba(0,0,0,.36),0 0 0 10px rgba(140,168,140,.0)}
+  70%  {transform:scale(1);   box-shadow:0 4px 12px rgba(0,0,0,.32),0 0 0 0 rgba(140,168,140,.45)}
+  100% {transform:scale(1);   box-shadow:0 4px 12px rgba(0,0,0,.32),0 0 0 0 rgba(140,168,140,0)}
+}
+.cam-switch.cam-switch-pulse{
+  animation:camSwitchPulse 1.5s ease-out 2;
+  border-color:rgba(140,168,140,.55);
+}
+/* Honour reduced-motion preference — no flashing for users who opted out. */
+@media(prefers-reduced-motion:reduce){
+  .cam-switch.cam-switch-pulse{animation:none}
+}
+
+/* Narrow-viewport overrides: keep the new pill geometry but pull the
+   button in tighter so it doesn't crowd the preview corner. */
+@media(max-width:479px){
+  .cam-switch{width:44px;height:52px;top:8px;right:8px;border-radius:14px;padding:5px 3px}
+  .cam-switch-lbl{font-size:7.5px;letter-spacing:.6px}
+}
+
+/* ---------- 5. Settings — consistent row rhythm & alignment ----------
+   .set-row was set/aligned ad-hoc across rows, which made toggle rows
+   visibly shorter than slider rows (rows would jitter when a toggle
+   showed/hid a child control). Lock a sensible min-height + consistent
+   group margin so every row reads as the same beat. */
+/* min-height keeps every row at the same vertical beat. We do NOT
+   re-set align-items here — the original base rule (line 1390) already
+   sets `align-items:center`, and v2 (line 3230, inside max-width:560px)
+   deliberately flips it to `stretch` so toggles/sliders go full-width
+   on mobile. Re-stating it here would undo that. */
+.set-row{min-height:52px}
+.set-row-slider{min-height:60px}
+/* .set-row-action is the bottom CTA row — keep its top padding from
+   v1 (line 1375) but reserve a smaller min-height so the button hugs
+   the bottom of the card. */
+.set-row-action{min-height:48px}
+/* Consistent vertical rhythm between settings groups. */
+.set-card .set-group + .set-group{margin-top:4px}
+.set-card .set-hint{margin-top:12px}
+/* Status grid items: the 12px header padding made odd whitespace
+   when the chip body was a single line. Tighten and lock the icon
+   row to the dot baseline. */
+.set-status-card .status-item{padding:10px 12px;align-items:center}
+.set-status-card .status-dot{margin-top:0}
+@media(max-width:479px){
+  .set-row{min-height:48px}
+  .set-row-slider{min-height:56px}
+  .set-card{padding:14px}
+}
+
+/* ---------- 1 + 2. Zoom / resize stability ----------
+   Hard pixel min-heights on the home scanner card overshoot at high
+   browser zoom (175% on a 1280×800 laptop ≈ 731×457 effective; the
+   520px scanner-card min-height alone fills the entire viewport).
+   Clamp them with a vh ceiling so the card still feels "big" at
+   normal zoom but yields gracefully under zoom. Layered AFTER the
+   v1 @media(min-width:1280px) rules so the cascade naturally wins. */
+@media(min-width:1280px){
+  .home-dashboard .scanner-card{
+    min-height:min(520px,calc(100vh - var(--topbar-h) - 200px));
+  }
+  .home-dashboard .scanner-view{
+    min-height:min(380px,calc(100vh - var(--topbar-h) - 320px));
+  }
+}
+@media(min-width:1440px){
+  .home-dashboard .scanner-card{
+    min-height:min(540px,calc(100vh - var(--topbar-h) - 200px));
+  }
+  .home-dashboard .scanner-view{
+    min-height:min(420px,calc(100vh - var(--topbar-h) - 320px));
+  }
+}
+/* At 125-175% zoom on a 1280-1440 viewport the home dashboard's
+   2-col grid track ratios crowd the aside. Force the 2nd column to
+   meet a real minimum BEFORE the @media(max-width:1024px) collapse
+   kicks in, so the page either fits or stacks — never half-broken. */
+@media(min-width:1280px) and (max-width:1439px){
+  .home-dashboard{grid-template-columns:minmax(0,1fr) minmax(320px,0.86fr);gap:18px}
+}
+/* Final safety net for very high zoom on small laptops: collapse the
+   2-col grid to 1-col when the effective width is below 920px. */
+@media(max-width:1100px){
+  .home-dashboard{grid-template-columns:1fr;gap:14px}
+  .home-dashboard .scanner-card{min-height:auto}
+}
+
+/* Card titles + section headers: never wider than their container.
+   Fixes the resize-jitter where long .d-card-label text would push
+   the .d-card-tag chip off the right edge at 125% zoom. */
+.d-card-head{flex-wrap:wrap;row-gap:4px;min-width:0}
+.d-card-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.d-card-tag{flex-shrink:0;max-width:100%}
+.prof-section-title{min-width:0;max-width:100%;overflow-wrap:anywhere}
+
+/* ---------- 3. Mobile (≤480) — extra breathing room ----------
+   Stats numbers were 24px and the 3-up grid forced them to wrap onto
+   2 lines on narrow Android viewports. Step them down and tighten
+   card padding so the row reads as a single horizontal beat. */
+@media(max-width:479px){
+  .stat-num{font-size:20px}
+  .stat-card{padding:10px 10px 12px}
+  .stat-label{font-size:9px}
+  .stat-trend{font-size:8.5px}
+  /* Quick-actions row: act-btn was full-width by default, which on
+     mobile portrait dropped to one icon per row. Force a 2-up so the
+     2x2 grid keeps the actions card from being a tall column. */
+  .actions-card .act-row{display:flex;gap:8px}
+  .actions-card .act-btn{flex:1 1 0;min-width:0;font-size:11px;padding:9px 8px;justify-content:center}
+  .actions-card .act-btn svg{flex-shrink:0}
+  /* Scanner card: cap the foot height so the trigger button is
+     always visible above the fold on phone-portrait. */
+  .scanner-foot{gap:8px}
+  .scanner-foot-info{min-width:0}
+  .scanner-meta-top,.scanner-meta-bot{font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* Profile hero block: avatar + name + sub were spilling sideways
+     when the operator name was longer than ~14 chars. */
+  .prof-hero-head{flex-wrap:wrap;gap:12px}
+  .prof-hero-name{font-size:17px}
+  .prof-hero-sub{font-size:9.5px}
+}
+
+/* === End Phase 1 polish === */
+
+/* ====================================================================
+   === Phase 3 polish — home dashboard 2x2 quadrants ===
+   --------------------------------------------------------------------
+   Layered ON TOP of v1 + v2 + Phase 1. Surgical fixes only — no rule
+   below redefines or undoes anything in the earlier passes.
+
+   Goal: turn the home page into a 2×2 quadrant grid at ≥1280 so the
+   four primary tiles (Scanner, Stats, Trends, Actions) read as one
+   system. Secondary aside content (zone-sensors, env-strip, the log
+   stack with warnings/care) drops to full-width rows below the
+   quadrant block.
+
+     Desktop  ≥1280   : 2×2 quadrants
+     Tablet 1024-1279 : 4× single column (matches user "tablet" target)
+     <1100            : Phase 1 single-column collapse already kicks in
+     ≤1023 / ≤767     : v1 + v2 already collapse to single column
+
+   Implementation notes:
+     * .dashboard-aside is `display:contents` at base (line 241) but
+       v1 re-promotes it to `display:flex` at ≥1280 (line 1601). We
+       flip it back to `display:contents` at ≥1280 so its children
+       (stats-row, zone-sensor-card, env-strip, actions-card, and the
+       relocated home-trend-card) act as direct grid items of
+       .home-dashboard and can receive grid-area assignments.
+     * .home-trend-card was moved out of .home-log-wrap in index.html
+       so it can sit in the dashboard grid as a direct child.
+     * v2's Chart.js `height:auto !important` rule (line 3170) already
+       includes .home-trend-canvas-wrap canvas — no change needed.
+     * No !important added below; the only !important in this file is
+       the Chart.js canvas height override from v2.
+   ==================================================================== */
+
+/* ---------- ≥1280 — 2×2 quadrants ---------- */
+@media(min-width:1280px){
+  /* Flatten the aside so its children become direct grid items of
+     .home-dashboard (overrides the v1 `display:flex` at line 1601). */
+  .home-dashboard .dashboard-aside{
+    display:contents;
+  }
+
+  .home-dashboard{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    grid-template-rows:auto auto auto auto;
+    grid-template-areas:
+      "scanner stats"
+      "trends  actions"
+      "zone    zone"
+      "log     log";
+    gap:24px;
+    align-items:stretch;
+  }
+  .home-dashboard .scanner-card    {grid-area:scanner}
+  .home-dashboard .stats-row       {grid-area:stats}
+  .home-dashboard .home-trend-card {grid-area:trends}
+  .home-dashboard .actions-card    {grid-area:actions}
+  .home-dashboard .zone-sensor-card{grid-area:zone}
+  .home-dashboard .home-log-wrap   {grid-area:log;grid-column:auto}
+
+  /* Reduce scanner dominance — at 1/4 of the viewport, the v1 + Phase 1
+     520px min-height is too tall. Clamp it so the card sits flush with
+     its three peers in row 1. */
+  .home-dashboard .scanner-card{
+    min-height:clamp(360px,32vh,480px);
+    max-height:none;
+    border-radius:var(--r);
+  }
+  .home-dashboard .scanner-view{
+    min-height:clamp(220px,22vh,320px);
+  }
+  .home-dashboard .scanner-header{padding:14px 18px}
+  .home-dashboard .scanner-foot  {padding:14px 18px}
+
+  /* Stats quadrant: promote the 3-stat row to a proper card surface
+     so it reads as one quadrant peer (border-radius + shadow rhythm
+     to match Scanner / Trends / Actions). The inner stat-cards keep
+     their existing micro-surfaces. */
+  .home-dashboard .stats-row{
+    align-self:stretch;
+    padding:18px 18px 20px;
+    background:var(--surface);
+    border:1px solid var(--b1);
+    border-radius:var(--r);
+    box-shadow:var(--shadow-card);
+    gap:14px;
+    align-content:center;
+  }
+
+  /* Trends + Actions quadrants: align padding & header rhythm. */
+  .home-dashboard .home-trend-card{
+    align-self:stretch;
+    margin-top:0;
+    padding:18px 20px;
+    display:flex;
+    flex-direction:column;
+    border-radius:var(--r);
+    box-shadow:var(--shadow-card);
+  }
+  .home-dashboard .home-trend-canvas-wrap{
+    flex:1;
+    height:clamp(160px,18vh,240px);
+    margin-top:6px;
+  }
+  .home-dashboard .actions-card{
+    align-self:stretch;
+    padding:18px 20px;
+    border-radius:var(--r);
+    box-shadow:var(--shadow-card);
+  }
+
+  /* Quadrant hover lift — subtle, system-wide. Inner .stat-card already
+     has its own hover (translateY(-3px) + glow) which still wins by
+     being on the inner element. */
+  .home-dashboard .scanner-card,
+  .home-dashboard .stats-row,
+  .home-dashboard .home-trend-card,
+  .home-dashboard .actions-card{
+    transition:transform .2s ease,box-shadow .2s ease,background .4s,border-color .4s;
+  }
+  .home-dashboard .scanner-card:hover,
+  .home-dashboard .stats-row:hover,
+  .home-dashboard .home-trend-card:hover,
+  .home-dashboard .actions-card:hover{
+    transform:translateY(-2px);
+    box-shadow:0 12px 24px rgba(0,0,0,.18);
+  }
+  /* Light theme: softer hover shadow so it doesn't look ink-blot. */
+  [data-theme="light"] .home-dashboard .scanner-card:hover,
+  [data-theme="light"] .home-dashboard .stats-row:hover,
+  [data-theme="light"] .home-dashboard .home-trend-card:hover,
+  [data-theme="light"] .home-dashboard .actions-card:hover{
+    box-shadow:0 10px 22px rgba(40,55,42,.12);
+  }
+  /* Reduced motion: keep hover but drop the lift. */
+  @media(prefers-reduced-motion:reduce){
+    .home-dashboard .scanner-card:hover,
+    .home-dashboard .stats-row:hover,
+    .home-dashboard .home-trend-card:hover,
+    .home-dashboard .actions-card:hover{transform:none}
+  }
+
+  /* Secondary row (zone-sensor-card spanning full width) reads as a
+     quieter surface so it doesn't compete with the four quadrants. */
+  .home-dashboard .zone-sensor-card{
+    grid-column:1/-1;
+    width:100%;
+    padding:14px 18px;
+    background:var(--surface2);
+  }
+}
+
+/* ---------- ≥1680 — extra breathing room ---------- */
+@media(min-width:1680px){
+  .home-dashboard{gap:28px}
+}
+
+/* ---------- 1024–1279 — tablet target: 4× single column ----------
+   v1 keeps the 2-col home-dashboard alive at this range and Phase 1
+   only collapses at <1100. The user's Phase 3 spec asks for single
+   column from 768 all the way to 1279 ("Tablet"), so force the
+   collapse here. The Phase 1 rule at <1100 still applies below this
+   range (cascade-compatible, same effect). */
+@media(min-width:1024px) and (max-width:1279px){
+  .home-dashboard{
+    grid-template-columns:1fr;
+    grid-template-rows:auto;
+    grid-template-areas:none;
+    gap:16px;
+  }
+  .home-dashboard .scanner-card,
+  .home-dashboard .stats-row,
+  .home-dashboard .home-trend-card,
+  .home-dashboard .actions-card,
+  .home-dashboard .zone-sensor-card,
+  .home-dashboard .env-strip,
+  .home-dashboard .home-log-wrap{
+    grid-area:auto;
+    grid-column:1;
+    width:100%;
+  }
+  .home-dashboard .scanner-card{
+    min-height:auto;
+    max-height:none;
+  }
+  /* env-strip is hidden at ≥1280 (v1 line 1612); re-show it in tablet
+     range so the live-environment glance bar isn't lost. */
+  .home-dashboard .env-strip{display:flex}
+}
+
+/* === End Phase 3 polish === */
+
+/* ====================================================================
+   === Final MVP polish === Phase A header + Phase B copy + Phase E result card
+   --------------------------------------------------------------------
+   Layered ON TOP of v1 + v2 + Phase 1 + Phase 3. Surgical, additive
+   rules only — no class renames, no token overwrites, no !important
+   beyond what is already required for Chart.js.
+
+   Scope:
+     A. Scan-module header (Live-mode badge + Zone picker) was
+        overlapping at narrow widths because the .scanner-header flex
+        row didn't wrap and the children had no min-width:0.
+        Defect: style.css:262-266 — display:flex without wrap + the
+        zone picker padding (style.css:268) was larger than the row's
+        remaining track at ≤480px.
+     A3. Standardization tokens for card padding, icon size, button
+        height, and section gap so any surface that visibly drifts can
+        snap to a system value WITHOUT a full design-system rewrite.
+     B. Visual safety net for the renamed AI-plant-analysis status row
+        labels — none of the colored dots changed; just keep the wider
+        labels from clipping in the System Diagnostics card.
+     E. New result-card sections (.rm-section, .rm-kv, .rm-env-grid,
+        .rm-rec-card). The old 4-metric grid (.r-metrics) has been
+        removed from the HTML so its CSS at style.css:1492 onwards is
+        dead-letter and can stay until a future cleanup pass.
+   ==================================================================== */
+
+/* ---------- A3. Standardization tokens ---------- */
+:root{
+  --mvp-card-pad-desktop:22px;
+  --mvp-card-pad-tablet:18px;
+  --mvp-card-pad-mobile:14px;
+  --mvp-icon-sm:14px;
+  --mvp-icon-md:18px;
+  --mvp-icon-lg:22px;
+  --mvp-btn-h:40px;
+  --mvp-btn-h-mobile:44px;
+  --mvp-section-gap:24px;
+  --mvp-section-gap-mobile:16px;
+}
+
+/* ---------- A1/A2. Scanner header — overlap fix ----------
+   Root cause: .scanner-header (line 262) is a flex row with
+   justify-content:space-between but no flex-wrap; .scanner-head-l (263)
+   greedily grows (flex:1) and .scanner-head-r (266) has flex-shrink:0
+   plus a 10px gap plus an interior chip (.scan-zone-picker, line 268)
+   that also has a 6px gap + 5px padding + the "SCAN ZONE" mono label.
+   On 320–480 viewports the right-side block can't shrink, so the Live
+   Mode chip on the left runs straight under it.
+
+   Fix: let both sides wrap, give every child min-width:0, and use a
+   per-viewport ladder so the row either fits cleanly or stacks. */
+.scanner-header,
+.scanner-head-l,
+.scanner-head-r{
+  flex-wrap:wrap;
+  row-gap:8px;
+  column-gap:12px;
+  min-width:0;
+}
+.scanner-head-r > *,
+.scanner-head-l > *{
+  min-width:0;
+}
+
+/* ≤480: stack the whole header vertically; each child becomes full-width
+   with a touch-friendly 36px min-height. Beats the previous behaviour
+   where the Zone picker + Live chip physically overlapped. */
+@media(max-width:480px){
+  .scanner-header{
+    flex-direction:column;
+    align-items:stretch;
+    padding:12px 14px;
+  }
+  .scanner-head-l,
+  .scanner-head-r{
+    width:100%;
+    flex-direction:row;
+    align-items:center;
+    justify-content:flex-start;
+    min-height:36px;
+  }
+  .scanner-head-r{justify-content:space-between}
+  .scan-zone-picker{
+    flex:1 1 auto;
+    justify-content:flex-start;
+  }
+  .scanner-id{flex-shrink:0}
+}
+
+/* 481–767: keep horizontal but allow wrap; the zone picker takes the
+   remaining space, the Live Mode chip keeps its intrinsic width. */
+@media(min-width:481px) and (max-width:767px){
+  .scanner-header{padding:14px 16px}
+  .scan-zone-picker{flex:1 1 200px;min-width:160px}
+  .home-mode-badge{flex-shrink:0}
+  .scanner-id{flex-shrink:0}
+}
+
+/* 768–1023: tablet — flex-wrap allowed but the row should usually fit on
+   one line. Tighter gaps so the four chips breathe at 125% zoom. */
+@media(min-width:768px) and (max-width:1023px){
+  .scanner-header{column-gap:10px;row-gap:6px;padding:14px 18px}
+  .scan-zone-picker{flex:0 1 auto;min-width:0}
+}
+
+/* ≥1024: desktop — explicitly affirm the base behaviour so any earlier
+   media query overrides (Phase 3 sets padding at ≥1280) are not affected
+   by the new wrap rules. */
+@media(min-width:1024px){
+  .scanner-header{flex-wrap:nowrap;row-gap:0}
+}
+
+/* ---------- A3. Lightly-applied standardization ----------
+   Apply only to surfaces the user flagged as drifting (analytics SMC
+   sub-cards, profile session card padding at desktop, settings status
+   card, scan-source modal buttons). Never retrofits the whole design
+   system. */
+@media(min-width:1024px){
+  .sys-metric-card{padding:var(--mvp-card-pad-tablet)}
+  .set-status-card{padding:var(--mvp-card-pad-desktop)}
+}
+@media(max-width:480px){
+  /* Touch targets: every modal button gets a 44px tap height. */
+  .ov>.modal:not(.zm-modal):not(.sd-modal) .rb,
+  .ov>.modal:not(.zm-modal):not(.sd-modal) button.rb{
+    min-height:var(--mvp-btn-h-mobile);
+  }
+}
+
+/* ---------- B. AI Plant Analysis label safety ----------
+   The renamed "AI Plant Analysis" label is two words wider than the old
+   "YOLO Model" string. Ensure the status-row labels never push the
+   trailing value off the right edge in the System Status / System
+   Diagnostics cards. */
+.status-item .status-name,
+.prof-diag-item > span:not(.prof-diag-ico):not(.prof-diag-dot):not(.prof-diag-lbl){
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.set-status-card .status-body{min-width:0;flex:1}
+
+/* ====================================================================
+   ---------- E. Phase E — result-card redesign ----------
+   New layout: three vertical sections (Plant Identification /
+   Environment / AI Recommendation) replacing the old 4-metric grid.
+   The hero icon (.r-ico) and emoji-prefixed headline (#r-title) stay,
+   as do the meta chips (#r-zone / #r-device / #r-source / #r-plant).
+
+   Container: .rm-v3 — opt-in class so the new layout is scoped and the
+   legacy .rm / .rm-v2 styles in the original block keep working for
+   any other place that re-uses them (e.g. scan-detail modal #sd-rec).
+   ==================================================================== */
+
+.rm-v3{
+  /* The base .rm centres content as a tight column. The new layout has
+     three full-width sections, so widen the modal a touch on desktop
+     and let it use the entire inner area instead of a 360px column. */
+  text-align:left;
+}
+.rm-v3 .r-ico{margin-left:auto;margin-right:auto}
+.rm-v3 .rm-headline{text-align:center}
+.rm-v3 .r-meta{justify-content:center}
+
+.rm-v3 .rm-sections{
+  display:flex;
+  flex-direction:column;
+  gap:0;
+  margin:18px 0 8px;
+  width:100%;
+  min-width:0;
+}
+
+.rm-section{
+  padding:16px 0;
+  border-bottom:1px solid var(--b1);
+  min-width:0;
+}
+.rm-section.rm-section-last,
+.rm-section:last-child{border-bottom:none;padding-bottom:6px}
+
+.rm-section-title{
+  font-size:10px;
+  letter-spacing:1px;
+  text-transform:uppercase;
+  color:var(--t3);
+  font-family:var(--mono);
+  font-weight:700;
+  margin:0 0 10px;
+  display:flex;
+  align-items:baseline;
+  gap:10px;
+  min-width:0;
+}
+.rm-section-sub{
+  font-family:var(--font);
+  font-size:9px;
+  letter-spacing:.4px;
+  text-transform:none;
+  color:var(--t4);
+  font-weight:600;
+}
+
+/* Plant Identification key/value rows. */
+.rm-kv{display:flex;flex-direction:column;gap:0;min-width:0}
+.rm-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:14px;
+  padding:6px 0;
+  min-width:0;
+}
+.rm-lbl{
+  font-size:11.5px;
+  color:var(--t3);
+  letter-spacing:.1px;
+  flex-shrink:0;
+}
+.rm-val{
+  font-size:12.5px;
+  color:var(--t1);
+  font-weight:600;
+  text-align:right;
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+.rm-val-sci{font-style:italic;font-weight:500;color:var(--t2)}
+
+/* Environment grid — 2 columns on desktop, 1 column on phone. */
+.rm-env-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px 16px;
+  min-width:0;
+}
+.rm-env-cell{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:10px;
+  padding:6px 8px;
+  background:var(--surface2);
+  border-radius:8px;
+  border:1px solid var(--b1);
+  min-width:0;
+}
+.rm-env-lbl{
+  font-size:10.5px;
+  color:var(--t3);
+  letter-spacing:.2px;
+  flex-shrink:0;
+}
+.rm-env-val{
+  font-size:12px;
+  color:var(--t1);
+  font-weight:600;
+  min-width:0;
+  text-align:right;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+@media(max-width:560px){
+  .rm-env-grid{grid-template-columns:1fr;gap:6px}
+  .rm-env-cell{padding:8px 10px}
+}
+
+/* AI Recommendation tinted card. */
+.rm-rec-card{
+  background:var(--surface2);
+  border:1px solid var(--b1);
+  border-radius:12px;
+  padding:12px 14px;
+  min-width:0;
+}
+.rm-rec-head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:6px;
+  color:var(--sage);
+}
+.rm-v3[data-tone="warn"] .rm-rec-head{color:var(--gold)}
+.rm-v3[data-tone="crit"] .rm-rec-head{color:var(--coral)}
+.rm-rec-ico{
+  font-size:16px;
+  line-height:1;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.rm-rec-title{
+  margin:0;
+  color:inherit;
+}
+.rm-rec-body{
+  margin:0;
+  font-size:12.5px;
+  line-height:1.55;
+  color:var(--t1);
+  font-family:var(--font);
+  font-weight:500;
+  overflow-wrap:anywhere;
+}
+
+/* Phase E — scroll fallback. The outer .ov>.modal already caps at
+   min(90vh,720px) with overflow-y:auto (v1 line 2941), so in practice
+   the modal itself scrolls when the three sections overflow. The
+   inner overflow rule below is a defensive fallback for browsers that
+   don't honour max-height on flex children inside a transformed modal. */
+.rm-v3 .rm-sections{
+  overflow-y:auto;
+  overflow-x:hidden;
+  scrollbar-width:thin;
+  scrollbar-color:var(--b2) transparent;
+}
+.rm-v3 .rm-sections::-webkit-scrollbar{width:4px}
+.rm-v3 .rm-sections::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+
+/* Phase E — narrow-viewport polish. Tighten paddings so the three
+   sections fit on a single phone screen above the buttons. */
+@media(max-width:479px){
+  .rm-section{padding:12px 0}
+  .rm-section-title{margin-bottom:8px}
+  .rm-row{padding:5px 0;gap:10px}
+  .rm-val{font-size:12px}
+  .rm-rec-card{padding:10px 12px}
+  .rm-rec-body{font-size:12px}
+}
+
+/* === End Final MVP polish block === */

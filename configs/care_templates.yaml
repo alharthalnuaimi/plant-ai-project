@@ -1,0 +1,245 @@
+# =====================================================================
+# PlantVision — care templates (Phase 3)
+#
+# One entry per species_id (slug). Each entry holds the *target ranges*
+# the care engine compares the latest sensor reading against, plus the
+# textual recommendations that get assembled into the unified plant
+# report. Adding a new plant is just a new YAML block — no Python edits.
+#
+# Schema (all blocks optional; defaults filled in by services/care_engine.py):
+#
+#   species_id:                      # must match services.species_taxonomy
+#     watering:
+#       frequency: "Every 2-3 days"  # human-readable cadence
+#       soil_moisture_target: [40, 70]  # min/max %
+#       notes: "..."                 # short caveats
+#     sunlight:
+#       lux_target: [12000, 35000]   # min/max lux
+#       hours_per_day: [6, 8]
+#       notes: "..."
+#     temperature_c: [18, 28]        # ambient air target [min, max]
+#     humidity_pct: [50, 70]         # relative humidity target [min, max]
+#     soil:
+#       ph_target: [5.8, 6.8]
+#       ec_target_ms: [1.2, 2.4]     # millisiemens / cm
+#       type: "Loamy, well-drained"
+#     fertilizer:
+#       schedule: "Every 7-10 days"
+#       npk: "20-20-20"
+#       notes: "..."
+#     growth_stages:                 # ordered list, current stage inferred
+#       - name: "Germination"
+#         duration_days: [3, 7]
+#         care_focus: "Constant moisture, warm soil"
+#       - name: "Vegetative"
+#         duration_days: [21, 35]
+#         care_focus: "Nitrogen-heavy feeding, ample light"
+#       ...
+# =====================================================================
+
+cucumber:
+  watering:
+    frequency: "Every 1-2 days during fruiting; every 2-3 days otherwise"
+    soil_moisture_target: [55, 75]
+    notes: "Avoid overhead watering — wet leaves invite powdery mildew."
+  sunlight:
+    lux_target: [20000, 45000]
+    hours_per_day: [6, 8]
+    notes: "Full sun preferred; tolerates partial shade in afternoon."
+  temperature_c: [18, 30]
+  humidity_pct: [50, 70]
+  soil:
+    ph_target: [6.0, 6.8]
+    ec_target_ms: [1.4, 2.4]
+    type: "Loose, fertile, well-drained loam with high organic matter"
+  fertilizer:
+    schedule: "Every 7-10 days during vegetative + fruiting stages"
+    npk: "20-20-20 vegetative; 10-30-20 once flowering"
+    notes: "Reduce nitrogen at fruit set to favor fruit development."
+  growth_stages:
+    - name: "Germination"
+      duration_days: [3, 7]
+      care_focus: "Constant moisture, soil temperature 21-29°C"
+    - name: "Seedling"
+      duration_days: [10, 14]
+      care_focus: "Bright light, gentle watering, harden off before transplant"
+    - name: "Vegetative"
+      duration_days: [21, 35]
+      care_focus: "Heavy feeding, vertical training, prune lower leaves"
+    - name: "Flowering"
+      duration_days: [10, 14]
+      care_focus: "Reduce nitrogen, encourage pollinators, maintain even moisture"
+    - name: "Fruiting"
+      duration_days: [30, 50]
+      care_focus: "Harvest every 1-2 days, watch for powdery mildew"
+
+tomato:
+  watering:
+    frequency: "Deep watering every 2-3 days; daily during fruiting heat"
+    soil_moisture_target: [50, 70]
+    notes: "Inconsistent moisture causes blossom-end rot — keep it steady."
+  sunlight:
+    lux_target: [20000, 50000]
+    hours_per_day: [6, 8]
+    notes: "Full sun; minimum 6h direct light for fruit set."
+  temperature_c: [18, 29]
+  humidity_pct: [40, 70]
+  soil:
+    ph_target: [6.0, 6.8]
+    ec_target_ms: [2.0, 3.5]
+    type: "Rich, well-drained loam; tolerates slight acidity"
+  fertilizer:
+    schedule: "Every 10-14 days; calcium foliar once weekly during fruit set"
+    npk: "5-10-10 once flowering begins"
+    notes: "Calcium-deficiency causes blossom-end rot."
+  growth_stages:
+    - name: "Germination"
+      duration_days: [5, 10]
+      care_focus: "Soil temperature 21-27°C, even moisture"
+    - name: "Seedling"
+      duration_days: [14, 21]
+      care_focus: "Strong direct light, gentle airflow, weak fertilizer"
+    - name: "Vegetative"
+      duration_days: [25, 40]
+      care_focus: "Stake or cage, prune suckers, balanced feed"
+    - name: "Flowering"
+      duration_days: [10, 20]
+      care_focus: "Reduce nitrogen, hand-pollinate if indoors"
+    - name: "Fruiting"
+      duration_days: [30, 60]
+      care_focus: "Steady moisture, calcium foliar, harvest at first blush"
+
+pepper_bell:
+  watering:
+    frequency: "Every 2-3 days; let top inch of soil dry between waterings"
+    soil_moisture_target: [45, 65]
+    notes: "Peppers dislike wet feet — drainage matters more than frequency."
+  sunlight:
+    lux_target: [25000, 55000]
+    hours_per_day: [6, 8]
+    notes: "Full sun; struggles below 6h direct light."
+  temperature_c: [21, 29]
+  humidity_pct: [50, 70]
+  soil:
+    ph_target: [6.0, 6.8]
+    ec_target_ms: [1.6, 2.4]
+    type: "Sandy loam, well-drained, organic-rich"
+  fertilizer:
+    schedule: "Every 14 days during vegetative + fruiting"
+    npk: "5-10-10 once flowering begins"
+    notes: "High nitrogen delays fruit set."
+  growth_stages:
+    - name: "Germination"
+      duration_days: [7, 14]
+      care_focus: "Warm soil 25-29°C, constant moisture"
+    - name: "Seedling"
+      duration_days: [21, 28]
+      care_focus: "Strong light, slow hardening"
+    - name: "Vegetative"
+      duration_days: [30, 50]
+      care_focus: "Balanced feed, support stems"
+    - name: "Flowering"
+      duration_days: [14, 28]
+      care_focus: "Lower nitrogen, encourage pollination"
+    - name: "Fruiting"
+      duration_days: [40, 70]
+      care_focus: "Harvest at color change for sweetness"
+
+lettuce:
+  watering:
+    frequency: "Daily light watering; never let it wilt"
+    soil_moisture_target: [55, 75]
+    notes: "Cool, even moisture prevents bolting and bitterness."
+  sunlight:
+    lux_target: [10000, 25000]
+    hours_per_day: [4, 6]
+    notes: "Partial shade in hot climates extends harvest window."
+  temperature_c: [10, 22]
+  humidity_pct: [50, 70]
+  soil:
+    ph_target: [6.0, 7.0]
+    ec_target_ms: [0.8, 1.6]
+    type: "Loose, moisture-retentive loam"
+  fertilizer:
+    schedule: "Light feed every 14 days"
+    npk: "10-10-10"
+    notes: "Avoid heavy fertilizer — burns tender leaves."
+  growth_stages:
+    - name: "Germination"
+      duration_days: [4, 10]
+      care_focus: "Cool 15-21°C, surface-sown, kept moist"
+    - name: "Seedling"
+      duration_days: [10, 14]
+      care_focus: "Bright indirect light, thin to 6 inches apart"
+    - name: "Vegetative"
+      duration_days: [25, 45]
+      care_focus: "Steady moisture, harvest outer leaves continuously"
+    - name: "Bolting (avoid)"
+      duration_days: [0, 0]
+      care_focus: "Once temperatures stay above 24°C, harvest immediately"
+
+basil:
+  watering:
+    frequency: "Every 1-2 days; keep evenly moist"
+    soil_moisture_target: [50, 70]
+    notes: "Pinch top leaves to encourage bushier growth."
+  sunlight:
+    lux_target: [15000, 35000]
+    hours_per_day: [6, 8]
+    notes: "Bright direct light; basil flavor intensifies in full sun."
+  temperature_c: [18, 30]
+  humidity_pct: [40, 60]
+  soil:
+    ph_target: [6.0, 7.5]
+    ec_target_ms: [1.0, 1.8]
+    type: "Rich, well-drained potting mix"
+  fertilizer:
+    schedule: "Light feed every 14 days"
+    npk: "10-10-10"
+    notes: "Avoid heavy nitrogen — degrades flavor."
+  growth_stages:
+    - name: "Germination"
+      duration_days: [5, 10]
+      care_focus: "Warm soil 21-27°C, surface-sown"
+    - name: "Seedling"
+      duration_days: [14, 21]
+      care_focus: "Strong light, gentle airflow"
+    - name: "Vegetative"
+      duration_days: [21, 45]
+      care_focus: "Pinch tops every 2 weeks for bushier plants"
+    - name: "Flowering (pinch)"
+      duration_days: [0, 0]
+      care_focus: "Pinch flowers immediately to keep leaves productive"
+
+strawberry:
+  watering:
+    frequency: "Every 1-2 days during fruiting; every 2-3 otherwise"
+    soil_moisture_target: [50, 70]
+    notes: "Drip irrigation preferred — wet leaves invite gray mold."
+  sunlight:
+    lux_target: [18000, 40000]
+    hours_per_day: [6, 10]
+    notes: "Full sun maximizes berry sweetness."
+  temperature_c: [15, 26]
+  humidity_pct: [60, 75]
+  soil:
+    ph_target: [5.5, 6.5]
+    ec_target_ms: [1.2, 1.8]
+    type: "Sandy loam, raised beds, well-mulched"
+  fertilizer:
+    schedule: "Every 14 days during fruiting"
+    npk: "10-10-10 vegetative; 5-10-10 fruiting"
+    notes: "Compost tea works well between feedings."
+  growth_stages:
+    - name: "Establishment"
+      duration_days: [14, 28]
+      care_focus: "Pinch first flowers to build root mass"
+    - name: "Vegetative"
+      duration_days: [30, 60]
+      care_focus: "Mulch heavily, train runners or remove"
+    - name: "Flowering"
+      duration_days: [14, 21]
+      care_focus: "Avoid overhead watering, encourage pollinators"
+    - name: "Fruiting"
+      duration_days: [21, 45]
+      care_focus: "Harvest daily, net against birds, watch for gray mold"

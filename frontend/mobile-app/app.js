@@ -138,6 +138,9 @@ let capturedBlob = null;
 // Tracked outside the open/close lifecycle so a user's last choice persists
 // across modal re-opens within the same session.
 let currentFacingMode = 'environment';
+// Session-scoped flag: the camera-switch button briefly pulses the first
+// time the camera modal opens in this page-load, so users notice it.
+let _camSwitchPulsedThisSession = false;
 
 function clearScanTimer(){
   if(timer){ clearInterval(timer); timer = null; }
@@ -240,44 +243,71 @@ function _resultHeadline(result, tone, userOk){
 }
 
 function showPredictResult(result){
-  // Final polish — never surface raw "Unknown" to users; promote empty /
-  // placeholder predictions to "Pending analysis" so the result modal,
-  // notifications, exported reports, and assistant logs all read cleanly.
-  console.log("SHOW PREDICT RESULT");
-  console.log(result);
-  // 1. معالجة وتعديل اسم المرض وتجاوز الـ Pending الافتراضي
+  // Phase E — Final MVP result-card redesign.
+  //   - The three sections (Plant Identification / Environment / AI
+  //     Recommendation) are populated below from the existing API
+  //     response shape. No backend changes required.
+  //   - Plant Name      → result.plant.common_name (canonical Pl@ntNet
+  //                       field), else result.plant_name, else
+  //                       "Unknown plant".
+  //   - Scientific Name → result.plant.scientific_name, else "—".
+  //   - Confidence      → result.plant.confidence (plant-id confidence,
+  //                       NOT result.confidence — that's the disease
+  //                       classifier confidence). Falls back to the
+  //                       disease confidence so a real number is shown
+  //                       whenever any is available; "—" when neither
+  //                       exists.
+  //   - Environment     → result.metadata.sensor_snapshot.{...}; every
+  //                       missing key renders "—" with units.
+  //   - Recommendation  → result.health.recommendation, else
+  //                       result.recommendation, else "—".
+  //   - model_name is intentionally NOT surfaced in the user-facing
+  //     modal (Phase B): YOLO copy is gone from the MVP. The legacy
+  //     #r-model / #r-water hidden elements are still written so any
+  //     debug overlay that reads them keeps working.
   let _rawDisease = (result.disease || '').trim();
-
   if (result.metadata?.raw_disease_label) {
     _rawDisease = result.metadata.raw_disease_label;
   }
-
   _rawDisease = _rawDisease.replace(/_/g, ' ');
-  console.log("Disease =", result.disease);
-  console.log("Raw Label =", result.metadata?.raw_disease_label);
-  console.log("Final Disease =", _rawDisease);
-  // تثبيت حالة عدم التصنيف لتكون false دائماً عند العثور على اسم المرض حتى لا ينهار الكود بالأسفل
-  const _isUnclassified = false; 
-  const disease = _rawDisease.replace(/\b\w/g, c => c.toUpperCase());
 
-  // 2. إصلاح نسبة الثقة: إذا كانت فارغة أو صفر يتم إجبارها على عرض 85% لضمان عدم حدوث خلل بالواجهة
-  const confNum = (result.confidence && result.confidence > 0) ? (result.confidence * 100) : 85.0;
-  const _hasConf = true;
-  const confPct = confNum.toFixed(1) + '%';
-  
-  const userOk = true; // جعلها true دائماً لضمان فتح كرت النتيجة بنجاح وبألوان صحيحة
+  // Disease-driven unclassified detection (matches analytics.js / home.js
+  // and the backend `_status_from` predicate in routes/scans.py).
+  const _UNCLASSIFIED_RES = new Set(['', 'unknown', 'pending', 'pending analysis', 'unclassified', 'n/a']);
+  const _diseaseLower = _rawDisease.toLowerCase();
+  const _isUnclassified = !_diseaseLower || _UNCLASSIFIED_RES.has(_diseaseLower)
+    || (result.disease_type === 'unknown' && !_rawDisease);
+  const disease = _isUnclassified
+    ? 'Pending analysis'
+    : _rawDisease.replace(/\b\w/g, c => c.toUpperCase());
+
+  const userOk = true; // result modal always renders; tone resolves color.
   const health = result.health || null;
-  const inferMs = Math.round(result.inference_ms ?? 0) + ' ms';
 
   const titleEl = document.getElementById('r-title');
+  // Phase E — old #r-species/#r-conf/#r-hp/#r-risk/#r-surv/#r-rec elements
+  // were removed from index.html. Lookups stay (with `if (el)` guards) so
+  // that if anything later re-introduces them they get populated too.
   const speciesEl = document.getElementById('r-species');
-  const confEl = document.getElementById('r-conf');
-  const hpEl = document.getElementById('r-hp');
-  const riskEl = document.getElementById('r-risk');
-  const survEl = document.getElementById('r-surv');
-  const recEl = document.getElementById('r-rec');
-  const waterEl = document.getElementById('r-water');
-  const card = document.getElementById('res-modal-card');
+  const confEl    = document.getElementById('r-conf');
+  const hpEl      = document.getElementById('r-hp');
+  const riskEl    = document.getElementById('r-risk');
+  const survEl    = document.getElementById('r-surv');
+  const recLegacy = document.getElementById('r-rec');
+  const waterEl   = document.getElementById('r-water');
+  const modelEl   = document.getElementById('r-model');
+  // Phase E — new result-card ids.
+  const plantNameEl = document.getElementById('r-plant-name');
+  const plantSciEl  = document.getElementById('r-plant-sci');
+  const plantConfEl = document.getElementById('r-plant-conf');
+  const envTempEl   = document.getElementById('r-env-temp');
+  const envHumidEl  = document.getElementById('r-env-humid');
+  const envLightEl  = document.getElementById('r-env-light');
+  const envSoilEl   = document.getElementById('r-env-soil-moist');
+  const envPhEl     = document.getElementById('r-env-ph');
+  const envEcEl     = document.getElementById('r-env-ec');
+  const recEl       = document.getElementById('r-recommendation');
+  const card        = document.getElementById('res-modal-card');
 
   const tone = _resolveResultTone(result, userOk);
   if(card) card.setAttribute('data-tone', tone);
@@ -285,15 +315,80 @@ function showPredictResult(result){
 
   const classLabel = result.class_name || result.disease_type || '';
   if(titleEl) titleEl.textContent = _resultHeadline(result, tone, userOk);
-  
-  // تغيير اسم النبات الافتراضي من خيار إلى ورد Rose
-  if(speciesEl) speciesEl.textContent = classLabel ? `Rose · ${disease} (${classLabel})` : `Rose · ${disease}`;
-  if(confEl) confEl.textContent = confPct;
-  if(hpEl) hpEl.textContent = health ? health.plant_health + '%' : (userOk ? '—' : 'Low conf.');
-  if(riskEl) riskEl.textContent = health ? health.disease_risk : inferMs;
+
+  // Plant identification — canonical Pl@ntNet shape with legacy fallback.
+  const plantName = (result.plant && result.plant.common_name)
+    || result.plant_name
+    || 'Unknown plant';
+  const sciName = (result.plant && result.plant.scientific_name) || '—';
+
+  // Confidence priority for the result card: plant-id confidence first
+  // (this is the "how sure are we about the species?" number), then the
+  // disease confidence as a fallback so the field is never empty when
+  // any real value is available.
+  const _plantConfRaw   = Number(result.plant && result.plant.confidence);
+  const _diseaseConfRaw = Number(result.confidence);
+  const _plantConfOk    = Number.isFinite(_plantConfRaw)   && _plantConfRaw   > 0;
+  const _diseaseConfOk  = Number.isFinite(_diseaseConfRaw) && _diseaseConfRaw > 0;
+  const _confValue      = _plantConfOk ? _plantConfRaw
+                        : _diseaseConfOk ? _diseaseConfRaw
+                        : null;
+  const confPct = _confValue != null ? (_confValue * 100).toFixed(1) + '%' : '—';
+  // The notification observer + legacy debug surfaces read the disease
+  // confidence string; keep that derivation honest.
+  const diseaseConfPct = (!_isUnclassified && _diseaseConfOk)
+    ? (_diseaseConfRaw * 100).toFixed(1) + '%'
+    : '—';
+
+  // Sensor snapshot — best-effort: prefer metadata.sensor_snapshot (set by
+  // the backend / demo fixtures), then fall back to the assistant's last
+  // sensor reading if available, then "—". Each value carries its unit.
+  const _snap = (result.metadata && result.metadata.sensor_snapshot) || {};
+  const _envFmt = (v, unit, digits = 1) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return '—';
+    return n.toFixed(digits) + unit;
+  };
+  const _envFmtInt = (v, unit) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return '—';
+    return Math.round(n).toLocaleString() + unit;
+  };
+
+  if(plantNameEl) plantNameEl.textContent = plantName;
+  if(plantSciEl)  plantSciEl.textContent  = sciName;
+  if(plantConfEl) plantConfEl.textContent = confPct;
+
+  if(envTempEl)  envTempEl.textContent  = _envFmt(_snap.air_temperature, '°C');
+  if(envHumidEl) envHumidEl.textContent = _envFmt(_snap.air_humidity,    '%');
+  if(envLightEl) envLightEl.textContent = _envFmtInt(_snap.light_lux,    ' lx');
+  if(envSoilEl)  envSoilEl.textContent  = _envFmt(_snap.soil_humidity,   '%');
+  if(envPhEl)    envPhEl.textContent    = _envFmt(_snap.soil_ph,         '', 1);
+  if(envEcEl)    envEcEl.textContent    = _envFmt(_snap.soil_ec,         ' mS', 1);
+
+  // AI Recommendation — health.recommendation is the canonical place.
+  const recText = (health && health.recommendation)
+    || result.recommendation
+    || (result.stress_hint)
+    || (_isUnclassified ? 'Awaiting analysis. Rescan with a clearer image when possible.' : '—');
+  if(recEl)     recEl.textContent     = recText;
+  if(recLegacy) recLegacy.textContent = recText;
+
+  // Legacy element population — kept defensive in case any debug overlay
+  // re-mounts them. The user-facing modal no longer renders these.
+  const speciesText = _isUnclassified
+    ? plantName
+    : (classLabel ? `${plantName} · ${disease} (${classLabel})` : `${plantName} · ${disease}`);
+  if(speciesEl) speciesEl.textContent = speciesText;
+  if(confEl) confEl.textContent = diseaseConfPct;
+  if(hpEl) hpEl.textContent = health ? health.plant_health + '%' : '—';
+  if(riskEl) riskEl.textContent = health ? health.disease_risk : '—';
   if(survEl) survEl.textContent = health ? health.survival_chance + '%' : '—';
-  if(recEl) recEl.textContent = health ? health.recommendation : (result.stress_hint || 'Monitor plant and rescan if symptoms persist.');
-  if(waterEl) waterEl.textContent = result.model_name || 'yolov8';
+  // model_name stays in `result.model_name` for debugging but is NOT
+  // surfaced in the user-facing modal anymore (Phase B — no YOLO copy).
+  const _modelLabel = (result.model_name && String(result.model_name).trim()) || 'stub';
+  if(waterEl) waterEl.textContent = _modelLabel;
+  if(modelEl) modelEl.textContent = _modelLabel;
 
   // --- Scan-to-zone traceability: populate the meta row (Zone · Device · Source).
   const meta = result.metadata || {};
@@ -339,7 +434,10 @@ function showPredictResult(result){
 
   const confChip = document.getElementById('s-conf');
   if(confChip){
-    confChip.textContent = 'CONF ' + confPct;
+    // The home-card HUD "CONF" chip has always reflected the disease
+    // classifier confidence; keep that wording stable across the Phase E
+    // result-card redesign (where the modal now headlines plant-id conf).
+    confChip.textContent = 'CONF ' + diseaseConfPct;
     confChip.dataset.liveConf = '1';
   }
 
@@ -383,18 +481,29 @@ function showScanError(message){
   clearScanTimer();
   scanModal.classList.remove('active');
   const titleEl = document.getElementById('r-title');
-  const speciesEl = document.getElementById('r-species');
-  const recEl = document.getElementById('r-rec');
   const card = document.getElementById('res-modal-card');
   if(card) card.setAttribute('data-tone', 'crit');
   _setResultIcon('crit');
   if(titleEl) titleEl.textContent = '🔴 Scan Failed';
-  if(speciesEl) speciesEl.textContent = '—';
-  ['r-conf','r-hp','r-risk','r-surv'].forEach(id => {
+  // Phase E — reset every visible field in the new modal layout so the
+  // error state doesn't show stale values from the previous scan. The
+  // legacy ids (r-species/r-conf/r-hp/r-risk/r-surv/r-rec) are also
+  // wiped in case a future debug overlay surfaces them.
+  const _resetIds = [
+    'r-plant-name', 'r-plant-sci', 'r-plant-conf',
+    'r-env-temp', 'r-env-humid', 'r-env-light',
+    'r-env-soil-moist', 'r-env-ph', 'r-env-ec',
+    'r-species', 'r-conf', 'r-hp', 'r-risk', 'r-surv',
+  ];
+  _resetIds.forEach(id => {
     const el = document.getElementById(id);
     if(el) el.textContent = '—';
   });
-  if(recEl) recEl.textContent = message || 'Could not complete the scan. Please try again.';
+  const msg = message || 'Could not complete the scan. Please try again.';
+  const recEl = document.getElementById('r-recommendation');
+  const recLegacy = document.getElementById('r-rec');
+  if(recEl) recEl.textContent = msg;
+  if(recLegacy) recLegacy.textContent = msg;
   resModal.classList.add('active');
 }
 
@@ -542,6 +651,11 @@ async function openCameraModal(){
     if(camUseBtn) camUseBtn.hidden = true;
     if(camCaptureBtn) camCaptureBtn.hidden = false;
     cameraModal?.classList.add('active');
+    if(!_camSwitchPulsedThisSession && camSwitchBtn){
+      _camSwitchPulsedThisSession = true;
+      camSwitchBtn.classList.add('cam-switch-pulse');
+      setTimeout(() => { try { camSwitchBtn.classList.remove('cam-switch-pulse'); } catch(_){} }, 1600);
+    }
   } catch (err) {
     console.warn('Camera permission error:', err);
     stopCameraStream();
@@ -2168,11 +2282,17 @@ function formatScanChatMessage(result){
   const confPct = ((result.confidence ?? 0) * 100).toFixed(1);
   const label = disease.charAt(0).toUpperCase() + disease.slice(1);
   const h = result.health;
+  // Phase B — use the real plant name from the API response. The previous
+  // "Rose" prefix was a placeholder from early dev and shipped on every
+  // scan regardless of the actual species.
+  const plantName = (result.plant && result.plant.common_name)
+    || result.plant_name
+    || 'Plant';
   let msg;
   if(result.accepted === false){
     msg = `Scan complete: ${label} detected with ${confPct}% confidence (low confidence — try another angle or better lighting).`;
   } else {
-    msg = `Scan complete: Rose ${label} detected with ${confPct}% confidence.`;
+    msg = `Scan complete: ${plantName} — ${label} detected with ${confPct}% confidence.`;
   }
   if(h){
     msg += ` Plant health ${h.plant_health}%, risk ${h.disease_risk}. ${h.recommendation}`;
@@ -2691,13 +2811,16 @@ const notifClearAll = document.getElementById('notif-clear-all');
 //   zone (water)    -> 💧  (water/irrigation concept)
 //   ai recommend.   -> 🧠
 //   system message  -> 📢, success/sensor connect -> ✅
+// Phase B — Default notifications used to ship hardcoded species names
+// (Monstera deliciosa, Pothos Aureum). The new defaults are generic so
+// no fake species identity is implied before the user's first real scan.
 const defaultNotifications = [
   { id:'n1', type:'alert',  icon:'🔴', title:'Fungus Detected — Zone D',  desc:'Greenhouse zone shows signs of leaf spot fungus on 2 plants. Immediate attention recommended.', time: Date.now() - 4*3600000, read:false },
-  { id:'n2', type:'scan',   icon:'🌱', title:'Scan Complete — Monstera',  desc:'Monstera deliciosa passed health check with 96.4% confidence. No diseases detected.', time: Date.now() - 7200000, read:false },
+  { id:'n2', type:'scan',   icon:'🌱', title:'Scan Complete — Zone Alpha', desc:'Latest plant analysis passed the health check. Run a new scan to see live data.', time: Date.now() - 7200000, read:false },
   { id:'n3', type:'zone',   icon:'💧', title:'Zone B Needs Water',        desc:'Soil moisture in Herb Garden dropped below 30%. Consider watering basil and mint.', time: Date.now() - 8*3600000, read:false },
   { id:'n4', type:'sensor', icon:'✅', title:'ESP32-D3 Connected',        desc:'New device ESP32-D3 (192.168.1.16) successfully paired with Zone D Greenhouse.', time: Date.now() - 18*3600000, read:true },
-  { id:'n5', type:'system', icon:'📢', title:'Neural Engine Updated',     desc:'AI model updated to v4.2.1. Detection accuracy improved by 3.2% across all species.', time: Date.now() - 86400000, read:true },
-  { id:'n6', type:'scan',   icon:'🌱', title:'Scan Complete — Pothos',    desc:'Pothos Aureum passed health check with 99.1% confidence. Excellent condition.', time: Date.now() - 3600000, read:true },
+  { id:'n5', type:'system', icon:'📢', title:'Neural Engine Updated',     desc:'AI plant analysis model updated to v4.2.1. Detection accuracy improved by 3.2% across all species.', time: Date.now() - 86400000, read:true },
+  { id:'n6', type:'scan',   icon:'🌱', title:'Scan Complete — Zone Beta',  desc:'Latest plant analysis passed the health check. Run a new scan to see live data.', time: Date.now() - 3600000, read:true },
 ];
 
 let notifications = JSON.parse(localStorage.getItem('pv-notifications')) || [...defaultNotifications];
@@ -2865,10 +2988,14 @@ const origResModalShow = resModal.classList.add.bind(resModal.classList);
 const resObserver = new MutationObserver((mutations) => {
   mutations.forEach(m => {
     if(m.attributeName === 'class' && resModal.classList.contains('active')){
-      const species = document.getElementById('r-species')?.textContent || 'Pending analysis';
-      const conf = document.getElementById('r-conf')?.textContent || '—';
-      const health = document.getElementById('r-hp')?.textContent || '—';
-      const risk = document.getElementById('r-risk')?.textContent || '—';
+      // Phase E — read from the new result-card ids; fall back to legacy
+      // ids so any future debug overlay that re-mounts them still works.
+      const plant = document.getElementById('r-plant-name')?.textContent
+                  || document.getElementById('r-species')?.textContent
+                  || 'Plant';
+      const conf  = document.getElementById('r-plant-conf')?.textContent
+                  || document.getElementById('r-conf')?.textContent
+                  || '—';
       // Outcome-flavoured notification icon: read the tone the result
       // modal just settled on, then pick the matching approved emoji.
       // Falls back to 📷 ("Analysis Complete") when tone is unknown.
@@ -2877,7 +3004,7 @@ const resObserver = new MutationObserver((mutations) => {
                      : tone === 'warn' ? '⚠️'
                      : tone === 'ok'   ? '🌱'
                      : '📷';
-      pushNotification('scan', scanIcon, `Scan Complete — ${species}`, `Health: ${health}, Risk: ${risk}, Confidence: ${conf}.`);
+      pushNotification('scan', scanIcon, `Scan Complete — ${plant}`, `Confidence: ${conf}. See result card for the AI recommendation.`);
     }
   });
 });

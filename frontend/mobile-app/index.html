@@ -192,9 +192,9 @@
                         </svg>
                         <div class="s-chip s-chip-tl"><span class="s-rec"></span>SCANNING</div>
                         <div class="s-chip s-chip-tr mono" id="s-conf">CONF 94.2%</div>
-                        <div class="s-chip s-chip-bl mono">LEAF DETECT · CUCUMBER · 12 CLASSES</div>
+                        <div class="s-chip s-chip-bl mono">LEAF DETECT · 12 CLASSES</div>
                         <div class="scanner-hud-label scanner-hud-label-tl mono">▲ TARGET LEAF</div>
-                        <div class="scanner-hud-label scanner-hud-label-br mono">DISEASE SCAN · v4.2</div>
+                        <div class="scanner-hud-label scanner-hud-label-br mono">PLANT ANALYSIS · v4.2</div>
                     </div>
                     <div class="scanner-foot">
                         <div class="scanner-foot-info">
@@ -348,6 +348,24 @@
                     </div>
                 </div>
 
+                <!-- Phase 3: Health trend chart promoted to a dashboard quadrant
+                     (was inside .home-log-wrap below the grid). Stays hidden
+                     until ≥2 scan points exist; Phase 4 worker un-hides it.
+                     With .dashboard-aside set to display:contents at base and
+                     overridden in the new Phase 3 ≥1280 block, this section
+                     acts as a direct grid item of .home-dashboard so it can
+                     receive grid-area:trends. -->
+                <section class="home-trend-card" id="home-trend-card" hidden>
+                    <div class="home-trend-head">
+                        <span class="home-trend-title">HEALTH TREND · LAST 7 SCANS</span>
+                        <span class="home-trend-tag" id="home-trend-tag">●</span>
+                    </div>
+                    <div class="home-trend-canvas-wrap">
+                        <canvas id="home-trend-canvas" aria-label="Plant health score over the last 7 scans"></canvas>
+                        <div class="home-trend-empty" id="home-trend-empty" hidden>Awaiting more scans…</div>
+                    </div>
+                </section>
+
                 </aside>
 
                 <!-- Phase 4 (B1): pending warnings (hidden when empty) -->
@@ -378,19 +396,8 @@
                             </div>
                         </div>
                     </section>
-                    <!-- Phase Final — health-score trend chart (last 7 scans). Hidden
-                         until at least 2 scan points exist so the canvas isn't
-                         a single dot. -->
-                    <section class="home-trend-card" id="home-trend-card" hidden>
-                        <div class="home-trend-head">
-                            <span class="home-trend-title">HEALTH TREND · LAST 7 SCANS</span>
-                            <span class="home-trend-tag" id="home-trend-tag">●</span>
-                        </div>
-                        <div class="home-trend-canvas-wrap">
-                            <canvas id="home-trend-canvas" aria-label="Plant health score over the last 7 scans"></canvas>
-                            <div class="home-trend-empty" id="home-trend-empty" hidden>Awaiting more scans…</div>
-                        </div>
-                    </section>
+                    <!-- Phase 3: trend chart relocated above to act as the
+                         "trends" quadrant of the home dashboard 2×2 grid. -->
                     <!-- Phase 4 (B1): latest care plan summary (hidden when no scan exists) -->
                     <div class="home-care-card" id="home-care-card" hidden>
                         <div class="home-care-head">
@@ -502,7 +509,7 @@
                                     <span class="smc-ico" aria-hidden="true">📸</span>
                                 </div>
                                 <div class="smc-info">
-                                    <span class="smc-val mono" id="sm-scans">28</span>
+                                    <span class="smc-val mono" id="sm-scans">—</span>
                                     <span class="smc-lbl">Total Scans</span>
                                 </div>
                                 <span class="smc-trend smc-hidden" aria-hidden="true"></span>
@@ -513,7 +520,7 @@
                                     <span class="smc-ico" aria-hidden="true">⚡</span>
                                 </div>
                                 <div class="smc-info">
-                                    <span class="smc-val mono" id="sm-time">4.2<small>s</small></span>
+                                    <span class="smc-val mono" id="sm-time">—</span>
                                     <span class="smc-lbl">Avg Scan Time</span>
                                 </div>
                                 <span class="smc-trend smc-hidden" aria-hidden="true"></span>
@@ -524,7 +531,7 @@
                                     <span class="smc-ico" aria-hidden="true">📅</span>
                                 </div>
                                 <div class="smc-info">
-                                    <span class="smc-val mono" id="sm-species">12</span>
+                                    <span class="smc-val mono" id="sm-species">—</span>
                                     <span class="smc-lbl">Scans Today</span>
                                 </div>
                                 <span class="smc-trend smc-hidden" aria-hidden="true"></span>
@@ -535,7 +542,7 @@
                                     <span class="smc-ico" aria-hidden="true">🎯</span>
                                 </div>
                                 <div class="smc-info">
-                                    <span class="smc-val mono" id="sm-conf">96.4<small>%</small></span>
+                                    <span class="smc-val mono" id="sm-conf">—</span>
                                     <span class="smc-lbl">Avg Confidence</span>
                                 </div>
                                 <span class="smc-trend smc-hidden" aria-hidden="true"></span>
@@ -546,7 +553,7 @@
                                     <span class="smc-ico" aria-hidden="true">📍</span>
                                 </div>
                                 <div class="smc-info">
-                                    <span class="smc-val mono" id="sm-zones">4</span>
+                                    <span class="smc-val mono" id="sm-zones">—</span>
                                     <span class="smc-lbl">Active Zones</span>
                                 </div>
                                 <span class="smc-trend smc-hidden" aria-hidden="true"></span>
@@ -557,7 +564,7 @@
                                     <span class="smc-ico" aria-hidden="true">📡</span>
                                 </div>
                                 <div class="smc-info">
-                                    <span class="smc-val mono" id="sm-devices">7</span>
+                                    <span class="smc-val mono" id="sm-devices">—</span>
                                     <span class="smc-lbl">Connected Devices</span>
                                 </div>
                                 <span class="smc-trend smc-hidden" aria-hidden="true"></span>
@@ -855,7 +862,7 @@
                                 <span class="status-ico" aria-hidden="true">🤖</span>
                                 <span class="status-dot" id="st-dot-yolo"></span>
                                 <div class="status-body">
-                                    <span class="status-name">YOLO Model</span>
+                                    <span class="status-name">AI Plant Analysis</span>
                                     <span class="status-val mono" id="st-val-yolo">Checking…</span>
                                 </div>
                             </div>
@@ -980,7 +987,7 @@
                         <div class="set-group">
                             <div class="set-row"><div class="set-info"><span class="set-name">Frontend</span><span class="set-desc">PlantVision UI</span></div><span class="set-val mono">6.0.0</span></div>
                             <div class="set-row"><div class="set-info"><span class="set-name">Backend uptime</span><span class="set-desc">API process</span></div><span class="set-val mono" id="about-backend-uptime">—</span></div>
-                            <div class="set-row"><div class="set-info"><span class="set-name">YOLO model</span><span class="set-desc">Vision weights</span></div><span class="set-val mono set-val-trunc" id="about-yolo-model">—</span></div>
+                            <div class="set-row"><div class="set-info"><span class="set-name">Vision Model</span><span class="set-desc">AI Plant Analysis weights</span></div><span class="set-val mono set-val-trunc" id="about-yolo-model">—</span></div>
                             <div class="set-row"><div class="set-info"><span class="set-name">Model file</span><span class="set-desc">Resolved weights path</span></div><span class="set-val mono set-val-trunc" id="about-model-file">—</span></div>
                             <div class="set-row"><div class="set-info"><span class="set-name">Sensor firmware</span><span class="set-desc">From last reading metadata</span></div><span class="set-val mono" id="about-sensor-fw">—</span></div>
                             <div class="set-row"><div class="set-info"><span class="set-name">App session</span><span class="set-desc">This browser tab</span></div><span class="set-val mono" id="set-uptime">0h 0m</span></div>
@@ -1072,10 +1079,12 @@
                     </div>
                 </div>
 
-                <!-- Row 3 — Plant Profile (Cucumber). Stand-alone full width
+                <!-- Row 3 — Plant Profile. Stand-alone full width
                      card. Recent scans (.pp-history) extracted into its own
                      row below; we mark this card pp-no-history so the CSS
-                     hides the nested .pp-history if it ever re-renders. -->
+                     hides the nested .pp-history if it ever re-renders.
+                     Default values are "—" so no fake plant identity is
+                     shown until a real scan or report populates them. -->
                 <h3 class="prof-section-title mono">PLANT PROFILE</h3>
                 <div class="prof-plant-row an" style="--d:.16s">
                     <section class="plant-profile-card pp-no-history" id="plant-profile-card" aria-label="Plant profile">
@@ -1086,8 +1095,8 @@
                                 </div>
                                 <div class="pp-head-text">
                                     <div class="pp-eyebrow mono">PLANT PROFILE</div>
-                                    <h3 class="pp-title" id="pp-title">Cucumber</h3>
-                                    <p class="pp-sub mono" id="pp-sub">cucumber_001 · Zone Alpha</p>
+                                    <h3 class="pp-title" id="pp-title">—</h3>
+                                    <p class="pp-sub mono" id="pp-sub">— · —</p>
                                 </div>
                             </div>
                             <div class="pp-head-r">
@@ -1129,7 +1138,7 @@
                 <!-- Row 5 — Plant Health Details. The 6 metric chips that
                      used to sit above the diagnostics now close the
                      vertical story for the focused plant. -->
-                <h3 class="prof-section-title mono"><span aria-hidden="true">🩺</span> PLANT HEALTH DETAILS</h3>
+                <h3 class="prof-section-title mono">PLANT HEALTH DETAILS</h3>
                 <div class="prof-metrics-row an" style="--d:.2s">
                     <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">📸</span><span class="prof-metric-val mono" id="prof-metric-scans">0</span><span class="prof-metric-lbl">Total Scans</span><span class="prof-metric-trend" id="prof-trend-scans"></span></div>
                     <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">🎯</span><span class="prof-metric-val mono" id="prof-metric-conf">—</span><span class="prof-metric-lbl">Avg Confidence</span><span class="prof-metric-trend" id="prof-trend-conf"></span></div>
@@ -1143,7 +1152,7 @@
                         <div class="d-card-head"><span class="d-card-label">SYSTEM DIAGNOSTICS</span></div>
                         <div class="prof-diag-grid">
                             <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">🟢</span><span class="prof-diag-dot pd-off" id="prof-diag-api"></span><span>Backend API</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-api">—</span></div>
-                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">🤖</span><span class="prof-diag-dot pd-off" id="prof-diag-yolo"></span><span>YOLO Model</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-yolo">—</span></div>
+                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">🤖</span><span class="prof-diag-dot pd-off" id="prof-diag-yolo"></span><span>AI Plant Analysis</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-yolo">—</span></div>
                             <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">📊</span><span class="prof-diag-dot pd-off" id="prof-diag-analytics"></span><span>Analytics</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-analytics">—</span></div>
                             <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">📷</span><span class="prof-diag-dot pd-off" id="prof-diag-camera"></span><span>Camera</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-camera">—</span></div>
                             <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">📡</span><span class="prof-diag-dot pd-off" id="prof-diag-sensor"></span><span>Sensor Feed</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-sensor">—</span></div>
@@ -1281,8 +1290,9 @@
                 <video id="cam-preview" class="cam-preview" autoplay playsinline muted webkit-playsinline></video>
                 <canvas id="cam-canvas" class="cam-canvas" hidden></canvas>
                 <div class="cam-hud" id="cam-hud" aria-hidden="true"></div>
-                <button type="button" class="cam-switch" id="cam-switch" aria-label="Switch camera" title="Switch camera">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="13" r="3.2"/><path d="M9.5 13a2.5 2.5 0 0 1 4.5-1.5"/><polyline points="14 10 14 11.5 12.5 11.5"/></svg>
+                <button type="button" class="cam-switch" id="cam-switch" aria-label="Switch between front and back camera" title="Switch front/back camera">
+                    <svg class="cam-switch-ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/><path d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/><circle cx="12" cy="12" r="3"/><path d="m18 22-3-3 3-3"/><path d="m6 2 3 3-3 3"/></svg>
+                    <span class="cam-switch-lbl mono" aria-hidden="true">SWITCH</span>
                 </button>
             </div>
             <p class="cam-hint m-d" id="cam-hint">Point at a leaf, then capture</p>
@@ -1323,62 +1333,76 @@
         </div>
     </div>
 
-    <!-- Result Modal -->
+    <!-- Result Modal — Final MVP redesign (Phase E)
+         Three vertical sections (Plant Identification / Environment /
+         AI Recommendation) replace the old 4-metric grid. All new fields
+         live under "r-" prefixed ids so app.js::showPredictResult can
+         populate them. The legacy hero icon + emoji-prefixed headline
+         (#r-ico, #r-title) and the meta chip row (#r-zone, #r-device,
+         #r-source, #r-plant-chip) are preserved as they were. -->
     <div class="ov" id="res-modal">
-        <div class="modal rm rm-v2" id="res-modal-card" data-tone="ok">
+        <div class="modal rm rm-v2 rm-v3" id="res-modal-card" data-tone="ok">
             <div class="rm-glow" aria-hidden="true"></div>
             <div class="r-ico" id="r-ico">
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" id="r-ico-svg"><polyline points="20 6 9 17 4 12"/></svg>
             </div>
-            <h3 class="m-t rm-headline" id="r-title">Specimen Healthy</h3>
-            <p class="m-species mono" id="r-species">Monstera deliciosa</p>
+            <h3 class="m-t rm-headline" id="r-title">—</h3>
             <div class="r-meta" id="r-meta" aria-label="Scan context">
                 <span class="r-meta-chip r-meta-zone" title="Zone where scan was attributed">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
                     <span class="r-meta-lbl">Zone</span>
-                    <span class="r-meta-val" id="r-zone">Zone Alpha</span>
+                    <span class="r-meta-val" id="r-zone">—</span>
                 </span>
                 <span class="r-meta-chip r-meta-device" title="Device id">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>
                     <span class="r-meta-lbl">Device</span>
-                    <span class="r-meta-val mono" id="r-device">esp32_001</span>
+                    <span class="r-meta-val mono" id="r-device">—</span>
                 </span>
                 <span class="r-meta-chip r-meta-source" title="How the scan was captured">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
                     <span class="r-meta-lbl">Source</span>
-                    <span class="r-meta-val" id="r-source">Upload</span>
+                    <span class="r-meta-val" id="r-source">—</span>
                 </span>
                 <span class="r-meta-chip r-meta-plant" id="r-plant-chip" title="Plant identifier" hidden>
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22V12"/><path d="M12 12c-3 0-6-2-6-6 4 0 6 2 6 6z"/><path d="M12 12c3 0 6-2 6-6-4 0-6 2-6 6z"/></svg>
                     <span class="r-meta-lbl">Plant</span>
-                    <span class="r-meta-val mono" id="r-plant">cucumber_001</span>
+                    <span class="r-meta-val mono" id="r-plant">—</span>
                 </span>
             </div>
-            <div class="r-metrics" role="list">
-                <div class="r-metric" role="listitem">
-                    <span class="r-metric-lbl">Confidence</span>
-                    <span class="r-metric-val" id="r-conf">96.4%</span>
-                </div>
-                <div class="r-metric" role="listitem">
-                    <span class="r-metric-lbl">Plant Health</span>
-                    <span class="r-metric-val" id="r-hp">—</span>
-                </div>
-                <div class="r-metric" role="listitem">
-                    <span class="r-metric-lbl">Disease Risk</span>
-                    <span class="r-metric-val" id="r-risk">—</span>
-                </div>
-                <div class="r-metric" role="listitem">
-                    <span class="r-metric-lbl">Survival Chance</span>
-                    <span class="r-metric-val mono" id="r-surv">—</span>
-                </div>
+
+            <div class="rm-sections">
+                <section class="rm-section">
+                    <h4 class="rm-section-title">Plant Identification</h4>
+                    <div class="rm-kv">
+                        <div class="rm-row"><span class="rm-lbl">Plant Name</span><span class="rm-val" id="r-plant-name">—</span></div>
+                        <div class="rm-row"><span class="rm-lbl">Scientific Name</span><span class="rm-val rm-val-sci mono" id="r-plant-sci">—</span></div>
+                        <div class="rm-row"><span class="rm-lbl">Confidence</span><span class="rm-val mono" id="r-plant-conf">—</span></div>
+                    </div>
+                </section>
+
+                <section class="rm-section">
+                    <h4 class="rm-section-title">Environment <span class="rm-section-sub">Live sensor snapshot</span></h4>
+                    <div class="rm-env-grid">
+                        <div class="rm-env-cell"><span class="rm-env-lbl">Temperature</span><span class="rm-env-val mono" id="r-env-temp">—</span></div>
+                        <div class="rm-env-cell"><span class="rm-env-lbl">Humidity</span><span class="rm-env-val mono" id="r-env-humid">—</span></div>
+                        <div class="rm-env-cell"><span class="rm-env-lbl">Light</span><span class="rm-env-val mono" id="r-env-light">—</span></div>
+                        <div class="rm-env-cell"><span class="rm-env-lbl">Soil Moisture</span><span class="rm-env-val mono" id="r-env-soil-moist">—</span></div>
+                        <div class="rm-env-cell"><span class="rm-env-lbl">pH</span><span class="rm-env-val mono" id="r-env-ph">—</span></div>
+                        <div class="rm-env-cell"><span class="rm-env-lbl">EC</span><span class="rm-env-val mono" id="r-env-ec">—</span></div>
+                    </div>
+                </section>
+
+                <section class="rm-section rm-section-last">
+                    <div class="rm-rec-card">
+                        <div class="rm-rec-head">
+                            <span class="rm-rec-ico" aria-hidden="true">🧠</span>
+                            <h4 class="rm-section-title rm-rec-title">AI Recommendation</h4>
+                        </div>
+                        <p class="rm-rec-body" id="r-recommendation">—</p>
+                    </div>
+                </section>
             </div>
-            <div class="r-advisory" id="r-advisory">
-                <div class="r-advisory-head">
-                    <span class="r-advisory-ico" aria-hidden="true">🧠</span>
-                    <span class="r-advisory-title">AI Advisory</span>
-                </div>
-                <p class="r-advisory-body" id="r-rec">—</p>
-            </div>
+
             <div class="r-btns">
                 <button class="rb rb1" id="r-save">Export Report</button>
                 <button class="rb rb2" id="r-dismiss">Dismiss</button>

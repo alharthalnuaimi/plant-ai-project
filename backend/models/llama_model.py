@@ -1,5 +1,5 @@
 """
-Llama is used only for narrative: reasoning, recommendations, survival explanation.
+Llama / Gemini is used only for narrative: reasoning, recommendations, survival explanation.
 
 Structured survival probability always comes from `services.survival` (rule-based MVP).
 """
@@ -7,12 +7,16 @@ Structured survival probability always comes from `services.survival` (rule-base
 from __future__ import annotations
 from google import genai
 import json
+import logging
 import os
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
 from services.prompt_loader import load_prompt
+
+
+log = logging.getLogger("plantvision.llm")
 
 
 @dataclass
@@ -98,36 +102,78 @@ def get_gemini_client() -> GeminiClient | None:
     )
 
 def fallback_narrative(context: dict[str, Any]) -> str:
-    """Deterministic copy when Ollama is offline — keeps demos working."""
+    """Deterministic copy when the LLM (Gemini / Ollama) is offline.
+
+    Prefixed with an honest disclaimer so the UI never implies the response
+    came from the AI assistant when in fact it was rule-based.
+    """
+
     sp = context.get("survival_probability")
-    disease = (context.get("vision") or {}).get("disease")
-    stress = (context.get("vision") or {}).get("stress_hint")
+    if sp is None:
+        sp = (context.get("survival") or {}).get("survival_probability")
+    vision = context.get("vision") or {}
+    disease = vision.get("disease")
+    stress = vision.get("stress_hint")
+    plant = vision.get("plant") or {}
     sensors = context.get("sensors") or {}
-    parts = []
+    parts: list[str] = [
+        "AI Plant Assistant is offline; here is a rule-based recommendation:",
+    ]
+    common_name = plant.get("common_name") if isinstance(plant, dict) else None
+    if common_name:
+        parts.append(f"Identified plant: {common_name}.")
     if sp is not None:
-        parts.append(f"Estimated survival probability is about {float(sp) * 100:.0f}%.")
+        try:
+            parts.append(f"Estimated survival probability is about {float(sp) * 100:.0f}%.")
+        except (TypeError, ValueError):
+            pass
     if disease:
         parts.append(f"Vision suggests primary label: {disease}.")
     if stress:
         parts.append(f"Visual stress signal: {stress}.")
     if sensors:
-        parts.append(f"Sensor snapshot: {json.dumps(sensors)}.")
+        parts.append(f"Sensor snapshot: {json.dumps(sensors, ensure_ascii=True)}.")
     parts.append(
         "Increase watering if soil is dry; avoid prolonged heat; improve airflow if fungal disease is suspected. "
-        "Confirm with a plant pathologist for production use."
+        "Confirm with a plant specialist before acting on production data."
     )
     return " ".join(parts)
 
 
-def build_reasoning_prompts(context: dict[str, Any], user_question: str | None) -> list[dict[str, str]]:
+_FIVE_ASPECT_GUIDANCE = (
+    "Cover ALL FIVE aspects in your `explanation` field, in this order: "
+    "(1) plant summary (identification + family/genus when present), "
+    "(2) health assessment (current disease/stress signals), "
+    "(3) risk assessment (what could go wrong given sensors + history), "
+    "(4) care recommendations (watering, light, nutrients, pruning), and "
+    "(5) environmental advice (temperature/humidity/soil adjustments). "
+    "Keep the JSON shape exactly: {\"recommendation\": \"...\", \"explanation\": \"...\"}."
+)
+
+
+def build_reasoning_prompts(
+    context: dict[str, Any],
+    user_question: str | None,
+) -> list[dict[str, str]]:
+    """Build the (system, user) message pair for the reasoning LLM.
+
+    ``context`` is expected to contain at least ``vision`` (a ``VisionResult``
+    dump including the ``plant`` identification block) and ``sensors``.
+    Optional keys: ``survival`` and ``history`` (a list of recent scan
+    summaries — see ``routes.chat`` for how it is built).
+    """
+
     diagnosis = load_prompt("diagnosis")
     recovery = load_prompt("recovery")
     user_template = load_prompt("survival_analysis")
-    system = "\n".join([x for x in [diagnosis, recovery] if x]).strip()
+    system_parts = [x for x in [diagnosis, recovery] if x]
+    system_parts.append(_FIVE_ASPECT_GUIDANCE)
+    system = "\n".join(system_parts).strip()
     if not system:
         system = (
             "Use only provided context. Do not invent disease labels. "
-            "Return strict JSON with keys recommendation and explanation."
+            "Return strict JSON with keys recommendation and explanation. "
+            + _FIVE_ASPECT_GUIDANCE
         )
     user = user_template.format(
         context_json=json.dumps(context, ensure_ascii=True),
@@ -154,18 +200,17 @@ def parse_reasoning_response(text: str, fallback_context: dict[str, Any]) -> tup
             cleaned = cleaned[:-3]
 
         cleaned = cleaned.strip()
-        print("CLEANED TEXT =")
-        print(cleaned)
+        log.debug("LLM cleaned response: %s", cleaned)
         data = json.loads(cleaned)
-        print("PARSED JSON =", data)
+        log.debug("LLM parsed JSON keys: %s", list(data.keys()) if isinstance(data, dict) else type(data).__name__)
         recommendation = str(data.get("recommendation", "")).strip()
         explanation = str(data.get("explanation", "")).strip()
 
         if recommendation and explanation:
             return recommendation, explanation
 
-    except Exception as e:
-        print("PARSE ERROR =", e)
+    except Exception as exc:  # noqa: BLE001 — never fail the route on parse error
+        log.debug("LLM JSON parse error: %s", exc)
 
     fb = fallback_narrative(fallback_context)
     return ("Increase watering consistency and reduce heat exposure.", fb)
