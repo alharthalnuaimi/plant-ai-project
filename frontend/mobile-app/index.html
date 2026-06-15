@@ -240,26 +240,6 @@
                     </div>
                 </section>
 
-                <!-- Scan Log (moved into left col so the column flows: scanner → trend → log) -->
-                <section class="log-card">
-                    <div class="log-head">
-                        <div class="log-head-l">
-                            <h2 class="log-title">Scan Log</h2>
-                            <span class="log-pulse" id="home-log-pulse" hidden><span class="log-pulse-dot"></span><span class="log-pulse-text mono" id="home-log-pulse-text">Monitoring…</span></span>
-                        </div>
-                        <span class="log-count mono" id="home-log-count">— entries</span>
-                    </div>
-                    <div class="log-grid" id="home-log-grid">
-                        <div class="home-log-empty" id="home-log-empty">
-                            <div class="home-log-empty-ico" aria-hidden="true">
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                            </div>
-                            <strong>No scans yet</strong>
-                            <span>Run a scan to see results land here in real time.</span>
-                        </div>
-                    </div>
-                </section>
-
                 </div><!-- /home-col-left -->
 
                 <!-- ====================================================
@@ -416,6 +396,27 @@
                 </div>
 
                 </div><!-- /home-col-right -->
+
+                <!-- Scan Log — full-width row spanning both columns at ≥1280;
+                     falls back to ordered single-column item at <1280. -->
+                <section class="log-card home-log-full">
+                    <div class="log-head">
+                        <div class="log-head-l">
+                            <h2 class="log-title">Scan Log</h2>
+                            <span class="log-pulse" id="home-log-pulse" hidden><span class="log-pulse-dot"></span><span class="log-pulse-text mono" id="home-log-pulse-text">Monitoring…</span></span>
+                        </div>
+                        <span class="log-count mono" id="home-log-count">— entries</span>
+                    </div>
+                    <div class="log-grid" id="home-log-grid">
+                        <div class="home-log-empty" id="home-log-empty">
+                            <div class="home-log-empty-ico" aria-hidden="true">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            </div>
+                            <strong>No scans yet</strong>
+                            <span>Run a scan to see results land here in real time.</span>
+                        </div>
+                    </div>
+                </section>
 
             </div><!-- grid-layout -->
             </div><!-- /page-home -->

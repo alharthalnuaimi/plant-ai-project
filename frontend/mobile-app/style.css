@@ -4299,16 +4299,30 @@ img,video,canvas,svg{max-width:100%}
   margin:0;
 }
 
-/* ---- ≥1280 — 2-col grid with independent flows ---- */
+/* ---- Full-width Scan Log row (direct child of .home-dashboard) ---- */
+.home-dashboard > .home-log-full{
+  min-width:0;
+  max-width:100%;
+  width:100%;
+  box-sizing:border-box;
+  margin:0;
+}
+
+/* ---- ≥1280 — 2-col grid + full-width log row ----
+   Refinement (Jun 15): left column widened to 62fr / right 38fr to
+   give the scanner & trend more horizontal room; column-gap reduced
+   to 16px to tighten the gutter; Scan Log promoted to a full-width
+   row spanning both columns. */
 @media(min-width:1280px){
   .page-home{max-width:1500px;margin:0 auto}
 
   .home-dashboard{
     display:grid;
-    grid-template-columns:minmax(0,58fr) minmax(0,42fr);
-    grid-template-rows:auto;
+    grid-template-columns:minmax(0,62fr) minmax(0,38fr);
+    grid-template-rows:auto auto;
     grid-template-areas:none;
-    gap:20px;
+    row-gap:18px;
+    column-gap:16px;
     align-items:start;
     align-content:start;
     max-width:1500px;
@@ -4321,14 +4335,25 @@ img,video,canvas,svg{max-width:100%}
   .home-col-left{grid-column:1;gap:18px}
   .home-col-right{grid-column:2;gap:16px}
 
-  /* Scanner card: bound so it stays compact. */
+  /* Scan Log — full-width second row spanning both columns. */
+  .home-dashboard > .home-log-full{
+    grid-column:1 / -1;
+    grid-row:2;
+    width:100%;
+    min-width:0;
+    max-width:100%;
+    box-sizing:border-box;
+    margin:0;
+  }
+
+  /* Scanner card: bound so it stays compact (no extra vertical growth). */
   .home-col-left > .scanner-card{
     min-height:0;
     max-height:520px;
     height:auto;
   }
 
-  /* Standardize padding on the simpler right-column cards. */
+  /* Standardize padding on the simpler cards. */
   .home-col-left > .home-trend-card,
   .home-col-right > .zone-sensor-card,
   .home-col-right > .home-care-card{
@@ -4346,9 +4371,9 @@ img,video,canvas,svg{max-width:100%}
   .home-col-right > .env-strip{display:none}
 }
 
-/* ---- ≥1440 — slightly wider gutters, same max-width ---- */
+/* ---- ≥1440 — slightly wider row gutters, same max-width ---- */
 @media(min-width:1440px){
-  .home-dashboard{gap:22px}
+  .home-dashboard{row-gap:20px;column-gap:18px}
   .home-col-left{gap:20px}
 }
 
