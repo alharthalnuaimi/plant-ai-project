@@ -4040,3 +4040,114 @@ img,video,canvas,svg{max-width:100%}
 }
 
 /* === End Final MVP polish block === */
+
+
+/* ====================================================================
+   === Home layout emergency override — collapse vertical stretching ===
+   --------------------------------------------------------------------
+   The Phase 3 ≥1280 block introduced `align-items:stretch` on
+   .home-dashboard plus `align-self:stretch` on every quadrant, which
+   when combined with the viewport-tied scanner min-heights from Phase 1
+   (`min(520px, calc(100vh - var(--topbar-h) - 200px))`) and Phase 3
+   (`clamp(360px,32vh,480px)`) caused the entire 2×2 grid to stretch to
+   the tallest cell on any viewport ≥1280. On a 1440px-tall monitor that
+   meant ~460px scanner + matching stats/trends/actions = giant empty
+   cards.
+
+   Fix: drop the stretch policy, use `auto` row sizing, replace the
+   scanner min-height clamp with a bounded `aspect-ratio` + `max-height`
+   that doesn't grow with the viewport, and apply the same caps in the
+   1024–1279 single-column collapse so high-zoom narrow viewports stay
+   compact too.
+
+   This block is layered ON TOP of v1/v2/Phase 1/Phase 3 — none of
+   those rules are removed; only their growth-causing values are
+   neutralised here at the same selector specificity.
+   ==================================================================== */
+
+/* ---- Universal: kill stretch policy on the dashboard grid ---- */
+.home-dashboard{
+  align-items:start;
+  align-content:start;
+}
+.home-dashboard > *{
+  min-height:0;
+  align-self:start;
+}
+
+/* ---- Scanner card: stop forcing tall heights ----
+   The scanner preview is now a bounded box (aspect-ratio +
+   max-height); the surrounding card flows to its content. */
+.scanner-card{
+  min-height:0;
+  height:auto;
+}
+.scanner-view{
+  min-height:240px;
+  max-height:420px;
+  height:auto;
+  aspect-ratio:4 / 3;
+}
+
+/* ---- ≥1280 — 2×2 quadrants: keep the grid but compact rows ---- */
+@media(min-width:1280px){
+  .home-dashboard{
+    grid-template-rows:auto auto auto auto;
+    align-items:start;
+    align-content:start;
+  }
+  .home-dashboard .scanner-card,
+  .home-dashboard .stats-row,
+  .home-dashboard .home-trend-card,
+  .home-dashboard .actions-card{
+    align-self:start;
+    min-height:0;
+    height:auto;
+  }
+  .home-dashboard .scanner-card{
+    max-height:none;
+  }
+  .home-dashboard .scanner-view{
+    min-height:260px;
+    max-height:420px;
+    aspect-ratio:4 / 3;
+  }
+  /* Trends + Actions: keep their padded card surface but let them
+     size to content rather than stretch to match the scanner row. */
+  .home-dashboard .home-trend-card,
+  .home-dashboard .actions-card,
+  .home-dashboard .stats-row{
+    align-self:start;
+  }
+  .home-dashboard .home-trend-canvas-wrap{
+    height:auto;
+    max-height:240px;
+  }
+  .home-dashboard .home-trend-canvas-wrap canvas{
+    max-height:240px;
+  }
+}
+
+/* ---- 1024–1279 / mobile / tablet — compact single column ---- */
+@media(max-width:1279px){
+  .scanner-card{
+    min-height:0;
+    height:auto;
+  }
+  .scanner-view{
+    min-height:220px;
+    max-height:320px;
+    aspect-ratio:4 / 3;
+  }
+}
+
+/* ---- ≤767 — phone: even tighter ---- */
+@media(max-width:767px){
+  .scanner-view{
+    min-height:200px;
+    max-height:280px;
+  }
+  .home-dashboard{gap:14px}
+}
+
+/* === End Home layout emergency override === */
