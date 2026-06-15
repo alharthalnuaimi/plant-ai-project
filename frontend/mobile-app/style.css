@@ -4559,7 +4559,13 @@ img,video,canvas,svg{max-width:100%}
     justify-content:center;
   }
 
-  /* ---- F. Health Trend — full width, chart fits ---- */
+  /* ---- F. Health Trend — full width, chart fits ----
+       IMPORTANT: keep an EXPLICIT pixel height on the canvas-wrap.
+       v2's rule at line 3185 sets `.home-trend-canvas-wrap canvas{height:auto !important}`,
+       which means the canvas obeys its CSS layout box (= parent height).
+       If we set the wrap to `height:auto`, parent height = canvas height and
+       Chart.js's responsive resize creates a feedback loop that grows the
+       card endlessly. A deterministic mobile height breaks the loop. */
   .home-dashboard .home-trend-card{
     width:100%;
     max-width:100%;
@@ -4568,13 +4574,14 @@ img,video,canvas,svg{max-width:100%}
   .home-dashboard .home-trend-canvas-wrap{
     width:100%;
     max-width:100%;
-    height:auto;
-    min-height:140px;
+    height:160px;
+    max-height:160px;
     overflow:hidden;
   }
   .home-dashboard .home-trend-canvas-wrap canvas{
     width:100% !important;
     max-width:100% !important;
+    max-height:160px !important;
   }
 
   /* ---- G. Care Recommendations — 2-col chips, full-width card ---- */
