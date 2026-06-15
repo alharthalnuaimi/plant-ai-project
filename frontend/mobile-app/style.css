@@ -4427,3 +4427,195 @@ img,video,canvas,svg{max-width:100%}
 }
 
 /* === End Home dashboard — independent 2-column layout (RESET) === */
+
+
+/* ====================================================================
+   === Mobile Home full-width fix (Jun 15) ===
+   --------------------------------------------------------------------
+   Root cause: the legacy @media(max-width:480px) block at lines
+   1718–1729 forces:
+       .stats-row{grid-template-columns:1fr}    ← stats stack vertically
+       .act-row{flex-direction:column}          ← actions stack tall
+       .env-grid,.env-grid-3{grid-template-columns:1fr}
+   Combined with `width:auto` on flex children, cards stop stretching
+   to the viewport width and the right side reads as a dead gutter.
+
+   This block re-asserts a full-width, professional mobile dashboard
+   at ≤768px while preserving the desktop ≥1280 2-col layout above.
+
+   All selectors below are scoped to `.home-dashboard ...` so nothing
+   outside the Home page is affected. Specificity beats the legacy
+   @480 rules without `!important`.
+   ==================================================================== */
+
+@media(max-width:768px){
+  /* ---- A. Main container: true full-width, no horizontal overflow ---- */
+  .page-home,
+  .page-home .home-dashboard{
+    width:100%;
+    max-width:100%;
+    margin:0 auto;
+    box-sizing:border-box;
+  }
+  .page-home .home-dashboard{
+    padding-left:0;
+    padding-right:0;
+  }
+
+  /* Every direct child of .home-dashboard (incl. log-card and the two
+     col wrappers which are display:contents at <1280) becomes flex
+     full-width. Grandchildren — the actual cards — also span. */
+  .home-dashboard > *,
+  .home-dashboard > .home-col-left > *,
+  .home-dashboard > .home-col-right > *{
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    box-sizing:border-box;
+  }
+
+  /* ---- B. Stats row — 3-up horizontal, compact ---- */
+  .home-dashboard .stats-row{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:8px;
+    width:100%;
+    max-width:100%;
+  }
+  .home-dashboard .stats-row .stat-card{
+    padding:10px 8px;
+    min-width:0;
+  }
+  .home-dashboard .stats-row .stat-num{font-size:20px}
+  .home-dashboard .stats-row .stat-label{font-size:9px;letter-spacing:.5px}
+  .home-dashboard .stats-row .stat-trend{font-size:9px}
+
+  /* ---- C. Live Environment — full-width single bar (override line 1698
+       which makes it flex-direction:column) ---- */
+  .home-dashboard .env-strip{
+    display:flex;
+    flex-direction:row;
+    flex-wrap:wrap;
+    align-items:center;
+    width:100%;
+    max-width:100%;
+    gap:10px 14px;
+    padding:12px 14px;
+  }
+  .home-dashboard .env-strip-items{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px 14px;
+    flex:1 1 auto;
+    justify-content:space-around;
+  }
+  .home-dashboard .env-strip-item{min-width:0}
+
+  /* ---- D. Zone Sensors — full width; env-grid-3 stays 3-up (perfect
+       fit for AIR / HUMID / LIGHT), env-grid-4 becomes 2x2 (SOIL temp /
+       SOIL % / PH / EC). No orphan empty cells. ---- */
+  .home-dashboard .zone-sensor-card{
+    width:100%;
+    max-width:100%;
+    padding:14px 16px;
+  }
+  .home-dashboard .zone-sensor-card .env-grid-3{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:10px;
+    width:100%;
+  }
+  .home-dashboard .zone-sensor-card .env-grid-4{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+    width:100%;
+  }
+  .home-dashboard .zone-sensor-card .env-item{min-width:0}
+
+  /* Ultra-narrow (≤340): drop env-grid-3 to 2-col + center the third
+     item, since 3 cells get unreadable below 340px. */
+  @media(max-width:340px){
+    .home-dashboard .zone-sensor-card .env-grid-3{
+      grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+  }
+
+  /* ---- E. Quick Actions — 2-col button grid (override line 1720) ---- */
+  .home-dashboard .actions-card{
+    width:100%;
+    max-width:100%;
+    padding:14px 16px;
+  }
+  .home-dashboard .actions-card .act-row{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+    flex-direction:row;
+  }
+  .home-dashboard .actions-card .act-btn{
+    width:100%;
+    min-width:0;
+    justify-content:center;
+  }
+
+  /* ---- F. Health Trend — full width, chart fits ---- */
+  .home-dashboard .home-trend-card{
+    width:100%;
+    max-width:100%;
+    padding:14px 16px;
+  }
+  .home-dashboard .home-trend-canvas-wrap{
+    width:100%;
+    max-width:100%;
+    height:auto;
+    min-height:140px;
+    overflow:hidden;
+  }
+  .home-dashboard .home-trend-canvas-wrap canvas{
+    width:100% !important;
+    max-width:100% !important;
+  }
+
+  /* ---- G. Care Recommendations — 2-col chips, full-width card ---- */
+  .home-dashboard .home-care-card{
+    width:100%;
+    max-width:100%;
+    padding:14px 16px;
+  }
+  .home-dashboard .home-care-grid{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+  }
+
+  /* ---- Warnings — full-width row ---- */
+  .home-dashboard .home-warnings{
+    width:100%;
+    max-width:100%;
+  }
+
+  /* ---- Scan Log — full-width row ---- */
+  .home-dashboard > .home-log-full{
+    width:100%;
+    max-width:100%;
+  }
+
+  /* ---- H. Floating chat / bottom-nav clearance ----
+     .main already adds padding-bottom:110px at ≤768 (line 1681) which
+     covers the bottom mobile-nav. Add a small page-level buffer so the
+     chat fab (bottom:80px @ ≤768, line 1716) doesn't touch the last
+     card on long scrolls. */
+  .page-home{padding-bottom:24px}
+}
+
+/* ---- Ultra-narrow phones ≤340: allow stats to drop to a 1-col stack
+   when 3 columns would be unreadable. (User's escape hatch.) ---- */
+@media(max-width:340px){
+  .home-dashboard .stats-row{
+    grid-template-columns:1fr;
+    gap:6px;
+  }
+}
+
+/* === End Mobile Home full-width fix === */
