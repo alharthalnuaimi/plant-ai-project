@@ -1338,13 +1338,9 @@
         </div>
     </div>
 
-    <!-- Result Modal — Final MVP redesign (Phase E)
-         Three vertical sections (Plant Identification / Environment /
-         AI Recommendation) replace the old 4-metric grid. All new fields
-         live under "r-" prefixed ids so app.js::showPredictResult can
-         populate them. The legacy hero icon + emoji-prefixed headline
-         (#r-ico, #r-title) and the meta chip row (#r-zone, #r-device,
-         #r-source, #r-plant-chip) are preserved as they were. -->
+    <!-- Result Modal — PlantNet + Gemini report
+         Sections: Plant Identification / Environment / AI Recommendation.
+         Action buttons: Export Report · Dismiss -->
     <div class="ov" id="res-modal">
         <div class="modal rm rm-v2 rm-v3" id="res-modal-card" data-tone="ok">
             <div class="rm-glow" aria-hidden="true"></div>
@@ -1352,28 +1348,6 @@
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" id="r-ico-svg"><polyline points="20 6 9 17 4 12"/></svg>
             </div>
             <h3 class="m-t rm-headline" id="r-title">—</h3>
-            <div class="r-meta" id="r-meta" aria-label="Scan context">
-                <span class="r-meta-chip r-meta-zone" title="Zone where scan was attributed">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                    <span class="r-meta-lbl">Zone</span>
-                    <span class="r-meta-val" id="r-zone">—</span>
-                </span>
-                <span class="r-meta-chip r-meta-device" title="Device id">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>
-                    <span class="r-meta-lbl">Device</span>
-                    <span class="r-meta-val mono" id="r-device">—</span>
-                </span>
-                <span class="r-meta-chip r-meta-source" title="How the scan was captured">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                    <span class="r-meta-lbl">Source</span>
-                    <span class="r-meta-val" id="r-source">—</span>
-                </span>
-                <span class="r-meta-chip r-meta-plant" id="r-plant-chip" title="Plant identifier" hidden>
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22V12"/><path d="M12 12c-3 0-6-2-6-6 4 0 6 2 6 6z"/><path d="M12 12c3 0 6-2 6-6-4 0-6 2-6 6z"/></svg>
-                    <span class="r-meta-lbl">Plant</span>
-                    <span class="r-meta-val mono" id="r-plant">—</span>
-                </span>
-            </div>
 
             <div class="rm-sections">
                 <section class="rm-section">

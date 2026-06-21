@@ -78,7 +78,16 @@ class GeminiClient:
             contents=prompt,
         )
 
-        return response.text.strip()
+        text = getattr(response, "text", None) or ""
+        if not text and getattr(response, "candidates", None):
+            try:
+                parts = response.candidates[0].content.parts
+                text = "".join(getattr(p, "text", "") or "" for p in parts)
+            except (AttributeError, IndexError, TypeError):
+                text = ""
+        if not text.strip():
+            log.warning("Gemini returned empty text for model=%s", self.model)
+        return text.strip()
     
 
 def get_llama_client() -> LlamaClient | None:

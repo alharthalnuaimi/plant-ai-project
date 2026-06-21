@@ -205,7 +205,7 @@
 
     const pts = values.map((v, i) => ({
       x: pad.l + (innerW * i) / Math.max(1, values.length - 1),
-      y: pad.t + innerH - ((v - min) / range) * innerH,
+      y: Math.max(pad.t, Math.min(ch - pad.b, pad.t + innerH - ((v - min) / range) * innerH)),
     }));
 
     const grad = ctx.createLinearGradient(0, pad.t, 0, ch - pad.b);

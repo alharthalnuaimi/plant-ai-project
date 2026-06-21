@@ -79,6 +79,7 @@ async def chat(req: ChatRequest) -> dict:
 
     client = get_gemini_client()
     if client is None:
+        log.info("POST /chat — GEMINI_API_KEY missing; using fallback narrative")
         recommendation = "Increase watering consistency and reduce prolonged heat exposure."
         text = fallback_narrative(
             {
@@ -90,13 +91,16 @@ async def chat(req: ChatRequest) -> dict:
         source = "fallback"
     else:
         try:
+            log.info("POST /chat — calling Gemini model=%s", client.model)
             raw = client.generate_chat(build_reasoning_prompts(context, req.user_question))
             log.debug("Gemini raw response: %s", raw)
             recommendation, text = parse_reasoning_response(raw, context)
             if not raw:
                 source = "fallback_empty_gemini"
+                log.warning("POST /chat — Gemini returned empty body; using fallback narrative")
             else:
                 source = "gemini"
+                log.info("POST /chat — Gemini response ok (chars=%d)", len(text))
         except Exception as exc:  # noqa: BLE001 — never crash the chat route
             log.warning("Gemini call failed (%s) — using fallback narrative", exc)
             recommendation = "Increase watering consistency and reduce prolonged heat exposure."

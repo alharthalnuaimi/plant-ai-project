@@ -390,34 +390,6 @@ function showPredictResult(result){
   if(waterEl) waterEl.textContent = _modelLabel;
   if(modelEl) modelEl.textContent = _modelLabel;
 
-  // --- Scan-to-zone traceability: populate the meta row (Zone · Device · Source).
-  const meta = result.metadata || {};
-  const scanZone   = result.zone_id || _resolveScanZoneId();
-  const scanDevice = meta.device_id || _resolveScanDeviceId();
-  const scanSource = meta.scan_source || _currentScanSource || 'upload';
-  const sourceLabel = scanSource === 'camera' ? 'Camera'
-                    : scanSource === 'chat-camera' ? 'Chat camera'
-                    : 'Upload';
-  const zoneEl   = document.getElementById('r-zone');
-  const deviceEl = document.getElementById('r-device');
-  const sourceEl = document.getElementById('r-source');
-  if(zoneEl)   zoneEl.textContent   = _zoneLabel(scanZone);
-  if(deviceEl) deviceEl.textContent = scanDevice;
-  if(sourceEl) sourceEl.textContent = sourceLabel;
-
-  // Optional plant_id chip — only render when present in metadata.
-  const plantChip = document.getElementById('r-plant-chip');
-  const plantEl   = document.getElementById('r-plant');
-  const plantId   = meta.plant_id || '';
-  if (plantChip && plantEl) {
-    if (plantId) {
-      plantEl.textContent = plantId;
-      plantChip.hidden = false;
-    } else {
-      plantChip.hidden = true;
-    }
-  }
-
   if(window.plantAssistant && typeof window.plantAssistant.setLastScan === 'function'){
     const assistantResult = {
       ...result,
@@ -2310,7 +2282,6 @@ function showTyping(){
 }
 
 async function sendMsg() {
-  console.log("SENDMSG CALLED");
   const text = chatInput.value.trim();
 
   if (!text) return;
@@ -2321,68 +2292,59 @@ async function sendMsg() {
   showTyping();
 
   try {
-    let reply = null;
     const ctx = window.plantAssistant?.getContext?.();
 
-    console.log("CTX =", ctx);
-    console.log("CTX LASTSCAN =", ctx?.lastScan);
-    console.log(
-      "RAW LABEL =",
-      ctx?.lastScan?.metadata?.raw_disease_label
-    );
-    // الردود المحلية الذكية الموجودة حالياً
-    /*
+    // Fast local replies for common dashboard questions.
     if (
       window.plantAssistant &&
       typeof window.plantAssistant.getContextualReply === 'function'
     ) {
-      reply = window.plantAssistant.getContextualReply(text);
+      const localReply = window.plantAssistant.getContextualReply(text);
+      if (localReply) {
+        removeChatTyping();
+        addMsg(localReply, false);
+        return;
+      }
     }
 
-    // إذا وجد رد محلي نستخدمه مباشرة
-    if (reply) {
-      removeChatTyping();
-      addMsg(reply, false);
-      return;
-    }
-    */
-
-    // تجهيز بيانات افتراضية للـ API
     const lastScan = ctx?.lastScan;
+    const sensor = ctx?.lastSensor || {};
+    const species =
+      (lastScan?.plant && lastScan.plant.common_name) ||
+      lastScan?.plant_name ||
+      sensor.species ||
+      'plant';
 
     const payload = {
       vision: {
         disease:
           lastScan?.metadata?.raw_disease_label ||
           lastScan?.disease ||
-          "unknown",
-
-        confidence:
-          lastScan?.confidence || 0,
-
-        stress_hint:
-          lastScan?.stress_hint || "unknown"
+          'unknown',
+        confidence: Number(lastScan?.confidence) || 0,
+        stress_hint: lastScan?.stress_hint || 'unknown',
+        class_name: lastScan?.class_name || '',
+        disease_type: lastScan?.disease_type || 'unknown',
+        accepted: lastScan?.accepted !== false,
+        plant: lastScan?.plant || null,
+        health: lastScan?.health || null,
       },
-
       sensors: {
-        soil_moisture: 50,
-        temperature: 25,
-        humidity: 60,
-        species: "rose"
+        soil_moisture: Number(sensor.soil_humidity ?? sensor.soil_moisture ?? 50),
+        temperature: Number(sensor.air_temperature ?? sensor.temperature ?? 25),
+        humidity: Number(sensor.air_humidity ?? sensor.humidity ?? 60),
+        species,
       },
-
-      user_question: text
+      user_question: text,
     };
 
-    console.log("LASTSCAN =", lastScan);
-    console.log("PAYLOAD =", payload);
-    //console.log("PAYLOAD SENT TO CHAT =", payload); 
-    const response = await fetch('http://localhost:8000/chat', {
+    const apiBase = String(window.PLANT_API_BASE || '').replace(/\/$/, '');
+    const response = await fetch(`${apiBase}/chat`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -2390,18 +2352,13 @@ async function sendMsg() {
     }
 
     const data = await response.json();
-    console.log("CHAT RESPONSE =", data);
     removeChatTyping();
 
-    addMsg(
-      data.reply ||
-      data.recommendation ||
-      "No response returned.",
-      false
-    );
+    const replyText = data.reply || data.recommendation || 'No response returned.';
+    addMsg(replyText, false);
 
   } catch (err) {
-    console.error(err);
+    console.error('Chat request failed:', err);
 
     removeChatTyping();
 
