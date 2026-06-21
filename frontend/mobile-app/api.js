@@ -16,6 +16,24 @@ function _pvFx() {
   return (window.plantDemo && window.plantDemo.fixtures) || {};
 }
 
+/** Parse FastAPI error JSON into a user-visible message. */
+function extractApiError(errBody, statusCode) {
+  const fallback = `HTTP ${statusCode}`;
+  if (!errBody || typeof errBody !== "object") return fallback;
+  if (typeof errBody.error === "string" && errBody.error !== "validation_error") {
+    return errBody.error;
+  }
+  if (typeof errBody.message === "string" && errBody.message) return errBody.message;
+  if (Array.isArray(errBody.details) && errBody.details.length) {
+    return errBody.details.map((d) => d.msg || JSON.stringify(d)).join("; ");
+  }
+  if (typeof errBody.detail === "string") return errBody.detail;
+  if (Array.isArray(errBody.detail) && errBody.detail.length) {
+    return errBody.detail.map((d) => d.msg || JSON.stringify(d)).join("; ");
+  }
+  return fallback;
+}
+
 /**
  * POST /predict with full scan-to-zone traceability.
  *
@@ -75,7 +93,35 @@ async function predictPlantImage(file, opts = {}) {
     let detail = `HTTP ${resp.status}`;
     try {
       const err = await resp.json();
-      detail = err.error || err.message || detail;
+      detail = extractApiError(err, resp.status);
+    } catch (_) {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+
+  return resp.json();
+}
+
+/** POST /chat — Gemini-backed plant assistant (Railway backend). */
+async function postChat(payload) {
+  if (_pvDemoOn() && _pvFx().postChat) {
+    return Promise.resolve(_pvFx().postChat(payload));
+  }
+  const base = window.PLANT_API_BASE;
+  if (!base) throw new Error("PLANT_API_BASE is not configured");
+
+  const resp = await fetch(`${base}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!resp.ok) {
+    let detail = `HTTP ${resp.status}`;
+    try {
+      const err = await resp.json();
+      detail = extractApiError(err, resp.status);
     } catch (_) {
       /* ignore */
     }

@@ -299,6 +299,8 @@ function showPredictResult(result){
   // Phase E — new result-card ids.
   const plantNameEl = document.getElementById('r-plant-name');
   const plantSciEl  = document.getElementById('r-plant-sci');
+  const plantFamEl  = document.getElementById('r-plant-family');
+  const plantGenusEl = document.getElementById('r-plant-genus');
   const plantConfEl = document.getElementById('r-plant-conf');
   const envTempEl   = document.getElementById('r-env-temp');
   const envHumidEl  = document.getElementById('r-env-humid');
@@ -321,6 +323,8 @@ function showPredictResult(result){
     || result.plant_name
     || 'Unknown plant';
   const sciName = (result.plant && result.plant.scientific_name) || '—';
+  const famName = (result.plant && result.plant.family) || '—';
+  const genusName = (result.plant && result.plant.genus) || '—';
 
   // Confidence priority for the result card: plant-id confidence first
   // (this is the "how sure are we about the species?" number), then the
@@ -357,6 +361,8 @@ function showPredictResult(result){
 
   if(plantNameEl) plantNameEl.textContent = plantName;
   if(plantSciEl)  plantSciEl.textContent  = sciName;
+  if(plantFamEl)  plantFamEl.textContent  = famName;
+  if(plantGenusEl) plantGenusEl.textContent = genusName;
   if(plantConfEl) plantConfEl.textContent = confPct;
 
   if(envTempEl)  envTempEl.textContent  = _envFmt(_snap.air_temperature, '°C');
@@ -462,7 +468,7 @@ function showScanError(message){
   // legacy ids (r-species/r-conf/r-hp/r-risk/r-surv/r-rec) are also
   // wiped in case a future debug overlay surfaces them.
   const _resetIds = [
-    'r-plant-name', 'r-plant-sci', 'r-plant-conf',
+    'r-plant-name', 'r-plant-sci', 'r-plant-family', 'r-plant-genus', 'r-plant-conf',
     'r-env-temp', 'r-env-humid', 'r-env-light',
     'r-env-soil-moist', 'r-env-ph', 'r-env-ec',
     'r-species', 'r-conf', 'r-hp', 'r-risk', 'r-surv',
@@ -2338,34 +2344,22 @@ async function sendMsg() {
       user_question: text,
     };
 
-    const apiBase = String(window.PLANT_API_BASE || '').replace(/\/$/, '');
-    const response = await fetch(`${apiBase}/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
+    const data = await postChat(payload);
     removeChatTyping();
 
     const replyText = data.reply || data.recommendation || 'No response returned.';
-    addMsg(replyText, false);
+    if (data.source && data.source !== 'gemini') {
+      addMsg(`${replyText}\n\n(Assistant: ${data.source})`, false);
+    } else {
+      addMsg(replyText, false);
+    }
 
   } catch (err) {
     console.error('Chat request failed:', err);
 
     removeChatTyping();
 
-    addMsg(
-      getBotReply(text),
-      false
-    );
+    addMsg(`Chat error: ${err.message || String(err)}`, false);
   }
 }
 
