@@ -1,7 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "public": true,
   "outputDirectory": "mobile-app",
   "framework": null,
   "installCommand": "echo 'no install step for vanilla-JS static frontend'",
