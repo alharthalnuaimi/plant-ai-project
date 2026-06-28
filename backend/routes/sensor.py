@@ -56,13 +56,13 @@ def _row_to_reading(row: dict[str, Any]) -> SensorReading | None:
             user_id=row.get("user_slug") or DEFAULT_USER_ID,
             zone_id=row.get("zone_slug") or DEFAULT_ZONE_ID,
             device_id=row.get("device_slug") or DEFAULT_DEVICE_ID,
-            air_temperature=float(row["air_temp"]),
-            air_humidity=float(row["air_humidity"]),
-            light_lux=float(row.get("lux") or 0),
-            soil_temperature=float(row["soil_temp"]),
-            soil_humidity=float(row["soil_moisture"]),
-            soil_ph=float(row["ph"]),
-            soil_ec=float(row["ec"]),
+            air_temperature=float(row["air_temp"]) if row.get("air_temp") is not None else None,
+            air_humidity=float(row["air_humidity"]) if row.get("air_humidity") is not None else None,
+            light_lux=float(row["lux"]) if row.get("lux") is not None else None,
+            soil_temperature=float(row["soil_temp"]) if row.get("soil_temp") is not None else None,
+            soil_humidity=float(row["soil_moisture"]) if row.get("soil_moisture") is not None else None,
+            soil_ph=float(row["ph"]) if row.get("ph") is not None else None,
+            soil_ec=float(row["ec"]) if row.get("ec") is not None else None,
         )
     except (KeyError, TypeError, ValueError) as exc:
         log.warning("Could not rebuild SensorReading from DB row: %s", exc)

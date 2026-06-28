@@ -102,7 +102,15 @@ def test_main_app_has_expected_routers() -> None:
 
     from main import app
 
-    paths = {route.path for route in app.routes}
+    paths = set()
+    for route in app.routes:
+        if hasattr(route, "path"):
+            paths.add(route.path)
+        elif hasattr(route, "effective_candidates"):
+            for cand in route.effective_candidates():
+                if hasattr(cand, "path"):
+                    paths.add(cand.path)
+
     expected = {
         "/health",
         "/health/db",

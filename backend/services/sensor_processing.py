@@ -83,14 +83,27 @@ def _overall_status(parts: list[str]) -> str:
 
 
 def process_sensor_reading(payload: SensorInput) -> SensorReading:
-    air_t = _air_temp_status(payload.air_temperature)
-    air_h = _air_humidity_status(payload.air_humidity)
-    light = _light_status(payload.light_lux)
-    soil_t = _soil_temp_status(payload.soil_temperature)
-    soil_h = _soil_humidity_status(payload.soil_humidity)
-    ph = _ph_status(payload.soil_ph)
-    ec = _ec_status(payload.soil_ec)
-    overall = _overall_status([air_t, air_h, light, soil_t, soil_h, ph, ec])
+    # Coalesce None → safe defaults.  Status helpers receive the coalesced
+    # value; the "unknown" label is used when the raw reading was None so
+    # downstream scoring can tell "sensor offline" from "value is in range".
+    _air_t = payload.air_temperature
+    _air_h = payload.air_humidity
+    _lux   = payload.light_lux
+    _soil_t = payload.soil_temperature
+    _soil_h = payload.soil_humidity
+    _ph     = payload.soil_ph
+    _ec     = payload.soil_ec
+
+    air_t = _air_temp_status(_air_t) if _air_t is not None else "unknown"
+    air_h = _air_humidity_status(_air_h) if _air_h is not None else "unknown"
+    light = _light_status(_lux) if _lux is not None else "unknown"
+    soil_t = _soil_temp_status(_soil_t) if _soil_t is not None else "unknown"
+    soil_h = _soil_humidity_status(_soil_h) if _soil_h is not None else "unknown"
+    ph = _ph_status(_ph) if _ph is not None else "unknown"
+    ec = _ec_status(_ec) if _ec is not None else "unknown"
+
+    known_parts = [s for s in [air_t, air_h, light, soil_t, soil_h, ph, ec] if s != "unknown"]
+    overall = _overall_status(known_parts) if known_parts else "unknown"
 
     status = SensorStatus(
         air_temperature_status=air_t,
@@ -110,13 +123,14 @@ def process_sensor_reading(payload: SensorInput) -> SensorReading:
         user_id=uid,
         zone_id=zid,
         device_id=payload.device_id,
-        air_temperature=payload.air_temperature,
-        air_humidity=payload.air_humidity,
-        light_lux=payload.light_lux,
-        soil_temperature=payload.soil_temperature,
-        soil_humidity=payload.soil_humidity,
-        soil_ph=payload.soil_ph,
-        soil_ec=payload.soil_ec,
+        air_temperature=_air_t if _air_t is not None else 0.0,
+        air_humidity=_air_h if _air_h is not None else 0.0,
+        light_lux=_lux if _lux is not None else 0.0,
+        soil_temperature=_soil_t if _soil_t is not None else 0.0,
+        soil_humidity=_soil_h if _soil_h is not None else 0.0,
+        soil_ph=_ph if _ph is not None else 0.0,
+        soil_ec=_ec if _ec is not None else 0.0,
         timestamp=utc_now_iso(),
         status=status,
     )
+

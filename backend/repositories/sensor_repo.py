@@ -24,17 +24,25 @@ async def insert_reading(
     user_slug: str,
     zone_slug: str,
     device_slug: str,
-    air_temp: float,
-    air_humidity: float,
-    soil_temp: float,
-    soil_moisture: float,
-    ph: float,
-    ec: float,
-    lux: float,
+    air_temp: float | None,
+    air_humidity: float | None,
+    soil_temp: float | None,
+    soil_moisture: float | None,
+    ph: float | None,
+    ec: float | None,
+    lux: float | None,
 ) -> bool:
     pool = await get_pool()
     if pool is None:
         return False
+    # Coalesce None → 0.0 so the NOT NULL DB columns stay happy.
+    _air_temp = air_temp if air_temp is not None else 0.0
+    _air_humidity = air_humidity if air_humidity is not None else 0.0
+    _soil_temp = soil_temp if soil_temp is not None else 0.0
+    _soil_moisture = soil_moisture if soil_moisture is not None else 0.0
+    _ph = ph if ph is not None else 0.0
+    _ec = ec if ec is not None else 0.0
+    _lux = lux if lux is not None else 0.0
     async with pool.acquire() as conn:
         device_id = await conn.fetchval(
             "select id from public.devices where slug = $1", device_slug
@@ -48,8 +56,8 @@ async def insert_reading(
             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
             """,
             device_id, zone_slug, device_slug, user_slug,
-            air_temp, air_humidity, soil_temp, soil_moisture,
-            ph, ec, lux,
+            _air_temp, _air_humidity, _soil_temp, _soil_moisture,
+            _ph, _ec, _lux,
         )
     return True
 
