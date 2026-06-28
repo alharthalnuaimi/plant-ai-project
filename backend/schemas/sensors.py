@@ -9,18 +9,23 @@ from pydantic import BaseModel, Field
 
 
 class SensorInput(BaseModel):
-    """Payload from ESP32 node (POST /sensor)."""
+    """Payload from ESP32 node (POST /sensor).
+
+    All sensor value fields are nullable: the ESP32 sends ``null`` for any
+    sensor that failed to read, so the backend can distinguish "sensor
+    offline" from "sensor reading is zero".
+    """
 
     user_id: str = Field(default="demo_user", min_length=1, max_length=64)
     zone_id: str = Field(default="zone_alpha", min_length=1, max_length=64)
     device_id: str = Field(min_length=1, max_length=64)
-    air_temperature: float = Field(ge=-40, le=60, description="Air temperature °C (DHT22)")
-    air_humidity: float = Field(ge=0, le=100, description="Air relative humidity % (DHT22)")
-    light_lux: float = Field(ge=0, description="Illuminance lux (BH1750)")
-    soil_temperature: float = Field(ge=-10, le=50, description="Soil/environment temp °C (RS485)")
-    soil_humidity: float = Field(ge=0, le=100, description="Soil moisture % (RS485)")
-    soil_ph: float = Field(ge=0, le=14, description="Soil pH (RS485)")
-    soil_ec: float = Field(ge=0, description="Soil EC mS/cm (RS485)")
+    air_temperature: float | None = Field(default=None, ge=-40, le=60, description="Air temperature °C (DHT22)")
+    air_humidity: float | None = Field(default=None, ge=0, le=100, description="Air relative humidity % (DHT22)")
+    light_lux: float | None = Field(default=None, ge=0, description="Illuminance lux (BH1750)")
+    soil_temperature: float | None = Field(default=None, ge=-10, le=50, description="Soil/environment temp °C (RS485)")
+    soil_humidity: float | None = Field(default=None, ge=0, le=100, description="Soil moisture % (RS485)")
+    soil_ph: float | None = Field(default=None, ge=0, le=14, description="Soil pH (RS485)")
+    soil_ec: float | None = Field(default=None, ge=0, description="Soil EC mS/cm (RS485)")
 
 
 class SensorStatus(BaseModel):
