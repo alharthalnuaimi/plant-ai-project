@@ -253,7 +253,7 @@
                         <span class="stat-live-dot" aria-hidden="true"></span>
                         <div class="stat-top">
                             <span class="stat-num mono" id="home-stat-healthy">—</span>
-                            <span class="stat-badge sb-ok" aria-hidden="true">🌱</span>
+                            <span class="stat-badge sb-ok" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 4 13V4h9a7 7 0 0 1 7 7v9z"/><path d="M9 9h.01"/></svg></span>
                         </div>
                         <span class="stat-label">Healthy Zones</span>
                         <span class="stat-trend st-up" id="home-stat-healthy-sub">Awaiting sensor data</span>
@@ -263,7 +263,7 @@
                         <span class="stat-live-dot" aria-hidden="true"></span>
                         <div class="stat-top">
                             <span class="stat-num mono" id="home-stat-warn">—</span>
-                            <span class="stat-badge sb-warn" aria-hidden="true">⚠️</span>
+                            <span class="stat-badge sb-warn" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
                         </div>
                         <span class="stat-label">At Risk</span>
                         <span class="stat-trend st-flat" id="home-stat-warn-sub">Monitoring</span>
@@ -273,7 +273,7 @@
                         <span class="stat-live-dot" aria-hidden="true"></span>
                         <div class="stat-top">
                             <span class="stat-num mono" id="home-stat-crit">—</span>
-                            <span class="stat-badge sb-crit" aria-hidden="true">🔴</span>
+                            <span class="stat-badge sb-crit" aria-hidden="true"><svg viewBox="0 0 24 24"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
                         </div>
                         <span class="stat-label">Critical</span>
                         <span class="stat-trend st-flat" id="home-stat-crit-sub">Monitoring</span>
@@ -378,10 +378,10 @@
                         <span class="home-care-stage" id="home-care-stage">—</span>
                     </div>
                     <div class="home-care-grid">
-                        <div class="home-care-item"><span class="home-care-item-lbl"><span aria-hidden="true">💧</span>Water</span><span class="home-care-item-val" id="home-care-water">—</span></div>
-                        <div class="home-care-item"><span class="home-care-item-lbl"><span aria-hidden="true">☀️</span>Sunlight</span><span class="home-care-item-val" id="home-care-sun">—</span></div>
-                        <div class="home-care-item"><span class="home-care-item-lbl"><span aria-hidden="true">🌡️</span>Temperature</span><span class="home-care-item-val" id="home-care-temp">—</span></div>
-                        <div class="home-care-item"><span class="home-care-item-lbl"><span aria-hidden="true">💨</span>Humidity</span><span class="home-care-item-val" id="home-care-hum">—</span></div>
+                        <div class="home-care-item"><span class="home-care-item-lbl"><span class="care-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg></span>Water</span><span class="home-care-item-val" id="home-care-water">—</span></div>
+                        <div class="home-care-item"><span class="home-care-item-lbl"><span class="care-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg></span>Sunlight</span><span class="home-care-item-val" id="home-care-sun">—</span></div>
+                        <div class="home-care-item"><span class="home-care-item-lbl"><span class="care-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg></span>Temperature</span><span class="home-care-item-val" id="home-care-temp">—</span></div>
+                        <div class="home-care-item"><span class="home-care-item-lbl"><span class="care-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg></span>Humidity</span><span class="home-care-item-val" id="home-care-hum">—</span></div>
                     </div>
                     <p class="home-care-summary" id="home-care-summary">—</p>
                 </div>
@@ -389,7 +389,7 @@
                 <!-- Pending warnings (last item in right col, hidden when empty) -->
                 <div class="home-warnings" id="home-warnings" hidden>
                     <span class="home-warnings-head">
-                        <span aria-hidden="true">⚠️</span>
+                        <span class="warn-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
                         Warnings
                     </span>
                     <div class="home-warnings-list" id="home-warnings-list"></div>
@@ -511,7 +511,7 @@
                             <div class="sys-metric-card">
                                 <div class="smc-ring">
                                     <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="var(--sage)" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="18" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
-                                    <span class="smc-ico" aria-hidden="true">📸</span>
+                                    <span class="smc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
                                 </div>
                                 <div class="smc-info">
                                     <span class="smc-val mono" id="sm-scans">—</span>
@@ -522,7 +522,7 @@
                             <div class="sys-metric-card">
                                 <div class="smc-ring">
                                     <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="var(--gold)" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="60" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
-                                    <span class="smc-ico" aria-hidden="true">⚡</span>
+                                    <span class="smc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
                                 </div>
                                 <div class="smc-info">
                                     <span class="smc-val mono" id="sm-time">—</span>
@@ -533,7 +533,7 @@
                             <div class="sys-metric-card">
                                 <div class="smc-ring">
                                     <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="var(--olive)" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="40" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
-                                    <span class="smc-ico" aria-hidden="true">📅</span>
+                                    <span class="smc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
                                 </div>
                                 <div class="smc-info">
                                     <span class="smc-val mono" id="sm-species">—</span>
@@ -544,7 +544,7 @@
                             <div class="sys-metric-card">
                                 <div class="smc-ring">
                                     <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="#6ec47e" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="4" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
-                                    <span class="smc-ico" aria-hidden="true">🎯</span>
+                                    <span class="smc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span>
                                 </div>
                                 <div class="smc-info">
                                     <span class="smc-val mono" id="sm-conf">—</span>
@@ -555,7 +555,7 @@
                             <div class="sys-metric-card">
                                 <div class="smc-ring">
                                     <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="var(--sage)" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="50" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
-                                    <span class="smc-ico" aria-hidden="true">📍</span>
+                                    <span class="smc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
                                 </div>
                                 <div class="smc-info">
                                     <span class="smc-val mono" id="sm-zones">—</span>
@@ -566,7 +566,7 @@
                             <div class="sys-metric-card">
                                 <div class="smc-ring">
                                     <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--b1)" stroke-width="3"/><circle cx="20" cy="20" r="16" fill="none" stroke="#7ba4c7" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="30" stroke-linecap="round" transform="rotate(-90 20 20)" class="ring-fill"/></svg>
-                                    <span class="smc-ico" aria-hidden="true">📡</span>
+                                    <span class="smc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg></span>
                                 </div>
                                 <div class="smc-info">
                                     <span class="smc-val mono" id="sm-devices">—</span>
@@ -734,19 +734,19 @@
                 </div>
                 <div class="garden-summary-row an" style="--d:.15s">
                     <div class="garden-sum-card garden-sum-ok" data-sum="healthy">
-                        <span class="garden-sum-ico" aria-hidden="true">🌱</span>
+                        <span class="garden-sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 4 13V4h9a7 7 0 0 1 7 7v9z"/><path d="M9 9h.01"/></svg></span>
                         <div class="garden-sum-body"><span class="garden-sum-val mono" id="garden-sum-healthy" data-value="0">0</span><span class="garden-sum-lbl">Healthy Zones</span></div>
                     </div>
                     <div class="garden-sum-card garden-sum-warn" data-sum="warning">
-                        <span class="garden-sum-ico" aria-hidden="true">⚠️</span>
+                        <span class="garden-sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
                         <div class="garden-sum-body"><span class="garden-sum-val mono" id="garden-sum-warn" data-value="0">0</span><span class="garden-sum-lbl">Warning</span></div>
                     </div>
                     <div class="garden-sum-card garden-sum-crit" data-sum="critical">
-                        <span class="garden-sum-ico" aria-hidden="true">🔴</span>
+                        <span class="garden-sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
                         <div class="garden-sum-body"><span class="garden-sum-val mono" id="garden-sum-crit" data-value="0">0</span><span class="garden-sum-lbl">Critical</span></div>
                     </div>
                     <div class="garden-sum-card garden-sum-off" data-sum="offline">
-                        <span class="garden-sum-ico" aria-hidden="true">📡</span>
+                        <span class="garden-sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12a10 10 0 0 1 14 0"/><path d="M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/></svg></span>
                         <div class="garden-sum-body"><span class="garden-sum-val mono" id="garden-sum-offline" data-value="0">0</span><span class="garden-sum-lbl">Offline Devices</span></div>
                     </div>
                 </div>
@@ -856,7 +856,7 @@
                         <div class="d-card-head"><span class="d-card-label">SYSTEM STATUS</span><span class="d-card-tag mono" id="status-polled-at">—</span></div>
                         <div class="status-grid" id="status-grid">
                             <div class="status-item" data-status-key="backend">
-                                <span class="status-ico" aria-hidden="true">🟢</span>
+                                <span class="status-ico" aria-hidden="true"><svg viewBox="0 0 24 24" stroke-width="2.8"><polyline points="20 6 9 17 4 12"/></svg></span>
                                 <span class="status-dot" id="st-dot-backend"></span>
                                 <div class="status-body">
                                     <span class="status-name">Backend API</span>
@@ -864,7 +864,7 @@
                                 </div>
                             </div>
                             <div class="status-item" data-status-key="yolo">
-                                <span class="status-ico" aria-hidden="true">🤖</span>
+                                <span class="status-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16.01"/><line x1="16" y1="16" x2="16" y2="16.01"/></svg></span>
                                 <span class="status-dot" id="st-dot-yolo"></span>
                                 <div class="status-body">
                                     <span class="status-name">AI Plant Analysis</span>
@@ -872,7 +872,7 @@
                                 </div>
                             </div>
                             <div class="status-item" data-status-key="sensor">
-                                <span class="status-ico" aria-hidden="true">📡</span>
+                                <span class="status-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12a10 10 0 0 1 14 0"/><path d="M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/></svg></span>
                                 <span class="status-dot" id="st-dot-sensor"></span>
                                 <div class="status-body">
                                     <span class="status-name">Sensor Node</span>
@@ -880,7 +880,7 @@
                                 </div>
                             </div>
                             <div class="status-item" data-status-key="analytics">
-                                <span class="status-ico" aria-hidden="true">📊</span>
+                                <span class="status-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
                                 <span class="status-dot" id="st-dot-analytics"></span>
                                 <div class="status-body">
                                     <span class="status-name">Analytics Service</span>
@@ -888,7 +888,7 @@
                                 </div>
                             </div>
                             <div class="status-item" data-status-key="camera">
-                                <span class="status-ico" aria-hidden="true">📷</span>
+                                <span class="status-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
                                 <span class="status-dot" id="st-dot-camera"></span>
                                 <div class="status-body">
                                     <span class="status-name">Camera Permission</span>
@@ -1073,12 +1073,12 @@
                             <div><dt>Environment</dt><dd id="prof-ai-env">—</dd></div>
                         </dl>
                         <div class="prof-ai-rec-block" id="prof-ai-rec-block">
-                            <p id="prof-ai-rec" class="prof-ai-rec">🧠 Run a scan to generate recommendations.</p>
+                            <p id="prof-ai-rec" class="prof-ai-rec"><span class="prof-ai-rec-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg></span> Run a scan to generate recommendations.</p>
                         </div>
                         <span class="prof-ai-time mono" id="prof-ai-time">—</span>
                         </div>
                         <div class="prof-ai-empty" id="prof-ai-empty" hidden>
-                            <span class="prof-ai-empty-ico" aria-hidden="true">🧠</span>
+                            <span class="prof-ai-empty-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="m5 3 1 2.5L8.5 6 6 7 5 9.5 4 7 1.5 6 4 6z"/><path d="m19 17 1 2.5 2.5.5-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z"/></svg></span>
                             <p>No scan data yet — run a plant scan to activate AI insights.</p>
                         </div>
                     </div>
@@ -1105,7 +1105,7 @@
                                 </div>
                             </div>
                             <div class="pp-head-r">
-                                <span class="pp-status pp-status-ok" id="pp-status">🌱 Awaiting first scan</span>
+                                <span class="pp-status pp-status-ok" id="pp-status"><svg viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 4 13V4h9a7 7 0 0 1 7 7v9z"/><path d="M9 9h.01"/></svg><span>Awaiting first scan</span></span>
                             </div>
                         </div>
                         <div class="pp-stats">
@@ -1116,7 +1116,7 @@
                             <div class="pp-stat"><span class="pp-stat-lbl mono">LAST SCANNED</span><span class="pp-stat-val mono" id="pp-last-scanned">—</span></div>
                         </div>
                         <div class="pp-rec-block" id="pp-rec-block" hidden>
-                            <span class="pp-rec-ico" aria-hidden="true">🧠</span>
+                            <span class="pp-rec-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="m5 3 1 2.5L8.5 6 6 7 5 9.5 4 7 1.5 6 4 6z"/><path d="m19 17 1 2.5 2.5.5-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z"/></svg></span>
                             <p class="pp-rec" id="pp-rec">—</p>
                         </div>
                     </section>
@@ -1127,7 +1127,7 @@
                      IDs preserved so profile.js renderers continue to work. -->
                 <h3 class="prof-section-title mono">RECENT SCANS</h3>
                 <div class="prof-scans-row an" style="--d:.18s">
-                    <section class="pp-scans-card" aria-label="Recent scans for this plant">
+                     <section class="pp-scans-card" aria-label="Recent scans for this plant">
                         <div class="pp-history" id="pp-history">
                             <div class="pp-history-head">
                                 <span class="pp-history-title mono">RECENT SCANS · CUCUMBER</span>
@@ -1137,7 +1137,7 @@
                                 <div class="pp-history-empty">Run a scan to populate this plant's history.</div>
                             </div>
                         </div>
-                    </section>
+                     </section>
                 </div>
 
                 <!-- Row 5 — Plant Health Details. The 6 metric chips that
@@ -1145,23 +1145,23 @@
                      vertical story for the focused plant. -->
                 <h3 class="prof-section-title mono">PLANT HEALTH DETAILS</h3>
                 <div class="prof-metrics-row an" style="--d:.2s">
-                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">📸</span><span class="prof-metric-val mono" id="prof-metric-scans">0</span><span class="prof-metric-lbl">Total Scans</span><span class="prof-metric-trend" id="prof-trend-scans"></span></div>
-                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">🎯</span><span class="prof-metric-val mono" id="prof-metric-conf">—</span><span class="prof-metric-lbl">Avg Confidence</span><span class="prof-metric-trend" id="prof-trend-conf"></span></div>
-                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">📍</span><span class="prof-metric-val mono" id="prof-metric-zones">—</span><span class="prof-metric-lbl">Active Zones</span><span class="prof-metric-trend" id="prof-trend-zones"></span></div>
-                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">📡</span><span class="prof-metric-val mono" id="prof-metric-devices">—</span><span class="prof-metric-lbl">Connected Devices</span><span class="prof-metric-trend live" id="prof-trend-devices"></span></div>
-                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">🌱</span><span class="prof-metric-val" id="prof-metric-disease">—</span><span class="prof-metric-lbl">Latest Result</span></div>
-                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true">🕒</span><span class="prof-metric-val mono" id="prof-metric-sensor-ts">—</span><span class="prof-metric-lbl">Last Sensor</span></div>
+                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span><span class="prof-metric-val mono" id="prof-metric-scans">0</span><span class="prof-metric-lbl">Total Scans</span><span class="prof-metric-trend" id="prof-trend-scans"></span></div>
+                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span><span class="prof-metric-val mono" id="prof-metric-conf">—</span><span class="prof-metric-lbl">Avg Confidence</span><span class="prof-metric-trend" id="prof-trend-conf"></span></div>
+                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span><span class="prof-metric-val mono" id="prof-metric-zones">—</span><span class="prof-metric-lbl">Active Zones</span><span class="prof-metric-trend" id="prof-trend-zones"></span></div>
+                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12a10 10 0 0 1 14 0"/><path d="M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/></svg></span><span class="prof-metric-val mono" id="prof-metric-devices">—</span><span class="prof-metric-lbl">Connected Devices</span><span class="prof-metric-trend live" id="prof-trend-devices"></span></div>
+                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 4 13V4h9a7 7 0 0 1 7 7v9z"/><path d="M9 9h.01"/></svg></span><span class="prof-metric-val" id="prof-metric-disease">—</span><span class="prof-metric-lbl">Latest Result</span></div>
+                    <div class="prof-metric-card"><span class="prof-metric-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><span class="prof-metric-val mono" id="prof-metric-sensor-ts">—</span><span class="prof-metric-lbl">Last Sensor</span></div>
                 </div>
                 <div class="prof-mid-grid an" style="--d:.2s">
                     <div class="set-card prof-diag-card">
                         <div class="d-card-head"><span class="d-card-label">SYSTEM DIAGNOSTICS</span></div>
                         <div class="prof-diag-grid">
-                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">🟢</span><span class="prof-diag-dot pd-off" id="prof-diag-api"></span><span>Backend API</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-api">—</span></div>
-                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">🤖</span><span class="prof-diag-dot pd-off" id="prof-diag-yolo"></span><span>AI Plant Analysis</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-yolo">—</span></div>
-                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">📊</span><span class="prof-diag-dot pd-off" id="prof-diag-analytics"></span><span>Analytics</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-analytics">—</span></div>
-                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">📷</span><span class="prof-diag-dot pd-off" id="prof-diag-camera"></span><span>Camera</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-camera">—</span></div>
-                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">📡</span><span class="prof-diag-dot pd-off" id="prof-diag-sensor"></span><span>Sensor Feed</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-sensor">—</span></div>
-                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true">🧠</span><span class="prof-diag-dot pd-off" id="prof-diag-health"></span><span>Health Engine</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-health">—</span></div>
+                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true"><svg viewBox="0 0 24 24" stroke-width="2.8"><polyline points="20 6 9 17 4 12"/></svg></span><span class="prof-diag-dot pd-off" id="prof-diag-api"></span><span>Backend API</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-api">—</span></div>
+                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16.01"/><line x1="16" y1="16" x2="16" y2="16.01"/></svg></span><span class="prof-diag-dot pd-off" id="prof-diag-yolo"></span><span>AI Plant Analysis</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-yolo">—</span></div>
+                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="prof-diag-dot pd-off" id="prof-diag-analytics"></span><span>Analytics</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-analytics">—</span></div>
+                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span><span class="prof-diag-dot pd-off" id="prof-diag-camera"></span><span>Camera</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-camera">—</span></div>
+                            <div class="prof-diag-item"><span class="prof-diag-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12a10 10 0 0 1 14 0"/><path d="M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/></svg></span><span class="prof-diag-dot pd-off" id="prof-diag-sensor"></span><span>Sensor Feed</span><span class="prof-diag-lbl mono" id="prof-diag-lbl-sensor">—</span></div>
+
                         </div>
                     </div>
                     <div class="set-card">
@@ -1376,7 +1376,7 @@
                 <section class="rm-section rm-section-last">
                     <div class="rm-rec-card">
                         <div class="rm-rec-head">
-                            <span class="rm-rec-ico" aria-hidden="true">🧠</span>
+                            <span class="rm-rec-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="m5 3 1 2.5L8.5 6 6 7 5 9.5 4 7 1.5 6 4 6z"/><path d="m19 17 1 2.5 2.5.5-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z"/></svg></span>
                             <h4 class="rm-section-title rm-rec-title">AI Recommendation</h4>
                         </div>
                         <p class="rm-rec-body" id="r-recommendation">—</p>

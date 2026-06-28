@@ -2685,17 +2685,16 @@ textarea:focus-visible,
 .garden-act-item:last-child{border-bottom:none}
 
 /* ---------- H. AI ASSISTANT bubble header accent -------------- */
-/* The existing .chat-bubble-title already sets display:flex /
-   align:center / gap:6px (line ~1802). Hide the decorative
-   sage ::before dot now that the 🧠 emoji is doing the same
-   "this row is AI" job — keeps the title from feeling crowded. */
+/* .chat-bubble-ico hosts the sparkles SVG prefix in AI reply titles.
+   Hide the decorative sage ::before dot since the SVG icon serves the
+   same "this row is AI" visual role without crowding the header. */
 .chat-bubble-title:has(> span[aria-hidden])::before{display:none}
-.chat-bubble-title > span[aria-hidden]{font-size:11px;line-height:1}
+.chat-bubble-ico{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;color:var(--sage)}
+.chat-bubble-ico svg{width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 
-/* ---------- I. ALERT chips emoji sizing ----------------------- */
-/* Garden alert-ico used to carry single glyphs (! / ✕) at
-   font-size:10px. With emoji it needs a touch more room so the
-   character is readable without overflowing the chip. */
+/* ---------- I. ALERT chips SVG sizing ------------------------- */
+/* alert-ico and notif-ico now host SVG icons — font-size drives the
+   em-unit scale for the svg{width:1em;height:1em} rule. */
 .alert-ico{font-size:13px;line-height:1}
 .notif-ico{font-size:14px;line-height:1}
 
@@ -2729,9 +2728,9 @@ textarea:focus-visible,
   vertical-align:-1px;
 }
 
-/* ---------- N. ACTIVITY FEED emoji ---------------------------- */
-/* prof-act-ico hosts approved emojis (📷 / ✅ / ⚠️ / 🧠 / 🔴 / 📢) —
-   make sure the 12px font-size from line 1456 doesn't clip the glyph. */
+/* ---------- N. ACTIVITY FEED icons ---------------------------- */
+/* prof-act-ico hosts SVG icons — the 28px container and 55% SVG
+   sizing in the .prof-act-ico svg rule above handle scaling. */
 .prof-act-ico{font-size:13px;line-height:1}
 
 /* =========================================================
@@ -2745,67 +2744,74 @@ textarea:focus-visible,
    pivot — no token / color / typography changes.
    ========================================================= */
 
-/* --- Emoji rendering inside circular icon containers.
-   The `font-size` is calibrated to fill ~55–60% of the
-   container, matching the visual weight that the SVG icons
-   carried before the swap. Line-height:1 keeps the glyph
-   from inflating the row, and the text-rendering hint
-   silences variant-selector fall-back to monochrome. */
+/* === SVG icon rendering — replaces all emoji-based icon surfaces.
+   SVGs now carry all icon meaning. The :where() selector batch applies
+   flex centering and a sensible default size across every icon host. */
 :where(.smc-ico,.garden-sum-ico,.prof-metric-ico,.alert-ico,
-       .notif-ico,.prof-act-ico,.r-ico-emoji,.prof-diag-ico,
-       .status-ico,.stat-badge,.home-warnings-head > span,
-       .home-care-item-lbl > span,.home-warn-chip > span,
+       .notif-ico,.prof-act-ico,.prof-diag-ico,
+       .status-ico,.stat-badge,
+       .home-warnings-head>.warn-ico,
+       .home-care-item-lbl>.care-ico,.home-warn-ico,
        .pp-status,.r-advisory-ico,.prof-ai-empty-ico,
-       .pp-rec-ico,.prof-ai-rec-ico){
-  font-variant-emoji:emoji;
-  text-rendering:optimizeLegibility;
-  font-feature-settings:"liga" off;
+       .pp-rec-ico,.prof-ai-rec-ico,.r-ico-svg,.headline-ico){
+  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0
+}
+:where(.smc-ico,.garden-sum-ico,.prof-metric-ico,.alert-ico,
+       .notif-ico,.prof-act-ico,.prof-diag-ico,
+       .status-ico,.home-warnings-head>.warn-ico,
+       .home-care-item-lbl>.care-ico,.home-warn-ico,
+       .pp-rec-ico,.prof-ai-rec-ico,.r-ico-svg,.headline-ico) svg{
+  width:1em;height:1em;display:block;fill:none;
+  stroke:currentColor;stroke-width:1.6;
+  stroke-linecap:round;stroke-linejoin:round
 }
 
-/* SMC rings (Analytics System Metrics) — emoji needs the
-   ring's full visual presence. Override the prior 16px font
-   so the emoji sits at ~24px inside the 48px ring. */
+/* SMC rings (Analytics System Metrics) — SVG sits at ~24px inside the 48px ring. */
 .smc-ring .smc-ico{font-size:24px;line-height:1}
 @media(max-width:768px){.smc-ring .smc-ico{font-size:20px}}
 
-/* Garden summary chip emoji (the 4 strip at top of Garden) */
+/* Garden summary chip icon */
 .garden-sum-ico{font-size:22px;line-height:1}
 @media(max-width:768px){.garden-sum-ico{font-size:18px}}
 
-/* Home stats row — small status badges. The original sb-* badges
-   carried 8px text glyphs (OK / ! / ✕); emojis need a touch more
-   font-size to render. The neutral background still encodes tone
-   colour through .sb-ok/.sb-warn/.sb-crit. */
+/* Home stats row — small status badges. */
 .stat-badge{font-size:14px;font-weight:400;line-height:1;background:transparent;width:auto;height:auto;padding:0}
 .sb-ok,.sb-warn,.sb-crit{background:transparent}
 
-/* Profile metric chip emoji — bump emoji rendering size to ~18px
-   so it carries the row's visual weight without crowding. */
+/* Profile metric icon — 18px em size for row visual weight. */
 .prof-metric-ico{font-size:18px;line-height:1}
 
-/* System Diagnostics emoji prefix (Profile + Settings).
-   The dot stays as a small status colour cue; the emoji is the
-   identity. Spacing keeps the row at the same height. */
+/* System Diagnostics icon (Profile + Settings). */
 .prof-diag-ico,.status-ico{font-size:14px;line-height:1;flex-shrink:0}
 .prof-diag-item{gap:6px}
 .status-item{gap:8px}
 .status-ico{margin-top:1px}
 
-/* Result modal hero icon — the 62px ring now hosts an emoji
-   instead of a stroked SVG. Centre the glyph at a generous size
-   so it reads as the "single hero" element of the card. */
-.r-ico-emoji{display:inline-flex;align-items:center;justify-content:center;font-size:32px;line-height:1;width:100%;height:100%}
+/* Result modal hero icon — SVG fills the 62px ring. */
+.r-ico-svg{display:inline-flex;align-items:center;justify-content:center;width:100%;height:100%}
+.r-ico-svg svg{width:32px;height:32px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 
-/* Result modal advisory icon — was a stroked brain SVG, now 🧠.
-   Drop the box treatment so the emoji sits inline with the
-   "AI ADVISORY" eyebrow without an extra chip background. */
+/* Headline icons in result modal title (small inline SVG). */
+.headline-ico{font-size:16px;vertical-align:middle;margin-right:4px}
+
+/* Care card label icons. */
+.care-ico{font-size:16px;margin-right:4px;color:var(--sage)}
+/* Warning header icon. */
+.warn-ico{font-size:16px;color:var(--gold)}
+/* Inline warning chip icon. */
+.home-warn-ico{font-size:13px;vertical-align:middle}
+
+/* Result modal advisory icon. */
 .r-advisory-ico{background:transparent;border:none;width:auto;height:auto;font-size:16px;line-height:1}
 
-/* --- Alert items (Garden Live Alerts) — emoji-first.
-   Bump emoji font-size, give the row a touch more padding, and
-   add a 3px left border whose colour mirrors the severity token
-   so severity is glanceable without needing colour theming. */
-.alert-ico{font-size:16px;line-height:1;background:transparent;width:auto;height:auto;border-radius:0}
+/* Result modal advisory icon. Drop the box treatment. */
+.r-advisory-ico{background:transparent;border:none;width:auto;height:auto;font-size:16px;line-height:1}
+
+/* --- Alert items (Garden Live Alerts) — SVG icon.
+   Give the icon column a fixed size and remove old emoji-specific
+   font-size rules. The 3px left border encodes severity at a glance. */
+.alert-ico{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;background:transparent;border-radius:0;flex-shrink:0}
+.alert-ico svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .alert-item{padding-top:10px;padding-bottom:10px;border-left:3px solid var(--b1);padding-left:10px;border-radius:6px}
 .alert-item.alert-crit{border-left-color:var(--coral)}
 .alert-item.alert-warn{border-left-color:var(--gold)}

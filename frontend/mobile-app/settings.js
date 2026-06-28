@@ -460,7 +460,7 @@
         if (!v) return;
         localStorage.setItem(storageKey, v);
         window[windowKey] = v;
-        showToast("✅ Session identity updated");
+        showToast("Session identity updated");
         syncIdentityFields();
       };
     };
@@ -474,7 +474,7 @@
         await window.plantSensorRefresh(true);
       }
       await refreshSystemStatus();
-      showToast("✅ Sensor poll complete");
+      showToast("Sensor poll complete");
     });
 
     document.getElementById("btn-clear")?.addEventListener("click", () => {
@@ -483,7 +483,7 @@
         localStorage.removeItem(k)
       );
       updateStorageEstimate();
-      showToast("✅ Cached app data cleared");
+      showToast("Cached app data cleared");
     });
 
     // -----------------------------------------------------------------
@@ -502,7 +502,7 @@
         window.plantDemo.setOn(on);
         _renderDemoChip();
         _renderDemoState();
-        showToast(on ? "✅ Demo Mode enabled — using fixtures" : "✅ Demo Mode disabled — using live backend");
+        showToast(on ? "Demo Mode enabled — using fixtures" : "Demo Mode disabled — using live backend");
       });
     }
     window.addEventListener("plantvision:demo-mode-changed", () => {
@@ -518,7 +518,7 @@
       try { scenSel.value = window.plantDemo.scenario(); } catch (_) {}
       scenSel.addEventListener("change", (e) => {
         const v = window.plantDemo.setScenario(e.target.value);
-        showToast("✅ Demo scenario: " + (v === "healthy" ? "Thriving cucumber" : "Powdery mildew (warning)"));
+        showToast("Demo scenario: " + (v === "healthy" ? "Thriving cucumber" : "Powdery mildew (warning)"));
       });
     }
 

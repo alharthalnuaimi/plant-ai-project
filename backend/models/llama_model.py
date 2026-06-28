@@ -65,17 +65,27 @@ class GeminiClient:
         self,
         messages: list[dict[str, str]],
     ) -> str:
+        """Send messages to Gemini using system_instruction + user content."""
+        from google.genai import types as genai_types
 
-        prompt = "\n\n".join(
-            f"{m['role'].upper()}:\n{m['content']}"
-            for m in messages
-        )
+        system_text = ""
+        user_text = ""
+        for m in messages:
+            if m.get("role") == "system":
+                system_text += m["content"] + "\n"
+            else:
+                user_text += m["content"] + "\n"
 
         client = genai.Client(api_key=self.api_key)
 
+        config = genai_types.GenerateContentConfig(
+            system_instruction=system_text.strip() if system_text.strip() else None,
+        )
+
         response = client.models.generate_content(
             model=self.model,
-            contents=prompt,
+            contents=user_text.strip(),
+            config=config,
         )
 
         text = getattr(response, "text", None) or ""
@@ -149,15 +159,7 @@ def fallback_narrative(context: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
-_FIVE_ASPECT_GUIDANCE = (
-    "Cover ALL FIVE aspects in your `explanation` field, in this order: "
-    "(1) plant summary (identification + family/genus when present), "
-    "(2) health assessment (current disease/stress signals), "
-    "(3) risk assessment (what could go wrong given sensors + history), "
-    "(4) care recommendations (watering, light, nutrients, pruning), and "
-    "(5) environmental advice (temperature/humidity/soil adjustments). "
-    "Keep the JSON shape exactly: {\"recommendation\": \"...\", \"explanation\": \"...\"}."
-)
+# Removed fixed five-aspect structure — Gemini now answers the user's actual question naturally.
 
 
 def build_reasoning_prompts(
@@ -176,13 +178,12 @@ def build_reasoning_prompts(
     recovery = load_prompt("recovery")
     user_template = load_prompt("survival_analysis")
     system_parts = [x for x in [diagnosis, recovery] if x]
-    system_parts.append(_FIVE_ASPECT_GUIDANCE)
     system = "\n".join(system_parts).strip()
     if not system:
         system = (
-            "Use only provided context. Do not invent disease labels. "
-            "Return strict JSON with keys recommendation and explanation. "
-            + _FIVE_ASPECT_GUIDANCE
+            "You are a knowledgeable plant care assistant. "
+            "Answer the user's question directly. "
+            "Return strict JSON with keys recommendation and explanation."
         )
     user = user_template.format(
         context_json=json.dumps(context, ensure_ascii=True),

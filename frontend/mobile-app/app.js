@@ -118,6 +118,11 @@ const resModal  = document.getElementById('res-modal');
 const mFill     = document.getElementById('m-fill');
 const mLbl      = document.getElementById('m-lbl');
 let timer = null;
+// Monotonically-increasing counter bumped at the start of every scan and on
+// every showScanError call. autoGeminiAnalysis captures the value when it
+// starts and bails out before any DOM write if the counter has moved on,
+// preventing stale callbacks from overwriting a newer scan state.
+let _scanGeneration = 0;
 
 const scanFileInput = document.createElement('input');
 scanFileInput.type = 'file';
@@ -218,6 +223,14 @@ function _resolveResultTone(result, userOk){
   return 'warn';
 }
 
+// SVG icon map for result tones — professional icon-first design language.
+const RESULT_SVGS = {
+  ok:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12"/><path d="M12 12c-3 0-6-2-6-6 4 0 6 2 6 6z"/><path d="M12 12c3 0 6-2 6-6-4 0-6 2-6 6z"/></svg>',
+  warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  crit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+  scan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+};
+
 function _setResultIcon(tone){
   const wrap = document.getElementById('r-ico');
   if(!wrap) return;
@@ -225,24 +238,25 @@ function _setResultIcon(tone){
   wrap.style.animation = 'none';
   void wrap.offsetWidth;
   wrap.style.animation = '';
-  // Emoji-first design language — the result-modal hero icon now uses
-  // an approved emoji (🌱 / ⚠️ / 🔴) instead of a stroked SVG.
-  const emojis = { ok: '🌱', warn: '⚠️', crit: '🔴' };
-  wrap.innerHTML = '<span class="r-ico-emoji" aria-hidden="true">' + (emojis[tone] || emojis.ok) + '</span>';
+  // Professional SVG icon replaces emoji in result-modal hero.
+  wrap.innerHTML = '<span class="r-ico-svg" aria-hidden="true">' + (RESULT_SVGS[tone] || RESULT_SVGS.ok) + '</span>';
 }
 
 function _resultHeadline(result, tone, userOk){
-  // Hybrid icon/emoji pass — a single leading emoji accents the
-  // headline based on tone (kept the SVG ring; emoji lives in
-  // user-facing copy only). Never two emojis in a row.
-  if(!userOk) return '⚠️ Low Confidence';
-  if(_isHealthyDisease(result?.disease)) return '🌱 Healthy Plant';
-  if(tone === 'crit') return '🔴 Critical Detection';
-  if(tone === 'warn') return '⚠️ Disease Detected';
-  return '📷 Analysis Complete';
+  // Icon-prefixed headlines using inline SVG spans — no emojis.
+  const ico = (key) => '<span class="headline-ico" aria-hidden="true">' + (RESULT_SVGS[key] || '') + '</span>';
+  if(!userOk)                            return ico('warn') + ' Low Confidence';
+  if(_isHealthyDisease(result?.disease)) return ico('ok')   + ' Healthy Plant';
+  if(tone === 'crit')                    return ico('crit') + ' Critical Detection';
+  if(tone === 'warn')                    return ico('warn') + ' Disease Detected';
+  return ico('scan') + ' Analysis Complete';
 }
 
 function showPredictResult(result){
+  const scanZone = result.zone_id || (result.metadata && result.metadata.zone_id) || 'zone_alpha';
+  const scanDevice = result.device_id || (result.metadata && result.metadata.device_id) || 'esp32_001';
+  const scanSource = result.scan_source || (result.metadata && result.metadata.scan_source) || 'upload';
+
   // Phase E — Final MVP result-card redesign.
   //   - The three sections (Plant Identification / Environment / AI
   //     Recommendation) are populated below from the existing API
@@ -405,10 +419,109 @@ function showPredictResult(result){
           ?.replace(/\b\w/g, c => c.toUpperCase())
         || result.disease
     };
-
     window.plantAssistant.setLastScan(assistantResult);
-    //window.plantAssistant.setLastScan(result);
   }
+
+  // ── Auto-Gemini Analysis ──────────────────────────────────────────────
+  // Immediately after showing the scan result, call Gemini with the full
+  // context (PlantNet ID + disease + sensor readings) so the recommendation
+  // shown in the result card is powered by real AI, not a hardcoded rule.
+  //
+  // IMPORTANT: capture the generation ID NOW (synchronously) so the async
+  // callbacks below can bail out if showScanError has been called in the
+  // meantime (which increments _scanGeneration), preventing stale writes.
+  (async function autoGeminiAnalysis(myGeneration) {
+    // Helper: bail out if a newer scan event has superseded this one.
+    const isStale = () => _scanGeneration !== myGeneration;
+
+    const recEl = document.getElementById('r-recommendation');
+    const recLegacyEl = document.getElementById('r-rec');
+
+    // Show loading state in the recommendation area.
+    const loadingMsg = 'Analysing your plant with AI...';
+    if (recEl) recEl.textContent = loadingMsg;
+    if (recLegacyEl) recLegacyEl.textContent = loadingMsg;
+
+    try {
+      const snap   = (result.metadata && result.metadata.sensor_snapshot) || {};
+      const health = result.health || {};
+      const plant  = result.plant  || {};
+
+      const species =
+        plant.common_name ||
+        result.plant_name ||
+        snap.species ||
+        'plant';
+
+      // Build a natural question so Gemini knows context and purpose.
+      const diseaseLabel = (result.metadata?.raw_disease_label || result.disease || 'unknown')
+        .replace(/_/g, ' ');
+      const plantName = plant.common_name
+        ? `${plant.common_name} (${plant.scientific_name || 'unknown species'})`
+        : species;
+      const autoQuestion =
+        `I just scanned my ${plantName}. ` +
+        `The disease model detected: "${diseaseLabel}" with ${((result.confidence || 0) * 100).toFixed(1)}% confidence. ` +
+        `Based on the plant identification, disease result, and current sensor readings, ` +
+        `what is your diagnosis and what should I do to take care of this plant right now?`;
+
+      const payload = {
+        vision: {
+          disease:       result.metadata?.raw_disease_label || result.disease || 'unknown',
+          confidence:    Number(result.confidence) || 0,
+          stress_hint:   result.stress_hint || 'unknown',
+          class_name:    result.class_name || '',
+          disease_type:  result.disease_type || 'unknown',
+          accepted:      result.accepted !== false,
+          plant:         plant,
+          health:        health,
+        },
+        sensors: {
+          soil_moisture: Number(snap.soil_humidity  ?? snap.soil_moisture  ?? 50),
+          temperature:   Number(snap.air_temperature ?? snap.temperature   ?? 25),
+          humidity:      Number(snap.air_humidity    ?? snap.humidity      ?? 60),
+          species,
+        },
+        user_question: autoQuestion,
+      };
+
+      const data = await postChat(payload);
+
+      // Abort if a newer scan or error has happened while we were awaiting.
+      if (isStale()) return;
+
+      // Ignore fallback_error responses — they contain the rule-based
+      // narrative which is less informative than what showPredictResult
+      // already populated. Only update for genuine Gemini replies.
+      const isGemini = data.source === 'gemini';
+      const aiRec = isGemini ? (data.reply || data.recommendation || '') : '';
+
+      if (aiRec) {
+        if (recEl)       recEl.textContent = aiRec;
+        if (recLegacyEl) recLegacyEl.textContent = aiRec;
+      } else {
+        // Gemini was offline / fallback — restore the rule-based recommendation
+        // that showPredictResult already computed.
+        const ruleRec = (result.health && result.health.recommendation)
+          || result.recommendation
+          || result.stress_hint
+          || '—';
+        if (recEl)       recEl.textContent = ruleRec;
+        if (recLegacyEl) recLegacyEl.textContent = ruleRec;
+      }
+    } catch (err) {
+      console.warn('Auto Gemini analysis failed (non-fatal):', err);
+      if (isStale()) return;
+      // Restore the original rule-based recommendation.
+      const fallbackRec = (result.health && result.health.recommendation)
+        || result.recommendation
+        || result.stress_hint
+        || '—';
+      if (recEl)       recEl.textContent = fallbackRec;
+      if (recLegacyEl) recLegacyEl.textContent = fallbackRec;
+    }
+  })(_scanGeneration);
+  // ─────────────────────────────────────────────────────────────────────
 
   const confChip = document.getElementById('s-conf');
   if(confChip){
@@ -456,13 +569,17 @@ function showPredictResult(result){
 }
 
 function showScanError(message){
+  // Bump the generation so any pending autoGeminiAnalysis IIFE knows to abort
+  // its DOM writes — this prevents stale callbacks from overwriting the error
+  // state after we reset the modal fields below.
+  _scanGeneration++;
   clearScanTimer();
   scanModal.classList.remove('active');
   const titleEl = document.getElementById('r-title');
   const card = document.getElementById('res-modal-card');
   if(card) card.setAttribute('data-tone', 'crit');
   _setResultIcon('crit');
-  if(titleEl) titleEl.textContent = '🔴 Scan Failed';
+  if(titleEl) titleEl.textContent = 'Scan Failed';
   // Phase E — reset every visible field in the new modal layout so the
   // error state doesn't show stale values from the previous scan. The
   // legacy ids (r-species/r-conf/r-hp/r-risk/r-surv/r-rec) are also
@@ -486,6 +603,9 @@ function showScanError(message){
 }
 
 async function runPlantPredict(file, opts = {}){
+  // Each new scan gets a fresh generation ID so any still-running
+  // autoGeminiAnalysis from a previous scan knows to discard its results.
+  _scanGeneration++;
   let finishedProgress = false;
   runProgressAnimation(() => { finishedProgress = true; });
 
@@ -1281,7 +1401,7 @@ zmSave.addEventListener('click', async ()=>{
         renderZoneChips();
         renderMapMarkers();
         _notifyZonesChanged();
-        pvToast('⚠️ Could not save zone — kept previous values');
+        pvToast('Could not save zone — kept previous values');
       }
     }
     return;
@@ -1315,7 +1435,7 @@ zmSave.addEventListener('click', async ()=>{
       renderZoneChips();
       renderMapMarkers();
       _notifyZonesChanged();
-      pvToast('⚠️ Could not save zone — backend unreachable');
+      pvToast('Could not save zone — backend unreachable');
       return;
     }
     // Reconcile the optimistic record with the backend's authoritative
@@ -1331,7 +1451,7 @@ zmSave.addEventListener('click', async ()=>{
       renderMapMarkers();
       _notifyZonesChanged();
     }
-    pvToast('✅ Zone saved');
+    pvToast('Zone saved');
   }
 });
 
@@ -1343,7 +1463,7 @@ zmDelete.addEventListener('click', ()=>{
       closeZoneModal();
     } else {
       zmDelete.dataset.confirm = 'true';
-      zmDelete.textContent = '⚠️ Confirm Delete?';
+      zmDelete.textContent = 'Confirm Delete?';
       zmDelete.style.background = 'var(--coral-dim)';
       zmDelete._resetTimer = setTimeout(()=>{
         zmDelete.dataset.confirm = '';
@@ -1384,10 +1504,10 @@ async function executeDeleteZone(id){
       renderZoneChips();
       renderMapMarkers();
       _notifyZonesChanged();
-      pvToast('⚠️ Could not delete zone — backend unreachable');
+      pvToast('Could not delete zone — backend unreachable');
       return;
     }
-    pvToast('✅ Zone deleted');
+    pvToast('Zone deleted');
   }
 }
 
@@ -1925,7 +2045,7 @@ try {
 } catch(_){}
 
 const botResponses = [
-  {k:['hello','hi','hey'], r:"Hello! How can I help with your plants today? 🌱"},
+  {k:['hello','hi','hey'], r:"Hello! How can I help with your plants today?"},
   {k:['leaf spot','spots','brown spot'], r:"Leaf spots are often caused by fungal infections. Remove affected leaves, improve air circulation, and apply a copper-based fungicide. Avoid overhead watering."},
   {k:['yellow','yellowing'], r:"Yellowing leaves can indicate overwatering, nutrient deficiency (especially nitrogen), or insufficient light. Check soil moisture first — let the top inch dry between waterings."},
   {k:['water','watering','how often'], r:"Most indoor plants prefer watering when the top 1-2 inches of soil are dry. Your capacitive soil sensor reads "+document.getElementById('s-soil')?.textContent+". Below 30% usually means it's time to water."},
@@ -1944,7 +2064,7 @@ function getBotReply(msg){
   for(const b of botResponses){
     if(b.k.some(k=> lower.includes(k))) return b.r;
   }
-  return "I can help with plant care, disease identification, sensor readings, and garden management. Try asking about watering, pH levels, light requirements, or specific plant species! 🌱";
+  return "I can help with plant care, disease identification, sensor readings, and garden management. Try asking about watering, pH levels, light requirements, or specific plant species!";
 }
 
 function escapeChatHtml(text){
@@ -1973,11 +2093,8 @@ function addRichMsg(card){
     return `<div class="chat-bubble-row"><strong>${escapeChatHtml(r.label)}</strong><span class="chat-bubble-val${tone}">${escapeChatHtml(r.value)}</span></div>`;
   }).join('');
   const foot = card.foot ? `<div class="chat-bubble-foot">${escapeChatHtml(card.foot)}</div>` : '';
-  // Hybrid emoji pass — rich AI bubble title is treated as the
-  // assistant's "header" surface, so a single 🧠 prefix lives
-  // here (NOT on every chat line). Plain chat-msg-bot bubbles
-  // stay emoji-free so we don't spam the conversation.
-  const title = card.title ? `<div class="chat-bubble-title"><span aria-hidden="true">🧠</span>${escapeChatHtml(card.title)}</div>` : '';
+  // AI bubble title uses a sparkles SVG prefix instead of an emoji.
+  const title = card.title ? `<div class="chat-bubble-title"><span class="chat-bubble-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg></span>${escapeChatHtml(card.title)}</div>` : '';
   div.innerHTML = `<div class="chat-bubble chat-bubble-rich"><div class="chat-bubble-card">${title}${rows}${foot}</div></div><span class="chat-time mono">${time}</span>`;
   chatBody.appendChild(div);
   chatBody.scrollTop = chatBody.scrollHeight;
@@ -2099,24 +2216,66 @@ function buildQuickActionCard(qa){
 
 function handleChatQuickAction(qa){
   const labelMap = {
-    health: 'Plant Health',
-    scan: 'Latest Scan',
-    zones: 'Zone Status',
-    sensors: 'Sensor Summary',
-    advice: 'What Should I Do?',
+    health:  'Tell me about my plant health status.',
+    scan:    'What were the results of my latest scan?',
+    zones:   'How are my growing zones doing?',
+    sensors: 'Summarise my current sensor readings.',
+    advice:  'What should I do to take care of my plant right now?',
   };
-  addMsg(labelMap[qa] || qa, true);
+  const userText = labelMap[qa] || qa;
+  addMsg(userText, true);
   showTyping();
-  setTimeout(async () => {
+
+  // All quick actions route through Gemini for genuine AI answers.
+  (async () => {
     if(window.plantAssistant && typeof window.plantAssistant.refreshContext === 'function'){
       try { await window.plantAssistant.refreshContext(); } catch(_) { /* offline */ }
     }
-    removeChatTyping();
-    const card = buildQuickActionCard(qa);
-    if(card) addRichMsg(card);
-    else addMsg('No data available yet.', false);
-  }, 420 + Math.random() * 280);
+    const ctx      = window.plantAssistant?.getContext?.() || {};
+    const lastScan = ctx.lastScan;
+    const sensor   = ctx.lastSensor || {};
+    const species  =
+      (lastScan?.plant && lastScan.plant.common_name) ||
+      lastScan?.plant_name ||
+      sensor.species ||
+      'plant';
+
+    const payload = {
+      vision: {
+        disease:      lastScan?.metadata?.raw_disease_label || lastScan?.disease || 'unknown',
+        confidence:   Number(lastScan?.confidence) || 0,
+        stress_hint:  lastScan?.stress_hint  || 'unknown',
+        class_name:   lastScan?.class_name   || '',
+        disease_type: lastScan?.disease_type || 'unknown',
+        accepted:     lastScan?.accepted !== false,
+        plant:        lastScan?.plant  || null,
+        health:       lastScan?.health || null,
+      },
+      sensors: {
+        soil_moisture: Number(sensor.soil_humidity   ?? sensor.soil_moisture ?? 50),
+        temperature:   Number(sensor.air_temperature ?? sensor.temperature   ?? 25),
+        humidity:      Number(sensor.air_humidity    ?? sensor.humidity      ?? 60),
+        species,
+      },
+      user_question: userText,
+    };
+
+    try {
+      const data = await postChat(payload);
+      removeChatTyping();
+      const replyText = data.reply || data.recommendation || 'No response returned.';
+      if (data.source && data.source !== 'gemini') {
+        addMsg(`${replyText}\n\n(Assistant: ${data.source})`, false);
+      } else {
+        addMsg(replyText, false);
+      }
+    } catch (err) {
+      removeChatTyping();
+      addMsg(`Chat error: ${err.message || String(err)}`, false);
+    }
+  })();
 }
+
 
 document.querySelectorAll('.chat-qa-chip').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -2300,19 +2459,7 @@ async function sendMsg() {
   try {
     const ctx = window.plantAssistant?.getContext?.();
 
-    // Fast local replies for common dashboard questions.
-    if (
-      window.plantAssistant &&
-      typeof window.plantAssistant.getContextualReply === 'function'
-    ) {
-      const localReply = window.plantAssistant.getContextualReply(text);
-      if (localReply) {
-        removeChatTyping();
-        addMsg(localReply, false);
-        return;
-      }
-    }
-
+    // All messages go to Gemini for genuine AI responses.
     const lastScan = ctx?.lastScan;
     const sensor = ctx?.lastSensor || {};
     const species =
@@ -2753,25 +2900,22 @@ const btnBell = document.getElementById('btn-bell');
 const notifMarkAll = document.getElementById('notif-mark-all');
 const notifClearAll = document.getElementById('notif-clear-all');
 
-// Default notifications.
-// Notification icons are RENDERED INLINE inside `.notif-ico`, so they
-// must come from the approved emoji set (notifications are a content
-// surface, not chrome). Mapping per the design language pass:
-//   alert (warning) -> ⚠️, alert (critical) -> 🔴
-//   scan complete   -> 📷  (use 🌱/⚠️/🔴 for outcome-flavoured ones)
-//   zone (water)    -> 💧  (water/irrigation concept)
-//   ai recommend.   -> 🧠
-//   system message  -> 📢, success/sensor connect -> ✅
-// Phase B — Default notifications used to ship hardcoded species names
-// (Monstera deliciosa, Pothos Aureum). The new defaults are generic so
-// no fake species identity is implied before the user's first real scan.
+// SVG icon map for notification types — replaces emoji icon field.
+const NOTIF_SVGS = {
+  alert:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  scan:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12"/><path d="M12 12c-3 0-6-2-6-6 4 0 6 2 6 6z"/><path d="M12 12c3 0 6-2 6-6-4 0-6 2-6 6z"/></svg>',
+  zone:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>',
+  sensor: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  system: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>',
+};
+
 const defaultNotifications = [
-  { id:'n1', type:'alert',  icon:'🔴', title:'Fungus Detected — Zone D',  desc:'Greenhouse zone shows signs of leaf spot fungus on 2 plants. Immediate attention recommended.', time: Date.now() - 4*3600000, read:false },
-  { id:'n2', type:'scan',   icon:'🌱', title:'Scan Complete — Zone Alpha', desc:'Latest plant analysis passed the health check. Run a new scan to see live data.', time: Date.now() - 7200000, read:false },
-  { id:'n3', type:'zone',   icon:'💧', title:'Zone B Needs Water',        desc:'Soil moisture in Herb Garden dropped below 30%. Consider watering basil and mint.', time: Date.now() - 8*3600000, read:false },
-  { id:'n4', type:'sensor', icon:'✅', title:'ESP32-D3 Connected',        desc:'New device ESP32-D3 (192.168.1.16) successfully paired with Zone D Greenhouse.', time: Date.now() - 18*3600000, read:true },
-  { id:'n5', type:'system', icon:'📢', title:'Neural Engine Updated',     desc:'AI plant analysis model updated to v4.2.1. Detection accuracy improved by 3.2% across all species.', time: Date.now() - 86400000, read:true },
-  { id:'n6', type:'scan',   icon:'🌱', title:'Scan Complete — Zone Beta',  desc:'Latest plant analysis passed the health check. Run a new scan to see live data.', time: Date.now() - 3600000, read:true },
+  { id:'n1', type:'alert',  title:'Fungus Detected — Zone D',  desc:'Greenhouse zone shows signs of leaf spot fungus on 2 plants. Immediate attention recommended.', time: Date.now() - 4*3600000, read:false },
+  { id:'n2', type:'scan',   title:'Scan Complete — Zone Alpha', desc:'Latest plant analysis passed the health check. Run a new scan to see live data.', time: Date.now() - 7200000, read:false },
+  { id:'n3', type:'zone',   title:'Zone B Needs Water',        desc:'Soil moisture in Herb Garden dropped below 30%. Consider watering basil and mint.', time: Date.now() - 8*3600000, read:false },
+  { id:'n4', type:'sensor', title:'ESP32-D3 Connected',        desc:'New device ESP32-D3 (192.168.1.16) successfully paired with Zone D Greenhouse.', time: Date.now() - 18*3600000, read:true },
+  { id:'n5', type:'system', title:'Neural Engine Updated',     desc:'AI plant analysis model updated to v4.2.1. Detection accuracy improved by 3.2% across all species.', time: Date.now() - 86400000, read:true },
+  { id:'n6', type:'scan',   title:'Scan Complete — Zone Beta',  desc:'Latest plant analysis passed the health check. Run a new scan to see live data.', time: Date.now() - 3600000, read:true },
 ];
 
 let notifications = JSON.parse(localStorage.getItem('pv-notifications')) || [...defaultNotifications];
@@ -2821,7 +2965,7 @@ function renderNotifications(animate){
       if(animate) item.style.animationDelay = (i * 0.04) + 's';
 
       item.innerHTML =
-        `<div class="notif-ico ${getNotifIconClass(n.type)}">${n.icon}</div>` +
+        `<div class="notif-ico ${getNotifIconClass(n.type)}">${NOTIF_SVGS[n.type] || NOTIF_SVGS.system}</div>` +
         `<div class="notif-body">` +
           `<span class="notif-title">${n.title}</span>` +
           `<span class="notif-desc">${n.desc}</span>` +
@@ -2947,15 +3091,10 @@ const resObserver = new MutationObserver((mutations) => {
       const conf  = document.getElementById('r-plant-conf')?.textContent
                   || document.getElementById('r-conf')?.textContent
                   || '—';
-      // Outcome-flavoured notification icon: read the tone the result
-      // modal just settled on, then pick the matching approved emoji.
-      // Falls back to 📷 ("Analysis Complete") when tone is unknown.
+      // Use type-based SVG icon for the notification
       const tone = document.getElementById('res-modal-card')?.getAttribute('data-tone') || '';
-      const scanIcon = tone === 'crit' ? '🔴'
-                     : tone === 'warn' ? '⚠️'
-                     : tone === 'ok'   ? '🌱'
-                     : '📷';
-      pushNotification('scan', scanIcon, `Scan Complete — ${plant}`, `Confidence: ${conf}. See result card for the AI recommendation.`);
+      const scanType = tone === 'crit' ? 'alert' : tone === 'warn' ? 'alert' : 'scan';
+      pushNotification(scanType, '', `Scan Complete — ${plant}`, `Confidence: ${conf}. See result card for the AI recommendation.`);
     }
   });
 });
@@ -2976,15 +3115,15 @@ function checkSensorAlerts(){
     const data = deviceSensorData[d.uid];
     if(!data) return;
     if(data.soil < soilTh){
-      pushNotification('alert', '⚠️', `Low Soil Moisture — ${d.name}`, `Zone ${d.zoneId.toUpperCase()} sensor reads ${data.soil}% soil moisture. Plants may need watering.`);
+      pushNotification('alert', '', `Low Soil Moisture — ${d.name}`, `Zone ${d.zoneId.toUpperCase()} sensor reads ${data.soil}% soil moisture. Plants may need watering.`);
       lastSensorAlert = Date.now();
     }
     if(data.temp > tempTh){
-      pushNotification('alert', '⚠️', `High Temperature Alert — ${d.name}`, `Zone ${d.zoneId.toUpperCase()} reports ${data.temp}°C. Consider ventilation or shade.`);
+      pushNotification('alert', '', `High Temperature Alert — ${d.name}`, `Zone ${d.zoneId.toUpperCase()} reports ${data.temp}°C. Consider ventilation or shade.`);
       lastSensorAlert = Date.now();
     }
     if(data.ph < phMin){
-      pushNotification('alert', '⚠️', `Low pH Warning — ${d.name}`, `Zone ${d.zoneId.toUpperCase()} soil pH at ${data.ph}. Optimal range is 6.0–7.0.`);
+      pushNotification('alert', '', `Low pH Warning — ${d.name}`, `Zone ${d.zoneId.toUpperCase()} soil pH at ${data.ph}. Optimal range is 6.0–7.0.`);
       lastSensorAlert = Date.now();
     }
   });

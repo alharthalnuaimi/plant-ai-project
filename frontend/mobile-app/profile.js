@@ -272,7 +272,7 @@
     }
     if (recEl) {
       const base = health?.recommendation || "Run a scan to generate AI recommendations.";
-      recEl.textContent = "🧠 " + base;
+      recEl.innerHTML = '<span class="prof-ai-rec-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg></span> ' + base;
     }
     if (timeEl) {
       const ts = localStorage.getItem("pv-last-scan-ts");
@@ -305,14 +305,19 @@
         '<div class="prof-act-empty prof-act-empty-premium"><div class="garden-empty-pulse"><span class="garden-empty-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></span></div><strong>Monitoring active</strong><span>Waiting for scan or sensor events…</span></div>';
       return;
     }
-    // Activity feed = content surface → approved emoji set only.
-    // scan = 📷 outcome, sensor/device = ✅ ("event landed"),
-    // alert/critical = 🔴, ai-recommendation = 🧠, system = 📢.
-    const typeIcon = { scan: "📷", sensor: "✅", alert: "🔴", ai: "🧠", device: "✅", system: "📢" };
+    // Activity feed — SVG icon map replacing emoji for a professional design language.
+    const ACTIVITY_SVGS = {
+      scan:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+      sensor: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+      alert:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+      ai:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>',
+      device: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+      system: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>',
+    };
     list.innerHTML = events
       .slice(0, 12)
       .map((e) => {
-        const ico = typeIcon[e.event_type] || "✅";
+        const ico = ACTIVITY_SVGS[e.event_type] || ACTIVITY_SVGS.sensor;
         const sev =
           e.event_type === "alert"
             ? "alert"
@@ -321,7 +326,7 @@
               : e.event_type === "ai"
                 ? "ai"
                 : "sys";
-        return `<div class="prof-act-item prof-act-${sev}"><span class="prof-act-ico">${ico}</span><div><span class="prof-act-text">${e.message}</span><span class="prof-act-time mono">${fmtAgo(e.timestamp)}</span></div></div>`;
+        return `<div class="prof-act-item prof-act-${sev}"><span class="prof-act-ico" aria-hidden="true">${ico}</span><div><span class="prof-act-text">${e.message}</span><span class="prof-act-time mono">${fmtAgo(e.timestamp)}</span></div></div>`;
       })
       .join("");
   }
@@ -406,16 +411,13 @@
   }
 
   function _ppStatusFromScan(scan) {
-    // Single design language — pp-status is a content-tone pill, so
-    // every state gets exactly one leading emoji from the approved
-    // set. Unclassified maps to ⚠️ (warning-tone neutral) so the page
-    // never falls back to a non-approved bullet glyph.
-    if (!scan) return { cls: "ok", label: "🌱 Awaiting first scan" };
+    // Single design language — pp-status is a content-tone pill using SVG icons.
+    if (!scan) return { cls: "ok",   label: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12"/><path d="M12 12c-3 0-6-2-6-6 4 0 6 2 6 6z"/><path d="M12 12c3 0 6-2 6-6-4 0-6 2-6 6z"/></svg> Awaiting first scan' };
     const st = scan.status || "WARN";
-    if (st === "PASS") return { cls: "ok",   label: "🌱 Healthy" };
-    if (st === "WARN") return { cls: "warn", label: "⚠️ Monitor" };
-    if (st === "CRITICAL") return { cls: "crit", label: "🔴 Critical" };
-    return { cls: "unk", label: "⚠️ Unclassified" };
+    if (st === "PASS") return { cls: "ok",   label: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12"/><path d="M12 12c-3 0-6-2-6-6 4 0 6 2 6 6z"/><path d="M12 12c3 0 6-2 6-6-4 0-6 2-6 6z"/></svg> Healthy' };
+    if (st === "WARN") return { cls: "warn", label: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Monitor' };
+    if (st === "CRITICAL") return { cls: "crit", label: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Critical' };
+    return { cls: "unk", label: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Unclassified' };
   }
 
   function _ppFmtAgo(iso) {
@@ -462,7 +464,7 @@
     const latest = profile && profile.latest_scan;
     const stInfo = _ppStatusFromScan(latest);
     if (statusEl) {
-      statusEl.textContent = stInfo.label;
+      statusEl.innerHTML = stInfo.label;
       statusEl.className = "pp-status pp-status-" + stInfo.cls;
     }
 
@@ -680,7 +682,7 @@
       localStorage.removeItem(k)
     );
     if (window.plantVisionSettings && window.plantVisionSettings.showToast) {
-      window.plantVisionSettings.showToast("✅ Local cache cleared");
+      window.plantVisionSettings.showToast("Local cache cleared");
     }
     refresh(true);
   }

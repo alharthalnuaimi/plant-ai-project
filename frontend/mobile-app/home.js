@@ -461,11 +461,13 @@
     }
     host.hidden = false;
     const html = items.slice(0, 4).map((w) => {
-      const sev = (w.severity || "warning").toLowerCase();
+    const sev = (w.severity || "warning").toLowerCase();
       const cls = sev === "critical" ? "sev-critical" : "sev-warning";
-      const emoji = sev === "critical" ? "🔴" : "⚠️";
+      const icoSvg = sev === "critical"
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
       const msg = String(w.message).length > 108 ? String(w.message).slice(0, 107) + "…" : w.message;
-      return '<span class="home-warn-chip ' + cls + '"><span class="home-warn-chip-dot"></span><span aria-hidden="true">' + emoji + '</span> ' + _escape(msg) + '</span>';
+      return '<span class="home-warn-chip ' + cls + '"><span class="home-warn-chip-dot"></span><span class="home-warn-ico" aria-hidden="true">' + icoSvg + '</span> ' + _escape(msg) + '</span>';
     }).join("");
     list.innerHTML = html;
   }

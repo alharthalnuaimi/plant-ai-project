@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class PlantHealthScore(BaseModel):
@@ -14,6 +14,16 @@ class PlantHealthScore(BaseModel):
     class_name: str = ""
     disease_type: str = "unknown"
     source: Literal["live", "demo", "baseline"] = "baseline"
+
+    @field_validator("disease_risk", "environment_stress", mode="before")
+    @classmethod
+    def _normalize_risk(cls, v: Any) -> Any:
+        """Accept lowercase/mixed-case values from the database or frontend
+        (e.g. 'medium', 'high') and normalize them to title-case so Pydantic's
+        Literal check passes without a 422 validation error."""
+        if isinstance(v, str):
+            return v.capitalize()
+        return v
 
 
 # ---------------------------------------------------------------------------

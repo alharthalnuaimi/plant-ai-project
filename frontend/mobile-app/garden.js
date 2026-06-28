@@ -980,11 +980,16 @@
       existingIds.add(a.id);
       let row = alertEls.get(a.id);
       const cat = alertCategory(a);
-      // Emoji-first design language — every alert row uses an approved
-      // emoji (crit:🔴, warn:⚠️, info:✅ Scan Complete, ai:🧠, water:💧,
-      // sys:📢). No SVG glyphs in this content surface.
-      const icoMap = { crit: "🔴", warn: "⚠️", info: "✅", ai: "🧠", water: "💧", sys: "📢" };
-      const ico = icoMap[cat] || "✅";
+      // SVG icon map — professional design language replacing emoji in alert rows.
+      const icoMap = {
+        crit:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+        warn:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+        info:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+        ai:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>',
+        water: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>',
+        sys:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>',
+      };
+      const ico = icoMap[cat] || icoMap.info;
       const html = `<div class="alert-item alert-${cat}${i === 0 ? " alert-item-new" : ""}" data-alert-id="${a.id}">
         <span class="alert-ico" aria-hidden="true">${ico}</span>
         <div class="alert-body"><span class="alert-msg">${a.message}</span><span class="alert-time mono">${fmtAgo(a.timestamp)}</span></div>
@@ -1015,7 +1020,7 @@
     });
 
     if (!alerts.length) {
-      list.innerHTML = gardenEmptyHtml("✅", searchQuery ? "No matching alerts" : "All clear — no active alerts", searchQuery ? "Adjust search or clear the filter." : "Monitoring continues in the background.", "garden-alert-empty");
+      list.innerHTML = gardenEmptyHtml('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>', searchQuery ? "No matching alerts" : "All clear — no active alerts", searchQuery ? "Adjust search or clear the filter." : "Monitoring continues in the background.", "garden-alert-empty");
     } else {
       const empty = list.querySelector(".garden-alert-empty");
       if (empty) empty.remove();

@@ -1,10 +1,12 @@
-Context JSON:
+Plant context (sensor readings + latest scan data):
 {context_json}
 
-User question:
-{user_question}
+User's question:
+"{user_question}"
 
-Generate:
-1) recommendation (short actionable)
-2) explanation (human-readable rationale referencing vision + sensors + survival score)
+IMPORTANT: Answer the user's question directly and specifically. Do not give a generic status report.
+If the question is about plant care, maintenance, or disease — use the context above to give a personalised answer.
+If the question is general (not covered by the context) — answer from your plant knowledge.
 
+Return JSON:
+{{"recommendation": "1-2 actionable sentences directly addressing the question", "explanation": "3-6 sentences with a thorough, natural answer to what the user asked"}}
