@@ -6,6 +6,7 @@
    ============================================ */
 
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
@@ -259,20 +260,52 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-  // Get local IP for display
+// ── Get local IPs for display ────────────────────────────────────────────────
+function getLocalIPs() {
   const interfaces = require('os').networkInterfaces();
-  let localIP = 'localhost';
+  const ips = [];
   for (const name of Object.keys(interfaces)) {
     for (const iface of interfaces[name]) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        localIP = iface.address;
-        break;
-      }
+      if (iface.family === 'IPv4' && !iface.internal) ips.push(iface.address);
     }
   }
+  return ips;
+}
+
+// ── HTTP server (port 3000) — works everywhere except camera on phones ────────
+const HTTPS_PORT = 3443;
+server.listen(PORT, '0.0.0.0', () => {
+  const ips = getLocalIPs();
+  const localIP = ips[0] || 'localhost';
   console.log(`\n  🌿 PlantVision AI Server Running\n`);
-  console.log(`  Local:   http://localhost:${PORT}`);
-  console.log(`  Phone:   http://${localIP}:${PORT}`);
-  console.log(`\n  Data syncs across all devices ✓\n`);
+  console.log(`  Local (PC):   http://localhost:${PORT}`);
+  console.log(`  Phone (HTTP): http://${localIP}:${PORT}`);
 });
+
+// ── HTTPS server (port 3443) — required for camera on phones ─────────────────
+const CERT_KEY  = path.join(__dirname, 'cert', 'key.pem');
+const CERT_CERT = path.join(__dirname, 'cert', 'cert.pem');
+
+if (fs.existsSync(CERT_KEY) && fs.existsSync(CERT_CERT)) {
+  try {
+    const tlsOpts = {
+      key:  fs.readFileSync(CERT_KEY),
+      cert: fs.readFileSync(CERT_CERT),
+    };
+    const httpsServer = https.createServer(tlsOpts, server.listeners('request')[0]);
+    httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
+      const ips = getLocalIPs();
+      const localIP = ips[0] || 'localhost';
+      console.log(`  Phone (HTTPS + Camera): https://${localIP}:${HTTPS_PORT}`);
+      console.log(`\n  📷 Camera works on HTTPS only.`);
+      console.log(`     First visit → tap Advanced → Proceed (accept self-signed cert).`);
+      console.log(`\n  Data syncs across all devices ✓\n`);
+    });
+  } catch (e) {
+    console.warn('  ⚠️  HTTPS cert load failed:', e.message);
+    console.log(`\n  Data syncs across all devices ✓\n`);
+  }
+} else {
+  console.log(`  ⚠️  No TLS cert found — run: node gen-cert.js  to enable HTTPS + camera on phone.`);
+  console.log(`\n  Data syncs across all devices ✓\n`);
+}

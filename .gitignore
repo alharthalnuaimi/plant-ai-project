@@ -35,6 +35,10 @@ service-account.json
 
 # ESP32 firmware secrets — keep firmware/esp32/config.example.h for onboarding
 firmware/esp32/config.h
+firmware/esp32/include/config.h
+
+# PlatformIO build artifacts
+firmware/esp32/.pio/
 
 
 # -----------------------------------------------------------------------------

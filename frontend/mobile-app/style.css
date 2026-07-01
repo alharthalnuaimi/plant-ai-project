@@ -75,7 +75,7 @@
   --glow:0 0 12px rgba(90,122,90,.06);
 }
 .mono{font-family:var(--mono)!important}
-html,body{height:100%;overflow:hidden}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none}
 body{font-family:var(--font);background:var(--bg);color:var(--t1);display:flex;-webkit-font-smoothing:antialiased;transition:background .4s,color .4s}
 
 /* --- Ambient Background --- */

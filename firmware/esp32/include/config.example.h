@@ -1,10 +1,10 @@
-// Copy to config.h and fill in your network + API settings.
+// config.example.h — copy to config.h and fill in your settings.
 // Do not commit config.h with real passwords.
 
 #pragma once
 
 // ---------- WiFi ----------
-#define WIFI_SSID "YOUR_WIFI_SSID"
+#define WIFI_SSID     "YOUR_WIFI_SSID"
 #define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
 
 // ---------- Backend API ----------
@@ -15,10 +15,10 @@
 
 // ---------- Identity ----------
 #define DEVICE_ID "esp32_001"
-#define ZONE_ID "zone_alpha"
+#define ZONE_ID   "zone_alpha"
 
 // ---------- OTA ----------
-// Password required when pushing firmware updates over-the-air (Arduino IDE).
+// Password required when pushing firmware updates over-the-air (PlatformIO / Arduino IDE).
 // Change this before deploying to production.
 #define OTA_PASSWORD "plantai123"
 

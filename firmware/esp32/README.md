@@ -1,39 +1,100 @@
-# ESP32 sensor node firmware
+# ESP32 Plant Sensor Node — Firmware v2
 
-Starter sketch for the Plant AI sensor integration MVP.
+Reads soil, air, and light sensors and POSTs JSON data to the Plant AI backend every 30 seconds.
+
+---
 
 ## Hardware
 
-| Sensor | Interface | JSON fields |
-|--------|-----------|-------------|
-| DHT22 | GPIO | `air_temperature`, `air_humidity` |
-| BH1750 | I2C | `light_lux` |
-| RS485 soil probe | UART2 | `soil_temperature`, `soil_humidity`, `soil_ph`, `soil_ec` |
+| Sensor  | Interface | Pins |
+|---------|-----------|------|
+| DHT22   | One-wire  | GPIO27 |
+| BH1750  | I2C       | SDA=GPIO21, SCL=GPIO22 |
+| RS485 soil probe | UART2 Modbus RTU | RO=GPIO16, DI=GPIO17, RE+DE=GPIO4 |
+| LCD 16×2 (optional) | I2C | 0x27 or 0x3F (auto-detected) |
 
-## Files
+---
 
-- `plant_sensor_node.ino` — main loop, HTTP POST to backend
-- `config.example.h` — copy to `config.h` (keep `config.h` out of git if it has secrets)
+## Project Structure (PlatformIO)
 
-## Identity fields (POST /sensor JSON)
-
-| Field | Example | Meaning |
-|-------|---------|---------|
-| `user_id` | `demo_user` | Operator / account (MVP default) |
-| `zone_id` | `zone_alpha` | Growing zone or greenhouse section |
-| `device_id` | `esp32_001` | This ESP32 node |
-
-Set `ZONE_ID` and `DEVICE_ID` in `config.h` (from `config.example.h`).
-
-## Backend endpoint
-
-```http
-POST http://YOUR_PC_IP:8000/sensor
-Content-Type: application/json
+```
+firmware/esp32/
+├── platformio.ini          # Board, framework, library config
+├── src/
+│   └── main.cpp            # Main firmware source
+├── include/
+│   ├── config.h            # ← YOUR SETTINGS (not committed)
+│   └── config.example.h   # Template — copy to config.h
+├── plant_sensor_node.ino   # Legacy Arduino IDE file (kept for reference)
+└── README.md
 ```
 
-See `docs/setup_sensors.md` for the full JSON body and testing.
+---
 
-## Mock mode
+## Setup
 
-Set `USE_MOCK_SENSORS 1` in config until wiring and libraries are ready.
+### 1. Install PlatformIO
+- Install [VS Code](https://code.visualstudio.com/) + [PlatformIO extension](https://platformio.org/install/ide?install=vscode), **or**
+- Use PlatformIO CLI: `pip install platformio`
+
+### 2. Configure credentials
+```bash
+cp include/config.example.h include/config.h
+# Then edit include/config.h with your WiFi, API URL, and OTA password
+```
+
+### 3. First flash (USB)
+```bash
+# From firmware/esp32/
+pio run --target upload
+```
+
+### 4. Monitor serial output
+```bash
+pio device monitor
+```
+
+---
+
+## OTA Updates (After First USB Flash)
+
+Once the device is on WiFi, you can flash wirelessly:
+
+1. Find the ESP32's IP address in the serial monitor output.
+2. In `platformio.ini`, uncomment and set:
+   ```ini
+   upload_protocol = espota
+   upload_port     = 192.168.0.XXX   ; your ESP32's IP
+   upload_flags    = --auth=plantai123
+   ```
+3. Run: `pio run --target upload`
+
+Or use PlatformIO IDE: the ESP32 will appear as a network port in the upload menu.
+
+---
+
+## Libraries (auto-installed by PlatformIO)
+
+| Library | Version |
+|---------|---------|
+| `adafruit/DHT sensor library` | ^1.4.6 |
+| `adafruit/Adafruit Unified Sensor` | ^1.1.14 |
+| `claws/BH1750` | ^1.3.0 |
+| `marcoschwartz/LiquidCrystal_I2C` | ^1.1.4 |
+| `bblanchon/ArduinoJson` | ^7.0.4 |
+
+`WiFi`, `HTTPClient`, `WiFiClientSecure`, and `ArduinoOTA` are built into the ESP32 Arduino framework — no extra install needed.
+
+---
+
+## v2 Changes
+
+- **Bug fix**: DHT22 now enforces ≥2 s between reads (prevents spurious NaN)
+- **Bug fix**: Soil baud-rate rescan only triggered after 3 consecutive failures (not every failure)
+- **Bug fix**: `soil_ec` sent as `null` when sensor is offline (was `0`, indistinguishable from a real zero)
+- **Bug fix**: BH1750 `-1` error converted to `NAN` for consistent `isnan()` checks
+- **OTA**: Wireless firmware updates via ArduinoOTA
+- **WiFi watchdog**: Non-blocking reconnect every 30 s — sensor reads continue offline
+- **HTTP retry**: Up to 2 retries with 2 s backoff on failure
+- **Failed-send buffer**: Last dropped reading recovered on next successful send
+- **Fail counters**: Per-sensor running failure counts printed to Serial

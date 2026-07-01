@@ -28,11 +28,10 @@
   if (!base) {
     if (window.__PLANT_API_URL__) {
       base = window.__PLANT_API_URL__;
-    } else if (isLocalHost || isDeployedHost) {
-      base = RAILWAY_DEFAULT;
     } else {
-      // LAN static server on phone → backend on same machine IP :8000
-      base = `http://${host}:8000`;
+      // Always use the Railway backend — whether accessed from localhost,
+      // a deployed host, or a phone on the local Wi-Fi network.
+      base = RAILWAY_DEFAULT;
     }
   }
   window.PLANT_API_BASE = base.replace(/\/$/, "");

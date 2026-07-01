@@ -4,6 +4,10 @@ node_modules/
 # Data (auto-generated)
 data/appdata.json
 
+# TLS cert (local dev only — private key must never be committed)
+cert/
+gen-cert.js
+
 # OS files
 .DS_Store
 Thumbs.db

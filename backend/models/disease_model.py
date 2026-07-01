@@ -168,8 +168,8 @@ def get_vision_predictor() -> VisionPredictor:
          weights — UI gets a clean response with `model_name == "stub_vision"`.
     """
 
-    #descriptor = resolve_model_descriptor()
-    weights = weights = r"C:\Users\sasuki\Desktop\project\plant-ai-project\artifacts\train_runs\v0.2.0\weights\rose_best.pt"
+    descriptor = resolve_model_descriptor()
+    weights = descriptor.weights_path
     if weights and os.path.isfile(weights):
         try:
             predictor = YoloVisionPredictor(weights)

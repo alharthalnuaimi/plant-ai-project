@@ -372,6 +372,11 @@ int doHttpPost(const String &endpoint, const String &payload) {
 
   if (endpoint.startsWith("https://")) {
     secureClient.setInsecure();   // skip cert validation (OK for LAN/dev)
+    // Explicit SNI hostname — required by Railway's cloud proxy
+    String host = endpoint;
+    host.replace("https://", "");
+    int slashPos = host.indexOf('/');
+    if (slashPos > 0) host = host.substring(0, slashPos);
     secureClient.setHandshakeTimeout(15);  // seconds
     http.begin(secureClient, endpoint);
   } else {

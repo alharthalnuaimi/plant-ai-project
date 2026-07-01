@@ -38,7 +38,10 @@ function syncToServer(key, value){
 
 async function loadFromServer(){
   try {
-    const resp = await fetch('/api/data');
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 4000); // fail fast on Vercel (no /api/data)
+    const resp = await fetch('/api/data', { signal: ctrl.signal });
+    clearTimeout(timer);
     if(!resp.ok) return null;
     return await resp.json();
   } catch(e){ return null; }
@@ -3142,7 +3145,7 @@ renderNotifications(false);
     if(hydrated){
       renderZoneChips();
       renderMapMarkers();
-      renderDevicePanel();
+      _notifyZonesChanged();
     }
   } catch(_) { /* offline */ }
 
@@ -3167,7 +3170,7 @@ renderNotifications(false);
     localStorage.setItem('pv-zones', JSON.stringify(zones));
     renderZoneChips();
     renderMapMarkers();
-    renderDevicePanel();
+    _notifyZonesChanged();
   }
 
   // Profile
