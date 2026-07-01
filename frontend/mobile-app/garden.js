@@ -70,7 +70,9 @@
   }
 
   function localZoneId(z) {
-    return z.zone_id || LOCAL_ZONE_MAP[z.id] || z.id;
+    if (!z) return "";
+    const zid = z.zone_id || z.id;
+    return LOCAL_ZONE_MAP[zid] || zid;
   }
 
   function mapStatus(st) {
