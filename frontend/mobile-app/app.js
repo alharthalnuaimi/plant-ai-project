@@ -1364,6 +1364,37 @@ function _allocateZoneSlug(name){
   return { id: fallback, zone_id: 'zone_' + fallback };
 }
 
+async function syncDevicesForZone(zoneSlug, newDevices, oldDevices) {
+  if (typeof saveDevice !== 'function') return;
+  try {
+    // 1. Identify deleted devices and remove them from backend
+    if (Array.isArray(oldDevices) && typeof deleteDevice === 'function') {
+      const newSlugs = new Set(newDevices.map(d => d.device_id || (d.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '_')).filter(Boolean));
+      for (const d of oldDevices) {
+        const slug = d.device_id || (d.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        if (slug && !newSlugs.has(slug)) {
+          try { await deleteDevice(slug); } catch (_) {}
+        }
+      }
+    }
+    // 2. Save/Update current devices to backend
+    for (const d of newDevices) {
+      const slug = d.device_id || (d.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+      if (!slug) continue;
+      try {
+        await saveDevice({
+          slug,
+          device_name: d.name || slug,
+          zone_slug: zoneSlug,
+          ip_address: d.ip || null,
+          status: 'OFFLINE',
+          metadata: {},
+        });
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+
 zmSave.addEventListener('click', async ()=>{
   const name = zmName.value.trim();
   if(!name){
@@ -1405,6 +1436,8 @@ zmSave.addEventListener('click', async ()=>{
         renderMapMarkers();
         _notifyZonesChanged();
         pvToast('Could not save zone — kept previous values');
+      } else {
+        await syncDevicesForZone(editingZone.zone_id || editingZone.id, devices, prev.devices);
       }
     }
     return;
@@ -1453,6 +1486,7 @@ zmSave.addEventListener('click', async ()=>{
       renderZoneChips();
       renderMapMarkers();
       _notifyZonesChanged();
+      await syncDevicesForZone(zones[idx].zone_id || zones[idx].id, devices, []);
     }
     pvToast('Zone saved');
   }
@@ -1509,6 +1543,15 @@ async function executeDeleteZone(id){
       _notifyZonesChanged();
       pvToast('Could not delete zone — backend unreachable');
       return;
+    }
+    // Clean up devices belonging to the deleted zone from the backend
+    if (Array.isArray(removed.devices) && typeof deleteDevice === 'function') {
+      for (const d of removed.devices) {
+        const slug = d.device_id || (d.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        if (slug) {
+          try { await deleteDevice(slug); } catch (_) {}
+        }
+      }
     }
     pvToast('Zone deleted');
   }
