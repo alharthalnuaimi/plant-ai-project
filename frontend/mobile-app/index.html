@@ -999,6 +999,53 @@
                         </div>
                     </div>
 
+                    <!-- Phase 6 — Training Data -->
+                    <div class="set-card" id="set-card-training-data">
+                        <div class="d-card-head"><span class="d-card-label">TRAINING DATA</span><span class="d-card-tag mono">Dataset Management</span></div>
+                        <div class="set-group">
+                            <div class="set-row">
+                                <div class="set-info"><span class="set-name">Upload Dataset</span><span class="set-desc">ZIP file (YOLO format or classification folders)</span></div>
+                            </div>
+                            <div class="pv-upload-zone" id="dataset-upload-zone">
+                                <input type="file" id="dataset-upload-input" accept=".zip" hidden />
+                                <button type="button" class="set-action-btn" id="btn-dataset-upload">Choose .zip file</button>
+                                <div class="pv-upload-progress" id="dataset-upload-progress" style="display:none">
+                                    <div class="pv-progress-bar"><div class="pv-progress-fill" id="dataset-progress-fill"></div></div>
+                                    <span class="mono" id="dataset-upload-status">Uploading…</span>
+                                </div>
+                            </div>
+                            <div class="pv-upload-result" id="dataset-upload-result" style="display:none"></div>
+                        </div>
+                        <h5 class="set-sub-title" style="margin-top:.75rem">Uploaded Batches</h5>
+                        <div class="pv-batch-list" id="dataset-batch-list"><span class="mono set-hint">Loading…</span></div>
+                    </div>
+
+                    <!-- Phase 7 — Training -->
+                    <div class="set-card" id="set-card-training">
+                        <div class="d-card-head"><span class="d-card-label">TRAINING</span><span class="d-card-tag mono">Model Retraining</span></div>
+                        <div class="set-group">
+                            <h5 class="set-sub-title">Eligible Datasets (🟢 Ready)</h5>
+                            <div class="pv-train-datasets" id="train-dataset-list"><span class="mono set-hint">No eligible batches</span></div>
+                            <div class="set-row" style="margin-top:.5rem">
+                                <div class="set-info"><span class="set-name">Target</span><span class="set-desc">Where to run training</span></div>
+                                <select class="set-select" id="train-target-select">
+                                    <option value="local">Local GPU</option>
+                                    <option value="colab">Google Colab</option>
+                                </select>
+                            </div>
+                            <button type="button" class="set-action-btn" id="btn-start-training" disabled>Start Training</button>
+                        </div>
+                        <h5 class="set-sub-title" style="margin-top:.75rem">Training Jobs</h5>
+                        <div class="pv-jobs-list" id="training-jobs-list"><span class="mono set-hint">No training jobs</span></div>
+                    </div>
+
+                    <!-- Phase 8 — Connected Agents -->
+                    <div class="set-card" id="set-card-providers">
+                        <div class="d-card-head"><span class="d-card-label">CONNECTED AGENTS</span><span class="d-card-tag mono">AI Providers</span></div>
+                        <div class="pv-providers-list" id="providers-list"><span class="mono set-hint">Loading…</span></div>
+                        <p class="set-hint mono">Agents activate automatically when their API key is set. Gemini + Roboflow are the free baseline; Claude/GPT/Kimi are optional paid boosters.</p>
+                    </div>
+
                     <div class="set-card">
                         <div class="d-card-head"><span class="d-card-label">LOCAL DATA</span><span class="d-card-tag mono">Browser cache</span></div>
                         <div class="set-group">
@@ -1382,6 +1429,19 @@
                         <p class="rm-rec-body" id="r-recommendation">—</p>
                     </div>
                 </section>
+            </div>
+
+            <!-- Phase 3 — Dual-AI Disagreement Callout -->
+            <div class="rm-disagreement" id="r-gemini-disagreement" style="display:none">
+                <div class="rm-disagree-head">
+                    <svg class="rm-disagree-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span class="rm-disagree-title">Dual-Opinion Alert</span>
+                </div>
+                <div class="rm-disagree-body">
+                    <div class="rm-disagree-row"><span class="rm-disagree-src">YOLOv8</span><span class="rm-disagree-val" id="r-disagree-yolo">—</span></div>
+                    <div class="rm-disagree-row"><span class="rm-disagree-src">Secondary check</span><span class="rm-disagree-val" id="r-disagree-gemini">—</span></div>
+                    <p class="rm-disagree-reason" id="r-disagree-reason"></p>
+                </div>
             </div>
 
             <div class="r-btns">

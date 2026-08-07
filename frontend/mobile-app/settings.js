@@ -720,6 +720,232 @@
   // page load, not only after the user visits Settings.
   _renderDemoChip();
 
+  // ── Phase 6/7/8 — Training Data · Training · Connected Agents ────────
+
+  const _apiBase = () => (window.PLANT_API_BASE || '').replace(/\/$/, '');
+
+  // ── Phase 6: Training Data Upload & Batch List ────────────────────────
+  function _wireTrainingData() {
+    const uploadBtn = document.getElementById('btn-dataset-upload');
+    const uploadInput = document.getElementById('dataset-upload-input');
+    const progressWrap = document.getElementById('dataset-upload-progress');
+    const progressFill = document.getElementById('dataset-progress-fill');
+    const statusEl = document.getElementById('dataset-upload-status');
+    const resultEl = document.getElementById('dataset-upload-result');
+    const batchListEl = document.getElementById('dataset-batch-list');
+
+    if (uploadBtn && uploadInput) {
+      uploadBtn.addEventListener('click', () => uploadInput.click());
+      uploadInput.addEventListener('change', async () => {
+        const file = uploadInput.files[0];
+        if (!file) return;
+        if (progressWrap) progressWrap.style.display = 'flex';
+        if (progressFill) progressFill.style.width = '0%';
+        if (statusEl) statusEl.textContent = `Uploading ${file.name}…`;
+        if (resultEl) resultEl.style.display = 'none';
+
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', `${_apiBase()}/admin/datasets/upload`);
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable && progressFill) {
+              progressFill.style.width = `${Math.round((e.loaded / e.total) * 100)}%`;
+            }
+          };
+          xhr.onload = () => {
+            if (progressWrap) progressWrap.style.display = 'none';
+            uploadInput.value = '';
+            if (xhr.status === 200) {
+              const data = JSON.parse(xhr.responseText);
+              if (resultEl) {
+                resultEl.style.display = 'block';
+                resultEl.innerHTML = `<strong>✓ Uploaded</strong> — ID: <code>${data.upload_id || '—'}</code>, Status: ${data.status || 'Processing'}`;
+              }
+              showToast('Dataset uploaded successfully');
+              _loadBatches();
+            } else {
+              if (resultEl) {
+                resultEl.style.display = 'block';
+                resultEl.innerHTML = `<strong>✗ Upload failed</strong> — ${xhr.statusText}`;
+              }
+            }
+          };
+          xhr.onerror = () => {
+            if (progressWrap) progressWrap.style.display = 'none';
+            if (resultEl) { resultEl.style.display = 'block'; resultEl.textContent = '✗ Network error'; }
+          };
+          xhr.send(fd);
+        } catch (e) {
+          if (progressWrap) progressWrap.style.display = 'none';
+          if (resultEl) { resultEl.style.display = 'block'; resultEl.textContent = `✗ ${e.message}`; }
+        }
+      });
+    }
+
+    async function _loadBatches() {
+      if (!batchListEl) return;
+      try {
+        const resp = await fetch(`${_apiBase()}/admin/datasets`, { signal: AbortSignal.timeout(5000) });
+        if (!resp.ok) { batchListEl.innerHTML = '<span class="mono set-hint">Could not load batches</span>'; return; }
+        const batches = await resp.json();
+        if (!batches.length) { batchListEl.innerHTML = '<span class="mono set-hint">No uploaded batches yet</span>'; return; }
+        batchListEl.innerHTML = batches.map(b => {
+          const st = (b.status || 'unknown').toLowerCase();
+          const cls = st.includes('ready') ? 'pv-status-ready' : st.includes('review') ? 'pv-status-review' : 'pv-status-bad';
+          return `<div class="pv-batch-item">
+            <div><span class="pv-batch-name">${b.upload_id || b.id || '—'}</span>
+            <span class="pv-batch-meta">${b.image_count || '?'} images</span></div>
+            <span class="pv-status-badge ${cls}">${b.status || 'Unknown'}</span>
+          </div>`;
+        }).join('');
+      } catch { batchListEl.innerHTML = '<span class="mono set-hint">Backend offline</span>'; }
+    }
+    _loadBatches();
+  }
+
+  // ── Phase 7: Training Trigger & Job List ──────────────────────────────
+  function _wireTraining() {
+    const datasetListEl = document.getElementById('train-dataset-list');
+    const targetSelect = document.getElementById('train-target-select');
+    const startBtn = document.getElementById('btn-start-training');
+    const jobsListEl = document.getElementById('training-jobs-list');
+
+    async function _loadEligible() {
+      if (!datasetListEl) return;
+      try {
+        const resp = await fetch(`${_apiBase()}/admin/datasets`, { signal: AbortSignal.timeout(5000) });
+        if (!resp.ok) return;
+        const batches = await resp.json();
+        const ready = batches.filter(b => (b.status || '').toLowerCase().includes('ready'));
+        if (!ready.length) {
+          datasetListEl.innerHTML = '<span class="mono set-hint">No 🟢 Ready batches available</span>';
+          if (startBtn) startBtn.disabled = true;
+          return;
+        }
+        datasetListEl.innerHTML = ready.map(b => `
+          <label class="pv-train-check">
+            <input type="checkbox" value="${b.upload_id || b.id}" checked />
+            <span>${b.upload_id || b.id} (${b.image_count || '?'} images)</span>
+          </label>
+        `).join('');
+        if (startBtn) startBtn.disabled = false;
+      } catch { datasetListEl.innerHTML = '<span class="mono set-hint">Backend offline</span>'; }
+    }
+
+    if (startBtn) {
+      startBtn.addEventListener('click', async () => {
+        startBtn.disabled = true;
+        startBtn.textContent = 'Starting…';
+        const checks = datasetListEl ? datasetListEl.querySelectorAll('input[type=checkbox]:checked') : [];
+        const ids = Array.from(checks).map(c => c.value);
+        const target = targetSelect ? targetSelect.value : 'local';
+        try {
+          const resp = await fetch(`${_apiBase()}/admin/training/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dataset_batch_ids: ids, target }),
+          });
+          if (resp.ok) {
+            showToast('Training job queued');
+            _loadJobs();
+          } else {
+            showToast('Failed to start training');
+          }
+        } catch { showToast('Network error'); }
+        startBtn.disabled = false;
+        startBtn.textContent = 'Start Training';
+      });
+    }
+
+    async function _loadJobs() {
+      if (!jobsListEl) return;
+      try {
+        const resp = await fetch(`${_apiBase()}/admin/training/jobs`, { signal: AbortSignal.timeout(5000) });
+        if (!resp.ok) return;
+        const jobs = await resp.json();
+        if (!jobs.length) { jobsListEl.innerHTML = '<span class="mono set-hint">No training jobs</span>'; return; }
+        jobsListEl.innerHTML = jobs.slice(-10).reverse().map(j => {
+          const st = (j.status || 'unknown').toLowerCase();
+          const cls = st === 'done' ? 'pv-status-done' : st === 'running' ? 'pv-status-running'
+            : st === 'queued' ? 'pv-status-queued' : 'pv-status-failed';
+          const metricsStr = j.metrics_after
+            ? ` · mAP50: ${j.metrics_after.mAP50 ?? '—'} · Gate: ${j.metrics_after.passed_gate ? '✓' : '✗'}`
+            : '';
+          const staleNote = st === 'queued' && j.queued_at
+            && (Date.now() - new Date(j.queued_at).getTime()) > 30 * 60_000
+            ? ' <span style="color:#e6a520">⚠ Stale</span>' : '';
+          return `<div class="pv-job-item">
+            <div><span class="pv-job-name">${j.id?.slice(0, 8) || '—'}</span>
+            <span class="pv-job-meta">${j.target || 'local'}${metricsStr}${staleNote}</span></div>
+            <span class="pv-status-badge ${cls}">${j.status || 'Unknown'}</span>
+          </div>`;
+        }).join('');
+      } catch { jobsListEl.innerHTML = '<span class="mono set-hint">Backend offline</span>'; }
+    }
+
+    _loadEligible();
+    _loadJobs();
+  }
+
+  // ── Phase 8: Connected Agents ─────────────────────────────────────────
+  function _wireProviders() {
+    const listEl = document.getElementById('providers-list');
+    if (!listEl) return;
+
+    async function _loadProviders() {
+      try {
+        const resp = await fetch(`${_apiBase()}/admin/providers`, { signal: AbortSignal.timeout(5000) });
+        if (!resp.ok) { listEl.innerHTML = '<span class="mono set-hint">Could not load providers</span>'; return; }
+        const providers = await resp.json();
+        if (!providers.length) { listEl.innerHTML = '<span class="mono set-hint">No providers configured</span>'; return; }
+        listEl.innerHTML = providers.map(p => `
+          <div class="pv-provider-item" data-provider="${p.name}">
+            <div>
+              <span class="pv-provider-name">${p.name}</span>
+              <span class="pv-provider-meta">${p.env_var || ''}</span>
+            </div>
+            <div class="pv-provider-actions">
+              <div class="pv-provider-status">
+                <span class="pv-provider-dot ${p.active ? 'active' : 'inactive'}"></span>
+                <span>${p.active ? 'Active' : 'Key Not Set'}</span>
+              </div>
+              <button class="pv-test-btn" data-test-provider="${p.name}" ${!p.active ? 'disabled' : ''}>Test</button>
+            </div>
+          </div>
+        `).join('');
+
+        // Wire test buttons
+        listEl.querySelectorAll('.pv-test-btn[data-test-provider]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const name = btn.getAttribute('data-test-provider');
+            btn.textContent = '…';
+            btn.disabled = true;
+            try {
+              const r = await fetch(`${_apiBase()}/admin/providers/test`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ provider_name: name }),
+              });
+              const d = await r.json();
+              btn.textContent = d.test_result?.status === 'success' ? '✓' : '✗';
+              showToast(`${name}: ${d.test_result?.status || 'done'}`);
+            } catch { btn.textContent = '✗'; showToast('Test failed'); }
+            setTimeout(() => { btn.textContent = 'Test'; btn.disabled = false; }, 2500);
+          });
+        });
+      } catch { listEl.innerHTML = '<span class="mono set-hint">Backend offline</span>'; }
+    }
+    _loadProviders();
+  }
+
+  // Initialize Phase 6/7/8 Settings UI
+  _wireTrainingData();
+  _wireTraining();
+  _wireProviders();
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
       applySettings();

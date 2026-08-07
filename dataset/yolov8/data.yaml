@@ -1,6 +1,7 @@
-train: C:\Users\sasuki\Desktop\project\plant-ai-project\dataset\yolov8\images\train
-val: C:\Users\sasuki\Desktop\project\plant-ai-project\dataset\yolov8\images\val
-test: C:\Users\sasuki\Desktop\project\plant-ai-project\dataset\yolov8\images\test
+path: d:/antigravity/M.P.AI/dataset/yolov8
+train: images/train
+val: images/val
+test: images/test
 
 nc: 3
 names: ['Bacterial Wilt Money Plant', 'Healthy Money Plant', 'Manganese Toxicity Money Plant']

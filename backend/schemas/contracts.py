@@ -70,6 +70,10 @@ class VisionResult(BaseModel):
         default=None,
         description="Plant identification result. None when identification was skipped.",
     )
+    # Gemini second opinion (Phase 3 disagreement logging)
+    gemini_verdict: str | None = Field(default=None, description="Gemini independent label guess")
+    gemini_agrees: bool | None = Field(default=None, description="True if Gemini agrees with YOLO outcome")
+    gemini_reasoning: str | None = Field(default=None, description="Gemini rationale / secondary assessment")
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

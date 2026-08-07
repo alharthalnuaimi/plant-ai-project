@@ -4020,6 +4020,124 @@ img,video,canvas,svg{max-width:100%}
   overflow-wrap:anywhere;
 }
 
+/* Phase 3 — Dual-AI Disagreement Callout */
+.rm-disagreement{
+  margin:0 1.1rem .75rem;
+  padding:.75rem .85rem;
+  border-radius:10px;
+  background:rgba(255,180,50,.10);
+  border:1px solid rgba(255,180,50,.28);
+}
+.rm-disagree-head{
+  display:flex;align-items:center;gap:6px;margin-bottom:.45rem;
+}
+.rm-disagree-ico{stroke:var(--amber,#e6a520);flex-shrink:0;}
+.rm-disagree-title{
+  font-size:11.5px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.04em;
+  color:var(--amber,#e6a520);
+}
+.rm-disagree-body{display:flex;flex-direction:column;gap:4px;}
+.rm-disagree-row{
+  display:flex;align-items:baseline;gap:8px;
+  font-size:12px;color:var(--t1);
+}
+.rm-disagree-src{
+  font-weight:700;font-size:11px;text-transform:uppercase;
+  color:var(--t2);min-width:90px;flex-shrink:0;
+}
+.rm-disagree-val{font-weight:500;}
+.rm-disagree-reason{
+  margin:.35rem 0 0;font-size:11.5px;line-height:1.45;
+  color:var(--t2);font-style:italic;
+}
+
+/* Phase 6/7/8 — Settings sections */
+.set-sub-title{
+  font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.04em;color:var(--t2);margin:0 0 .4rem;
+}
+.pv-upload-zone{
+  display:flex;flex-direction:column;gap:8px;
+  padding:.6rem 0;
+}
+.pv-upload-progress{display:flex;align-items:center;gap:8px;}
+.pv-progress-bar{
+  flex:1;height:6px;border-radius:3px;
+  background:rgba(255,255,255,.06);overflow:hidden;
+}
+.pv-progress-fill{
+  height:100%;border-radius:3px;width:0%;
+  background:var(--sage,#8fa88f);transition:width .3s;
+}
+.pv-upload-result{
+  padding:.5rem .65rem;border-radius:8px;
+  background:rgba(143,168,143,.08);
+  font-size:12px;line-height:1.5;color:var(--t1);
+}
+.pv-batch-list,.pv-jobs-list,.pv-train-datasets,.pv-providers-list{
+  display:flex;flex-direction:column;gap:6px;
+}
+.pv-batch-item,.pv-job-item,.pv-provider-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.55rem .65rem;border-radius:8px;
+  background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.06);
+  font-size:12px;
+}
+.pv-batch-item:hover,.pv-job-item:hover,.pv-provider-item:hover{
+  background:rgba(255,255,255,.05);
+}
+.pv-batch-name,.pv-job-name,.pv-provider-name{
+  font-weight:600;color:var(--t1);
+}
+.pv-batch-meta,.pv-job-meta,.pv-provider-meta{
+  font-size:11px;color:var(--t2);
+}
+.pv-status-badge{
+  font-size:10.5px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.03em;padding:2px 8px;border-radius:12px;
+  white-space:nowrap;
+}
+.pv-status-ready{background:rgba(80,180,80,.15);color:#6ec06e;}
+.pv-status-review{background:rgba(230,165,32,.15);color:#e6a520;}
+.pv-status-bad{background:rgba(220,80,80,.15);color:#dc5050;}
+.pv-status-queued{background:rgba(100,160,220,.15);color:#6ca0dc;}
+.pv-status-running{background:rgba(100,180,230,.15);color:#64b4e6;}
+.pv-status-done{background:rgba(80,180,80,.15);color:#6ec06e;}
+.pv-status-failed{background:rgba(220,80,80,.15);color:#dc5050;}
+.pv-provider-status{
+  display:flex;align-items:center;gap:6px;font-size:11px;
+}
+.pv-provider-dot{
+  width:8px;height:8px;border-radius:50%;flex-shrink:0;
+}
+.pv-provider-dot.active{background:#6ec06e;}
+.pv-provider-dot.inactive{background:rgba(255,255,255,.18);}
+.pv-provider-actions{
+  display:flex;gap:6px;align-items:center;
+}
+.pv-test-btn{
+  font-size:10.5px;padding:3px 10px;border-radius:6px;
+  border:1px solid rgba(255,255,255,.12);background:transparent;
+  color:var(--t2);cursor:pointer;transition:all .15s;
+}
+.pv-test-btn:hover{background:rgba(255,255,255,.06);color:var(--t1);}
+.set-select{
+  padding:4px 10px;border-radius:6px;font-size:12px;
+  background:rgba(255,255,255,.04);color:var(--t1);
+  border:1px solid rgba(255,255,255,.10);
+  font-family:var(--font);
+}
+.pv-train-check{
+  display:flex;align-items:center;gap:8px;
+  padding:.35rem .5rem;border-radius:6px;
+  font-size:12px;color:var(--t1);cursor:pointer;
+}
+.pv-train-check:hover{background:rgba(255,255,255,.04);}
+.pv-train-check input[type=checkbox]{accent-color:var(--sage,#8fa88f);}
+
+
 /* Phase E — scroll fallback. The outer .ov>.modal already caps at
    min(90vh,720px) with overflow-y:auto (v1 line 2941), so in practice
    the modal itself scrolls when the three sections overflow. The

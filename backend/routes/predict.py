@@ -190,6 +190,24 @@ async def predict(
 
     base = pred.model_copy(update={"user_id": uid, "zone_id": zid, "metadata": meta})
     result = enrich_vision_result(base, uid, zid, did)
+
+    # Phase 3: Gemini Second-Opinion & Disagreement Logging
+    try:
+        from services.gemini_second_opinion import evaluate_gemini_second_opinion
+        g_verdict, g_agrees, g_reasoning = evaluate_gemini_second_opinion(
+            image_bytes=data,
+            yolo_label=result.disease,
+            yolo_confidence=result.confidence,
+            image_ref=image_storage_path,
+        )
+        result = result.model_copy(update={
+            "gemini_verdict": g_verdict,
+            "gemini_agrees": g_agrees,
+            "gemini_reasoning": g_reasoning,
+        })
+    except Exception as exc:
+        log.warning("Gemini second opinion non-fatal error: %s", exc)
+
     analytics_store.record_scan(result)
     return result
 

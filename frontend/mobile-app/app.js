@@ -407,6 +407,26 @@ function showPredictResult(result){
   if(hpEl) hpEl.textContent = health ? health.plant_health + '%' : '—';
   if(riskEl) riskEl.textContent = health ? health.disease_risk : '—';
   if(survEl) survEl.textContent = health ? health.survival_chance + '%' : '—';
+  // Dual-AI / Disagreement display (Phase 3)
+  const geminiDisagreementEl = document.getElementById('r-gemini-disagreement');
+  const disagreeYoloEl = document.getElementById('r-disagree-yolo');
+  const disagreeGeminiEl = document.getElementById('r-disagree-gemini');
+  const disagreeReasonEl = document.getElementById('r-disagree-reason');
+  if (result.gemini_agrees === false) {
+    if (geminiDisagreementEl) {
+      if (disagreeYoloEl) disagreeYoloEl.textContent = `${disease} (${diseaseConfPct})`;
+      if (disagreeGeminiEl) disagreeGeminiEl.textContent = `${result.gemini_verdict || 'Alternative diagnosis'} — recommend follow-up scan`;
+      if (disagreeReasonEl) disagreeReasonEl.textContent = result.gemini_reasoning || 'Disagreement detected between primary model and vision LLM.';
+      geminiDisagreementEl.style.display = 'block';
+    } else if (recEl) {
+      const yoloRead = `YOLOv8: ${disease} (${diseaseConfPct})`;
+      const geminiRead = `Secondary check suggests: ${result.gemini_verdict || 'Alternative diagnosis'}`;
+      recEl.textContent = `⚠️ ${yoloRead} · ${geminiRead}\n\n${recText}`;
+    }
+  } else if (geminiDisagreementEl) {
+    geminiDisagreementEl.style.display = 'none';
+  }
+
   // model_name stays in `result.model_name` for debugging but is NOT
   // surfaced in the user-facing modal anymore (Phase B — no YOLO copy).
   const _modelLabel = (result.model_name && String(result.model_name).trim()) || 'stub';
@@ -972,8 +992,69 @@ if(new URLSearchParams(window.location.search).has('debug')){
 document.getElementById('m-cancel').addEventListener('click',()=>{ clearScanTimer(); scanModal.classList.remove('active'); });
 document.getElementById('r-dismiss').addEventListener('click',()=> resModal.classList.remove('active'));
 document.getElementById('r-save').addEventListener('click', function(){
-  this.textContent='✓ Exported'; this.style.opacity='.5';
-  setTimeout(()=>{ resModal.classList.remove('active'); this.textContent='Export Report'; this.style.opacity='1'; },800);
+  // --- Real report generation ---
+  const btn = this;
+  btn.disabled = true;
+  btn.textContent = 'Generating…';
+  btn.style.opacity = '.6';
+
+  try {
+    // Collect all data from the live result modal DOM
+    const getText = (id) => { const el = document.getElementById(id); return el ? el.textContent.trim() : '—'; };
+
+    const report = {
+      generated_at: new Date().toISOString(),
+      app: 'Atlas',
+      scan: {
+        plant_name:      getText('r-plant-name'),
+        scientific_name: getText('r-plant-sci'),
+        family:          getText('r-plant-family'),
+        genus:           getText('r-plant-genus'),
+        confidence:      getText('r-plant-conf'),
+        diagnosis:       getText('r-title'),
+        recommendation:  getText('r-recommendation') || getText('r-rec'),
+      },
+      environment: {
+        air_temperature: getText('r-env-temp'),
+        air_humidity:    getText('r-env-humid'),
+        light:           getText('r-env-light'),
+        soil_humidity:   getText('r-env-soil-moist'),
+        soil_ph:         getText('r-env-ph'),
+        soil_ec:         getText('r-env-ec'),
+      },
+      context: {
+        zone_id:   window.PLANT_ZONE_ID   || 'zone_alpha',
+        device_id: window.PLANT_DEVICE_ID || 'esp32_001',
+        user_id:   window.PLANT_USER_ID   || 'demo_user',
+        plant_id:  window.PLANT_ID        || 'unknown',
+      },
+    };
+
+    // Serialize and trigger download
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const ts   = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    a.href     = url;
+    a.download = `plantvision-report-${ts}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    btn.textContent = '✓ Exported';
+    setTimeout(() => {
+      resModal.classList.remove('active');
+      btn.textContent = 'Export Report';
+      btn.style.opacity = '1';
+      btn.disabled = false;
+    }, 900);
+  } catch (err) {
+    console.error('Export report failed:', err);
+    btn.textContent = 'Export Report';
+    btn.style.opacity = '1';
+    btn.disabled = false;
+  }
 });
 
 // --- Page Switching (shared) ---

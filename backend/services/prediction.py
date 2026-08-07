@@ -113,6 +113,18 @@ def run_vision_prediction(
     if identify or species_id:
         plant, plant_id_ms = _identify_plant(image_bytes, manual_species_id=species_id)
 
+    # Record inference time metric (Phase 2)
+    try:
+        from services.metrics_store import METRICS_STORE
+        img_size = raw.get("image_size", [640, 640]) if isinstance(raw, dict) else [640, 640]
+        METRICS_STORE.record(
+            inference_ms=round(inference_ms, 2),
+            model_source=model_name,
+            image_size=img_size,
+        )
+    except Exception as exc:
+        log.warning("failed to log scan metrics: %s", exc)
+
     return VisionResult(
         disease=tax["display_label"],
         confidence=round(float(pred.confidence), 4),

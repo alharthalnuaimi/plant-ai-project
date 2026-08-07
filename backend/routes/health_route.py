@@ -27,6 +27,26 @@ log = logging.getLogger("plantvision.health")
 router = APIRouter(tags=["health"])
 
 
+@router.get("/health/services")
+async def health_services() -> dict[str, bool | str]:
+    """Phase 4 — reports live vs stubbed status for external AI services."""
+    import os
+    plantnet_key = bool((os.getenv("PLANTNET_API_KEY") or os.getenv("PLANT_ID_API_KEY") or "").strip())
+    gemini_key = bool(os.getenv("GEMINI_API_KEY", "").strip())
+    
+    from services.model_registry import resolve_model_descriptor
+    desc = resolve_model_descriptor()
+    yolo_weights_exist = bool(desc.weights_path and os.path.isfile(desc.weights_path))
+
+    return {
+        "plantnet_status": "live" if plantnet_key else "stubbed",
+        "plantnet_key_present": plantnet_key,
+        "gemini_status": "live" if gemini_key else "stubbed",
+        "gemini_key_present": gemini_key,
+        "yolo_status": "live" if yolo_weights_exist else "stubbed",
+    }
+
+
 @router.get("/health/plant", response_model=PlantHealthScore)
 async def plant_health(
     user_id: str = Query(default="demo_user"),

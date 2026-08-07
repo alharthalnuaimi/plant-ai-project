@@ -22,6 +22,11 @@ from core.retry import record_validation_failure
 from db.connection import close_pool, deployment_mode, get_pool, ping
 from repositories import analytics_events_repo
 from services import analytics_store, audit_log
+from routes.admin_datasets import router as admin_datasets_router
+from routes.admin_feedback import router as admin_feedback_router
+from routes.admin_metrics import router as admin_metrics_router
+from routes.admin_providers import router as admin_providers_router
+from routes.admin_training import router as admin_training_router
 from routes.analytics import router as analytics_router
 from routes.care import router as care_router
 from routes.chat import router as chat_router
@@ -57,6 +62,11 @@ wire_observability(app)
 
 _APP_STARTED_AT = time.time()
 
+app.include_router(admin_datasets_router)
+app.include_router(admin_feedback_router)
+app.include_router(admin_metrics_router)
+app.include_router(admin_providers_router)
+app.include_router(admin_training_router)
 app.include_router(analytics_router)
 app.include_router(predict_router)
 app.include_router(sensor_router)
@@ -96,6 +106,17 @@ async def _startup() -> None:
                 _LOG.info("Hydrated %d scan(s) from scan_results into in-memory analytics", loaded)
         except Exception as exc:  # noqa: BLE001
             _LOG.warning("Scan history hydration skipped: %s", exc)
+
+    # Phase 4 — log live vs stubbed status for external AI services at startup
+    # so the information is visible in server boot logs, not just via /health/services.
+    import os as _os
+    _pn = bool((_os.getenv("PLANTNET_API_KEY") or _os.getenv("PLANT_ID_API_KEY") or "").strip())
+    _gm = bool(_os.getenv("GEMINI_API_KEY", "").strip())
+    _LOG.info(
+        "Service status → PlantNet: %s | Gemini: %s | YOLO: check /health/services",
+        "LIVE" if _pn else "STUBBED",
+        "LIVE" if _gm else "STUBBED",
+    )
 
 
 @app.on_event("shutdown")
