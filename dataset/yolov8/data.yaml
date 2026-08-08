@@ -1,4 +1,4 @@
-path: d:/antigravity/M.P.AI/dataset/yolov8
+path: .
 train: images/train
 val: images/val
 test: images/test

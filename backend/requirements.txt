@@ -15,3 +15,8 @@ asyncpg>=0.29.0
 # Optional: real YOLOv8 plant/disease detection (install when you have weights)
 # ultralytics>=8.0.0
 google-genai>=1.0.0
+
+# Phase 8 — AI provider agents (Claude, GPT-4o, Kimi, Roboflow)
+anthropic>=0.40.0
+openai>=1.50.0
+requests>=2.31.0

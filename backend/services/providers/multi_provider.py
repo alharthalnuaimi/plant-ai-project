@@ -1,9 +1,14 @@
 """
-Multi-provider registry & consensus engine (Phase 8).
+Multi-provider registry & consensus engine (Phase 8, Task 5/6/7 fixes).
 
 Adapts Gemini, Claude, GPT-4o, Kimi, & Roboflow agents with dynamic
 discovery based on API key presence. Each adapter wraps the real API
 call and normalizes the response into the common AnnotationAgent shape.
+
+All vision-LLM agents (Gemini, Claude, GPT) use **structured JSON output**
+to extract label, confidence, and bbox — no hardcoded values, no keyword
+text-scanning. Confidence and bbox are parsed from the model's actual
+response.
 
 Consensus only runs against ACTIVE providers — inactive/stubbed
 providers are excluded from vote counting to prevent artificial
@@ -13,6 +18,7 @@ inflation of agreement rates.
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import os
 from typing import Any
@@ -20,6 +26,77 @@ from typing import Any
 from services.providers.base import AnnotationAgent
 
 log = logging.getLogger("plantvision.providers")
+
+# Shared structured-output JSON schema description used in prompts.
+_JSON_SCHEMA_PROMPT = (
+    "You MUST respond with ONLY a valid JSON object (no markdown, no ```json blocks, no extra text). "
+    "The JSON must have exactly these fields:\n"
+    '{"label": "<disease or health label>", "confidence": <float 0.0-1.0>, '
+    '"bbox": [<x_center>, <y_center>, <width>, <height>] or null, '
+    '"reasoning": "<brief explanation>"}\n'
+    "bbox values are normalized 0-1 relative to image dimensions. "
+    "Set bbox to null if you cannot determine a specific region."
+)
+
+
+def _parse_structured_response(
+    raw_text: str, context_label: str, provider_name: str
+) -> dict[str, Any]:
+    """Parse structured JSON from an LLM response with robust fallback.
+
+    Tries to extract a JSON object from the response text. If parsing fails,
+    returns a response with the raw text as reasoning and zero confidence
+    (never fabricated values).
+    """
+    text = raw_text.strip()
+
+    # Strip markdown code fences if present
+    if text.startswith("```"):
+        lines = text.split("\n")
+        # Remove first and last lines (``` markers)
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        text = "\n".join(lines).strip()
+
+    # Try to find JSON object in the text
+    json_start = text.find("{")
+    json_end = text.rfind("}") + 1
+    if json_start >= 0 and json_end > json_start:
+        try:
+            data = json.loads(text[json_start:json_end])
+            label = str(data.get("label", context_label or "Healthy")).strip()
+            confidence = float(data.get("confidence", 0.0))
+            confidence = max(0.0, min(1.0, confidence))  # clamp
+
+            bbox_raw = data.get("bbox")
+            bbox = None
+            if isinstance(bbox_raw, list) and len(bbox_raw) == 4:
+                try:
+                    bbox = [round(float(v), 4) for v in bbox_raw]
+                except (ValueError, TypeError):
+                    bbox = None
+
+            reasoning = str(data.get("reasoning", ""))[:300]
+
+            return {
+                "provider": provider_name,
+                "class_label": label,
+                "confidence": round(confidence, 4),
+                "bbox": bbox,
+                "reasoning": reasoning,
+                "status": "success",
+            }
+        except (json.JSONDecodeError, ValueError, TypeError) as exc:
+            log.warning("JSON parse failed for %s: %s", provider_name, exc)
+
+    # Fallback: could not parse structured output — return raw text, zero confidence
+    return {
+        "provider": provider_name,
+        "class_label": context_label or "Healthy",
+        "confidence": 0.0,
+        "bbox": None,
+        "reasoning": f"[Unstructured response] {text[:300]}",
+        "status": "success",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -43,37 +120,16 @@ class GeminiAgent(AnnotationAgent):
                 return self._stub_response(context_label, "Gemini client unavailable")
 
             prompt = (
-                "You are a plant pathology expert. Examine this plant image and return:\n"
-                "1) A disease/health label (e.g., Healthy, Powdery Mildew, Bacterial Wilt, etc.)\n"
-                "2) Your confidence (0.0 to 1.0)\n"
-                "3) An approximate bounding box as [x_center, y_center, width, height] normalized 0-1\n"
-                "4) Brief reasoning\n"
-                f"Context: prior model suggested '{context_label}'.\n"
-                "Respond concisely."
+                "You are a plant pathology expert. Examine this plant image.\n"
+                f"Context: prior model suggested '{context_label}'.\n\n"
+                f"{_JSON_SCHEMA_PROMPT}"
             )
             response_text = client.generate_chat(
                 messages=[{"role": "user", "content": prompt}],
-                system_instruction="Concise plant disease diagnostics.",
+                system_instruction="Plant disease diagnostics. Respond with JSON only.",
             )
-            # Parse response — extract label from text
-            resp_lower = response_text.lower()
-            label = context_label or "Healthy"
-            for candidate in [
-                "healthy", "powdery mildew", "leaf spot", "rust", "blight",
-                "bacterial wilt", "manganese toxicity", "leaf blight",
-            ]:
-                if candidate in resp_lower:
-                    label = candidate.title()
-                    break
+            return _parse_structured_response(response_text, context_label, self.name)
 
-            return {
-                "provider": self.name,
-                "class_label": label,
-                "confidence": 0.85,
-                "bbox": [0.5, 0.5, 0.6, 0.6],
-                "reasoning": response_text.strip()[:300],
-                "status": "success",
-            }
         except Exception as exc:
             log.warning("GeminiAgent.annotate failed: %s", exc)
             return self._stub_response(context_label, f"Error: {exc}")
@@ -90,23 +146,37 @@ class GeminiAgent(AnnotationAgent):
 
 
 class RoboflowAgent(AnnotationAgent):
-    """Roboflow Auto Label agent — uses SAM 3 / Grounding DINO via REST API.
+    """Roboflow Auto Label agent — uses detection model via REST API.
 
-    Free tier cap: 1,000 images per job. For larger batches, the caller
-    should chunk into multiple jobs.
+    Requires both ROBOFLOW_API_KEY and ROBOFLOW_MODEL_ENDPOINT to be active.
+    Without ROBOFLOW_MODEL_ENDPOINT, the agent stays cleanly stubbed to avoid
+    voting with an unrelated public model's output.
     """
 
     def __init__(self) -> None:
         super().__init__("Roboflow Auto Label", "ROBOFLOW_API_KEY")
 
+    @property
+    def is_active(self) -> bool:
+        """Active only when both API key AND model endpoint are configured."""
+        return (
+            bool((os.getenv("ROBOFLOW_API_KEY") or "").strip())
+            and bool((os.getenv("ROBOFLOW_MODEL_ENDPOINT") or "").strip())
+        )
+
     def annotate(self, image_bytes: bytes, context_label: str = "") -> dict[str, Any]:
         if not self.is_active:
+            missing = []
+            if not (os.getenv("ROBOFLOW_API_KEY") or "").strip():
+                missing.append("ROBOFLOW_API_KEY")
+            if not (os.getenv("ROBOFLOW_MODEL_ENDPOINT") or "").strip():
+                missing.append("ROBOFLOW_MODEL_ENDPOINT")
             return {
                 "provider": self.name,
                 "class_label": context_label or "Healthy",
                 "confidence": 0.0,
                 "bbox": None,
-                "reasoning": "Roboflow API key not configured.",
+                "reasoning": f"Roboflow not configured — missing: {', '.join(missing)}.",
                 "status": "stubbed",
             }
 
@@ -114,11 +184,11 @@ class RoboflowAgent(AnnotationAgent):
             import requests
 
             api_key = os.getenv("ROBOFLOW_API_KEY", "").strip()
+            model_endpoint = os.getenv("ROBOFLOW_MODEL_ENDPOINT", "").strip()
             img_b64 = base64.b64encode(image_bytes).decode("utf-8")
 
-            # Roboflow inference API — adapt endpoint to your workspace/model
             resp = requests.post(
-                f"https://detect.roboflow.com/plant-disease-detection/1",
+                f"https://detect.roboflow.com/{model_endpoint}",
                 params={"api_key": api_key},
                 data=img_b64,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -133,7 +203,7 @@ class RoboflowAgent(AnnotationAgent):
                 return {
                     "provider": self.name,
                     "class_label": top.get("class", context_label or "Healthy"),
-                    "confidence": round(float(top.get("confidence", 0.8)), 4),
+                    "confidence": round(float(top.get("confidence", 0.0)), 4),
                     "bbox": [
                         round(top.get("x", 0.5), 4),
                         round(top.get("y", 0.5), 4),
@@ -147,7 +217,7 @@ class RoboflowAgent(AnnotationAgent):
             return {
                 "provider": self.name,
                 "class_label": context_label or "Healthy",
-                "confidence": 0.5,
+                "confidence": 0.0,
                 "bbox": None,
                 "reasoning": "No predictions returned from Roboflow.",
                 "status": "success",
@@ -165,7 +235,7 @@ class RoboflowAgent(AnnotationAgent):
 
 
 class ClaudeAgent(AnnotationAgent):
-    """Claude Vision agent — uses Anthropic API with vision capabilities."""
+    """Claude Vision agent — uses Anthropic API with structured JSON output."""
 
     def __init__(self) -> None:
         super().__init__("Claude Vision", "ANTHROPIC_API_KEY")
@@ -186,32 +256,22 @@ class ClaudeAgent(AnnotationAgent):
             img_b64 = base64.b64encode(image_bytes).decode("utf-8")
 
             message = client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=200,
+                model=os.getenv("ANTHROPIC_VISION_MODEL", "claude-sonnet-4-20250514"),
+                max_tokens=300,
                 messages=[{
                     "role": "user",
                     "content": [
                         {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}},
                         {"type": "text", "text": (
-                            f"Plant pathology: classify this image. Prior model suggests '{context_label}'. "
-                            "Return: label, confidence (0-1), brief reasoning. Be concise."
+                            f"Plant pathology: classify this image. Prior model suggests '{context_label}'.\n\n"
+                            f"{_JSON_SCHEMA_PROMPT}"
                         )},
                     ],
                 }],
             )
             text = message.content[0].text if message.content else ""
-            resp_lower = text.lower()
-            label = context_label or "Healthy"
-            for candidate in ["healthy", "powdery mildew", "leaf spot", "rust", "blight", "bacterial wilt", "manganese toxicity"]:
-                if candidate in resp_lower:
-                    label = candidate.title()
-                    break
+            return _parse_structured_response(text, context_label, self.name)
 
-            return {
-                "provider": self.name, "class_label": label, "confidence": 0.88,
-                "bbox": [0.5, 0.5, 0.6, 0.6], "reasoning": text.strip()[:300],
-                "status": "success",
-            }
         except Exception as exc:
             log.warning("ClaudeAgent.annotate failed: %s", exc)
             return {
@@ -222,7 +282,7 @@ class ClaudeAgent(AnnotationAgent):
 
 
 class GPTAgent(AnnotationAgent):
-    """GPT-4o Vision agent — uses OpenAI API."""
+    """GPT-4o Vision agent — uses OpenAI API with structured JSON output."""
 
     def __init__(self) -> None:
         super().__init__("GPT-4o Vision", "OPENAI_API_KEY")
@@ -243,32 +303,23 @@ class GPTAgent(AnnotationAgent):
             img_b64 = base64.b64encode(image_bytes).decode("utf-8")
 
             response = client.chat.completions.create(
-                model="gpt-4o",
-                max_tokens=200,
+                model=os.getenv("OPENAI_VISION_MODEL", "gpt-4o"),
+                max_tokens=300,
+                response_format={"type": "json_object"},
                 messages=[{
                     "role": "user",
                     "content": [
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}},
                         {"type": "text", "text": (
-                            f"Plant pathology: classify this image. Prior model suggests '{context_label}'. "
-                            "Return: label, confidence (0-1), brief reasoning."
+                            f"Plant pathology: classify this image. Prior model suggests '{context_label}'.\n\n"
+                            f"{_JSON_SCHEMA_PROMPT}"
                         )},
                     ],
                 }],
             )
             text = response.choices[0].message.content or ""
-            resp_lower = text.lower()
-            label = context_label or "Healthy"
-            for candidate in ["healthy", "powdery mildew", "leaf spot", "rust", "blight", "bacterial wilt", "manganese toxicity"]:
-                if candidate in resp_lower:
-                    label = candidate.title()
-                    break
+            return _parse_structured_response(text, context_label, self.name)
 
-            return {
-                "provider": self.name, "class_label": label, "confidence": 0.90,
-                "bbox": [0.5, 0.5, 0.6, 0.6], "reasoning": text.strip()[:300],
-                "status": "success",
-            }
         except Exception as exc:
             log.warning("GPTAgent.annotate failed: %s", exc)
             return {
@@ -279,7 +330,7 @@ class GPTAgent(AnnotationAgent):
 
 
 class KimiAgent(AnnotationAgent):
-    """Kimi Vision (Moonshot AI) agent — OpenAI-compatible API."""
+    """Kimi Vision (Moonshot AI) agent — OpenAI-compatible API with structured output."""
 
     def __init__(self) -> None:
         super().__init__("Kimi Vision", "KIMI_API_KEY")
@@ -300,33 +351,22 @@ class KimiAgent(AnnotationAgent):
                 api_key=os.getenv("KIMI_API_KEY"),
                 base_url="https://api.moonshot.cn/v1",
             )
-            img_b64 = base64.b64encode(image_bytes).decode("utf-8")
 
             response = client.chat.completions.create(
                 model="moonshot-v1-8k",
-                max_tokens=200,
+                max_tokens=300,
                 messages=[{
                     "role": "user",
                     "content": (
                         f"Plant pathology: classify this plant image. "
-                        f"Prior model suggests '{context_label}'. "
-                        "Return: disease label, confidence (0-1), brief reasoning."
+                        f"Prior model suggests '{context_label}'.\n\n"
+                        f"{_JSON_SCHEMA_PROMPT}"
                     ),
                 }],
             )
             text = response.choices[0].message.content or ""
-            resp_lower = text.lower()
-            label = context_label or "Healthy"
-            for candidate in ["healthy", "powdery mildew", "leaf spot", "rust", "blight", "bacterial wilt", "manganese toxicity"]:
-                if candidate in resp_lower:
-                    label = candidate.title()
-                    break
+            return _parse_structured_response(text, context_label, self.name)
 
-            return {
-                "provider": self.name, "class_label": label, "confidence": 0.85,
-                "bbox": None, "reasoning": text.strip()[:300],
-                "status": "success",
-            }
         except Exception as exc:
             log.warning("KimiAgent.annotate failed: %s", exc)
             return {

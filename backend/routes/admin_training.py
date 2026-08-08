@@ -17,6 +17,7 @@ router = APIRouter(prefix="/admin/training", tags=["admin_training"])
 class StartTrainingRequest(BaseModel):
     dataset_batch_ids: list[str] = Field(default_factory=list, description="IDs of 🟢 Ready dataset batches to include")
     target: str = Field(default="local", description="Execution target: 'colab' or 'local'")
+    metrics_before: dict[str, Any] | None = Field(default=None, description="Baseline metrics from real evaluation (see scripts/run_eval.py)")
 
 
 class CompleteTrainingRequest(BaseModel):
@@ -36,6 +37,7 @@ async def start_training_job(payload: StartTrainingRequest) -> dict[str, Any]:
     job = TRAINING_JOBS_STORE.create_job(
         dataset_batch_ids=payload.dataset_batch_ids,
         target=target,
+        metrics_before=payload.metrics_before,
     )
     return job
 

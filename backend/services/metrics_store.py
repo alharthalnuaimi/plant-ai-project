@@ -2,15 +2,35 @@
 Scan metrics & inference time logging store (Phase 2).
 Records timing, model source, and image sizes for real requests only.
 No synthetic/fake data — summary returns zeros when no scans have been logged.
+
+Write-through to Postgres when PERSISTENCE_BACKEND=postgres (Task 4).
+Falls back to in-memory when not.
 """
 
 from __future__ import annotations
 
+import asyncio
 import datetime
+import logging
 import math
+import os
 import statistics
 import threading
 from typing import Any
+
+log = logging.getLogger("plantvision.metrics_store")
+
+def _use_postgres() -> bool:
+    return os.getenv("PERSISTENCE_BACKEND", "memory").lower() == "postgres"
+
+
+def _fire_and_forget(coro):
+    """Schedule async DB write without blocking the sync caller."""
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(coro)
+    except RuntimeError:
+        pass
 
 
 class ScanMetricsStore:
@@ -36,6 +56,19 @@ class ScanMetricsStore:
             # Retain last 1000 items
             if len(self._metrics) > 1000:
                 self._metrics = self._metrics[-1000:]
+
+        # Write-through to Postgres
+        if _use_postgres():
+            try:
+                from repositories.metrics_repo import insert_metric as db_insert
+                _fire_and_forget(db_insert(
+                    inference_ms=entry["inference_ms"],
+                    model_source=entry["model_source"],
+                    image_size=entry["image_size"],
+                ))
+            except Exception as exc:
+                log.warning("DB write-through failed for metric: %s", exc)
+
         return entry
 
     def summary(self, limit: int = 100) -> dict[str, Any]:

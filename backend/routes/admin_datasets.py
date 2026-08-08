@@ -20,8 +20,10 @@ from services.readiness_check import evaluate_dataset_readiness
 
 router = APIRouter(prefix="/admin/datasets", tags=["admin_datasets"])
 
-BASE_DIR = Path("d:/antigravity/M.P.AI")
-UPLOADS_ROOT = BASE_DIR / "dataset" / "uploads"
+# Resolve dataset uploads directory relative to the repo root.
+# Override with DATASET_UPLOADS_PATH env var for Railway volumes.
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+UPLOADS_ROOT = Path(os.getenv("DATASET_UPLOADS_PATH", str(_REPO_ROOT / "dataset" / "uploads")))
 UPLOADS_ROOT.mkdir(parents=True, exist_ok=True)
 
 
