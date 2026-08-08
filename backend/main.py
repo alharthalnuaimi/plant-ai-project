@@ -51,10 +51,13 @@ app = FastAPI(
 #   CORS_ALLOWED_ORIGINS="https://a,https://b" -> ["https://a", "https://b"]
 # See ``core.cors`` for the parser + DEPLOY.md §3.1 for the deploy guide.
 _CORS_ORIGINS = resolved_cors_origins()
+_CORS_WILDCARD = _CORS_ORIGINS == ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_CORS_ORIGINS,
-    allow_credentials=True,
+    # Per CORS spec, wildcard origin + credentials is invalid — browsers
+    # reject it. Only enable credentials when explicit origins are pinned.
+    allow_credentials=not _CORS_WILDCARD,
     allow_methods=["*"],
     allow_headers=["*"],
 )

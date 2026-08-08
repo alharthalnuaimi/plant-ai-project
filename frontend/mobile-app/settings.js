@@ -941,7 +941,128 @@
     _loadProviders();
   }
 
-  // Initialize Phase 6/7/8 Settings UI
+  // ── Phase 3: Feedback Review Queue ─────────────────────────────────────
+  function _wireFeedbackReview() {
+    const listEl = document.getElementById('review-queue-list');
+    const badgeEl = document.getElementById('review-pending-badge');
+    if (!listEl) return;
+
+    async function _loadPending() {
+      try {
+        const resp = await fetch(`${_apiBase()}/admin/feedback/pending`, { signal: AbortSignal.timeout(5000) });
+        if (!resp.ok) { listEl.innerHTML = '<span class="mono set-hint">Could not load review queue</span>'; return; }
+        const items = await resp.json();
+
+        if (badgeEl) badgeEl.textContent = items.length ? `${items.length} pending` : '0 pending';
+
+        if (!items.length) {
+          listEl.innerHTML = '<span class="mono set-hint">No pending reviews — all caught up ✓</span>';
+          return;
+        }
+
+        listEl.innerHTML = items.slice(0, 20).map(item => {
+          const conf = item.yolo_confidence != null ? (item.yolo_confidence * 100).toFixed(0) + '%' : '—';
+          const agrees = item.gemini_agrees ? '✓ Agrees' : '✗ Disagrees';
+          const agreeClass = item.gemini_agrees ? 'pv-agree' : 'pv-disagree';
+          return `<div class="pv-review-card" data-review-id="${item.id}">
+            <div class="pv-review-header">
+              <span class="pv-review-img mono">${_escapeHtml(item.image_ref || 'scan')}</span>
+              <span class="pv-review-ts mono">${item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}</span>
+            </div>
+            <div class="pv-review-body">
+              <div class="pv-review-col">
+                <span class="pv-review-label-title">YOLOv8</span>
+                <span class="pv-review-label">${_escapeHtml(item.yolo_label || '—')}</span>
+                <span class="pv-review-conf mono">${conf}</span>
+              </div>
+              <div class="pv-review-vs ${agreeClass}">
+                <span>${agrees}</span>
+              </div>
+              <div class="pv-review-col">
+                <span class="pv-review-label-title">Gemini</span>
+                <span class="pv-review-label">${_escapeHtml(item.gemini_label || '—')}</span>
+              </div>
+            </div>
+            ${item.reasoning ? `<div class="pv-review-reasoning mono">${_escapeHtml(item.reasoning).substring(0, 200)}</div>` : ''}
+            <div class="pv-review-actions">
+              <button class="pv-review-accept" data-accept-id="${item.id}" data-accept-label="${_escapeHtml(item.yolo_label || '')}">Accept YOLO ✓</button>
+              <button class="pv-review-accept pv-review-accept-alt" data-accept-id="${item.id}" data-accept-label="${_escapeHtml(item.gemini_label || '')}">Accept Gemini</button>
+              <div class="pv-review-custom">
+                <input type="text" class="pv-review-input" placeholder="Custom label…" data-custom-for="${item.id}" />
+                <button class="pv-review-correct" data-correct-id="${item.id}">Correct</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+
+        // Wire accept buttons
+        listEl.querySelectorAll('.pv-review-accept[data-accept-id]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-accept-id');
+            const label = btn.getAttribute('data-accept-label');
+            await _confirmFeedback(id, label, btn);
+          });
+        });
+
+        // Wire custom correct buttons
+        listEl.querySelectorAll('.pv-review-correct[data-correct-id]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-correct-id');
+            const input = listEl.querySelector(`input[data-custom-for="${id}"]`);
+            const label = input ? input.value.trim() : '';
+            if (!label) { showToast('Enter a custom label first'); return; }
+            await _confirmFeedback(id, label, btn);
+          });
+        });
+      } catch { listEl.innerHTML = '<span class="mono set-hint">Backend offline</span>'; }
+    }
+
+    async function _confirmFeedback(id, label, btn) {
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        const resp = await fetch(`${_apiBase()}/admin/feedback/${id}/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ confirmed_label: label }),
+        });
+        if (resp.ok) {
+          showToast(`Confirmed: ${label}`);
+          // Remove the card with animation
+          const card = listEl.querySelector(`[data-review-id="${id}"]`);
+          if (card) {
+            card.style.opacity = '0';
+            card.style.transform = 'translateX(40px)';
+            card.style.transition = 'opacity .3s, transform .3s';
+            setTimeout(() => { card.remove(); _updateBadge(); }, 320);
+          } else {
+            _loadPending();
+          }
+        } else {
+          showToast('Failed to confirm feedback');
+          btn.disabled = false;
+          btn.textContent = 'Retry';
+        }
+      } catch {
+        showToast('Network error');
+        btn.disabled = false;
+        btn.textContent = 'Retry';
+      }
+    }
+
+    function _updateBadge() {
+      const remaining = listEl.querySelectorAll('.pv-review-card').length;
+      if (badgeEl) badgeEl.textContent = remaining ? `${remaining} pending` : '0 pending';
+      if (!remaining) {
+        listEl.innerHTML = '<span class="mono set-hint">No pending reviews — all caught up ✓</span>';
+      }
+    }
+
+    _loadPending();
+  }
+
+  // Initialize Phase 3/6/7/8 Settings UI
+  _wireFeedbackReview();
   _wireTrainingData();
   _wireTraining();
   _wireProviders();
