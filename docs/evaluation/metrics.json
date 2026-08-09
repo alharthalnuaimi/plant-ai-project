@@ -1,6 +1,6 @@
 {
-  "weights": "cucumber_yolov8.pt",
-  "data_yaml": "D:\\antigravity\\M.P.AI\\dataset\\yolov8\\data.yaml",
+  "weights": "weights.pt",
+  "data_yaml": "D:\\antigravity\\M.P.AI\\artifacts\\models\\cucumber\\data.yaml",
   "split": "test",
   "overall": {
     "mAP50": 0.995,
