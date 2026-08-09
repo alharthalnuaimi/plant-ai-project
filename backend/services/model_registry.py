@@ -1,5 +1,5 @@
 """
-Resolve production weights: explicit env wins, then artifacts/registry.json `active`.
+Resolve production weights from the per-species registry or environment variable overrides.
 """
 
 from __future__ import annotations
@@ -31,67 +31,45 @@ def registry_path() -> Path:
 def load_registry() -> dict:
     p = registry_path()
     if not p.is_file():
-        return {"active": None, "versions": {}}
+        return {"species": {}}
     try:
         return json.loads(p.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
-        return {"active": None, "versions": {}}
+        return {"species": {}}
 
 
-def resolve_weights_path() -> str | None:
-    env_w = os.getenv("YOLO_WEIGHTS_PATH", "").strip()
-    if env_w and Path(env_w).is_file():
-        return env_w
-
-    reg = load_registry()
-    active = reg.get("active")
-    if not active:
-        return None
-    ver = (reg.get("versions") or {}).get(active)
-    if not ver:
-        return None
-    rel = ver.get("weights_relative") or ver.get("weights")
-    if not rel:
-        return None
-    candidate = (REPO_ROOT / str(rel)).resolve()
-    if candidate.is_file():
-        return str(candidate)
-    return None
-
-
-def resolve_active_version() -> str | None:
-    reg = load_registry()
-    return reg.get("active")
-
-
-def resolve_model_descriptor() -> ModelDescriptor:
-    env_w = os.getenv("YOLO_WEIGHTS_PATH", "").strip()
+def resolve_model_descriptor(species: str) -> ModelDescriptor:
+    """Resolve the weights path and descriptor for a given species."""
+    
+    # 1. Environment variable override (e.g. ROSE_WEIGHTS_PATH)
+    env_var_name = f"{species.upper()}_WEIGHTS_PATH"
+    env_w = os.getenv(env_var_name, "").strip()
     if env_w and Path(env_w).is_file():
         return ModelDescriptor(
             version="env_override",
             weights_path=env_w,
             source="env",
-            metadata={},
+            metadata={"species": species},
         )
 
+    # 2. Registry lookup
     reg = load_registry()
-    active = reg.get("active")
-    if active:
-        entry = (reg.get("versions") or {}).get(active) or {}
-        rel = entry.get("weights_relative") or entry.get("weights")
-        if rel:
-            candidate = (REPO_ROOT / str(rel)).resolve()
-            if candidate.is_file():
-                return ModelDescriptor(
-                    version=str(active),
-                    weights_path=str(candidate),
-                    source="registry",
-                    metadata=entry,
-                )
+    species_config = reg.get("species", {}).get(species, {})
+    
+    rel_weights = species_config.get("weights_relative")
+    if rel_weights:
+        candidate = (REPO_ROOT / str(rel_weights)).resolve()
+        if candidate.is_file():
+            return ModelDescriptor(
+                version=species_config.get("historical_training", {}).get("version", "registry"),
+                weights_path=str(candidate),
+                source="registry",
+                metadata={"species": species, **species_config},
+            )
 
     return ModelDescriptor(
         version="stub",
         weights_path=None,
         source="fallback_stub",
-        metadata={"reason": "No valid env/registry model found"},
+        metadata={"reason": f"No valid env/registry model found for {species}"},
     )

@@ -35,7 +35,7 @@ async def health_services() -> dict[str, bool | str]:
     gemini_key = bool(os.getenv("GEMINI_API_KEY", "").strip())
     
     from services.model_registry import resolve_model_descriptor
-    desc = resolve_model_descriptor()
+    desc = resolve_model_descriptor("unknown")
     yolo_weights_exist = bool(desc.weights_path and os.path.isfile(desc.weights_path))
 
     return {

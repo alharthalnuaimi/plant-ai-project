@@ -33,11 +33,11 @@ class DiseasePrediction:
 
 class VisionPredictor(ABC):
     @abstractmethod
-    def predict(self, image_bytes: bytes) -> DiseasePrediction:
+    def predict(self, image_bytes: bytes, species: str) -> DiseasePrediction:
         ...
 
 
-class StubVisionPredictor(VisionPredictor):
+class StubVisionPredictor:
     """
     MVP placeholder: validates image, derives a crude brightness/greenness hint for stress demo,
     and picks a demo disease label for API shape. Replace with YOLO for real demos.
@@ -50,6 +50,9 @@ class StubVisionPredictor(VisionPredictor):
         ("Rust", 0.08),
         ("Blight", 0.06),
     ]
+
+    def __init__(self, species: str):
+        self.species = species
 
     @staticmethod
     def _label_choices() -> list[tuple[str, float]]:
@@ -87,7 +90,7 @@ class StubVisionPredictor(VisionPredictor):
         confidence = min(0.95, max(0.35, base_p + (0.15 if "stress" in stress_hint else 0.0)))
 
         raw = {
-            "model": "stub_vision",
+            "model": f"stub_{self.species}",
             "label_source": "dataset/yolov8/data.yaml" if get_yolo_class_names() else "builtin_demo",
             "brightness": round(brightness, 2),
             "green_ratio": round(green_ratio, 4),
@@ -101,15 +104,16 @@ class StubVisionPredictor(VisionPredictor):
         )
 
 
-class YoloVisionPredictor(VisionPredictor):
+class YoloVisionPredictor:
     """
-    Optional real detector. Weights from YOLO_WEIGHTS_PATH or artifacts/registry.json.
+    Optional real detector. Weights from environment or artifacts/registry.json.
     Install ultralytics in the runtime if you use this class.
     """
 
-    def __init__(self, weights_path: str) -> None:
+    def __init__(self, weights_path: str, species: str) -> None:
         from ultralytics import YOLO  # type: ignore import-not-found
 
+        self.species = species
         self._weights_path = weights_path
         self._model = YOLO(weights_path)
         self._conf = float(os.getenv("YOLO_CONF", "0.25"))
@@ -126,7 +130,7 @@ class YoloVisionPredictor(VisionPredictor):
             imgsz=self._imgsz,
         )
         if not results:
-            raise RuntimeError("YOLO returned no results")
+            raise RuntimeError(f"YOLO returned no results for {self.species}")
 
         r0 = results[0]
         names = r0.names or {}
@@ -144,7 +148,7 @@ class YoloVisionPredictor(VisionPredictor):
             conf = 0.0
 
         raw = {
-            "model": "yolov8",
+            "model": f"{self.species}_yolov8",
             "weights": self._weights_path,
             "conf": self._conf,
             "imgsz": self._imgsz,
@@ -157,37 +161,51 @@ class YoloVisionPredictor(VisionPredictor):
         )
 
 
-def get_vision_predictor() -> VisionPredictor:
-    """Resolve the active vision predictor.
-
-    Resolution order:
-      1. Real YOLO predictor when weights exist on disk *and* `ultralytics`
-         is importable. Errors are logged (not silenced) so an operator can
-         see why a real model failed to load.
-      2. Otherwise fall back to the stub so /predict never 500s on missing
-         weights — UI gets a clean response with `model_name == "stub_vision"`.
+class SpeciesAwareVisionPredictor(VisionPredictor):
+    """
+    Routes vision prediction to the appropriate species-specific model.
+    Lazy-loads YOLO models to avoid slow startup for species not scanned yet.
+    Falls back to a species-specific stub if real weights are missing.
     """
 
-    descriptor = resolve_model_descriptor()
-    weights = descriptor.weights_path
-    if weights and os.path.isfile(weights):
-        try:
-            predictor = YoloVisionPredictor(weights)
-            logger.info("YOLO predictor loaded weights=%s", weights)
-            return predictor
-        except ImportError as exc:
-            logger.warning(
-                "YOLO weights found at %s but `ultralytics` not installed (%s). Falling back to stub.",
-                weights,
-                exc,
-            )
-        except Exception as exc:  # noqa: BLE001 — keep the API alive
-            print("\n🚨 CRITICAL YOLO ERROR ACCURRED!!! 🚨\n", str(exc), "\n")
-            logger.exception(
-                "YOLO load failed for weights=%s — falling back to stub: %s", weights, exc
-            )
-    elif weights:
-        logger.warning(
-            "YOLO_WEIGHTS_PATH is set but file does not exist: %s — using stub.", weights
-        )
-    return StubVisionPredictor()
+    def __init__(self):
+        self._predictors = {}
+
+    def _get_predictor_for_species(self, species: str) -> Any:
+        if species not in self._predictors:
+            descriptor = resolve_model_descriptor(species)
+            weights = descriptor.weights_path
+            
+            if weights and os.path.isfile(weights):
+                try:
+                    predictor = YoloVisionPredictor(weights, species)
+                    logger.info("YOLO predictor loaded for species=%s weights=%s", species, weights)
+                    self._predictors[species] = predictor
+                except ImportError as exc:
+                    logger.warning(
+                        "YOLO weights found for %s at %s but `ultralytics` not installed (%s). Falling back to stub.",
+                        species, weights, exc,
+                    )
+                    self._predictors[species] = StubVisionPredictor(species)
+                except Exception as exc:  # noqa: BLE001
+                    logger.exception(
+                        "YOLO load failed for species=%s weights=%s — falling back to stub: %s",
+                        species, weights, exc
+                    )
+                    self._predictors[species] = StubVisionPredictor(species)
+            else:
+                logger.warning(
+                    "No valid YOLO weights found for species=%s. Falling back to stub.", species
+                )
+                self._predictors[species] = StubVisionPredictor(species)
+                
+        return self._predictors[species]
+
+    def predict(self, image_bytes: bytes, species: str) -> DiseasePrediction:
+        predictor = self._get_predictor_for_species(species)
+        return predictor.predict(image_bytes)
+
+
+def get_vision_predictor() -> VisionPredictor:
+    """Resolve the active vision predictor (Species Router)."""
+    return SpeciesAwareVisionPredictor()

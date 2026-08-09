@@ -87,9 +87,19 @@ def run_vision_prediction(
     if should_preprocess():
         image_bytes = standardize_for_model(image_bytes, output="jpeg_bytes")  # type: ignore[assignment]
 
-    # 1. Disease detection (existing pipeline).
+    # 1. Plant identification (Phase 3, additive). Must happen first so we can route the disease model!
+    plant: PlantIdentification | None = None
+    plant_id_ms = 0.0
+    species_str = "unknown"
+    
+    if identify or species_id:
+        plant, plant_id_ms = _identify_plant(image_bytes, manual_species_id=species_id)
+        if plant and plant.species_id:
+            species_str = plant.species_id
+
+    # 2. Disease detection (species-aware).
     predictor = ModelManager.instance().get_vision_model()
-    pred = predictor.predict(image_bytes)
+    pred = predictor.predict(image_bytes, species=species_str)
     inference_ms = (time.perf_counter() - t0) * 1000.0
 
     threshold = float(
@@ -101,17 +111,11 @@ def run_vision_prediction(
     accepted = pred.confidence >= threshold
     raw = pred.raw or {}
     model_name = str(raw.get("model", "unknown"))
-    model_version = ModelManager.instance().active_versions().get("vision_version") or "unversioned"
-    if model_name == "stub_vision":
+    model_version = ModelManager.instance().active_versions(species_str).get("vision_version") or "unversioned"
+    if "stub" in model_name:
         model_version = "stub"
 
     tax = classify_disease(pred.disease)
-
-    # 2. Plant identification (Phase 3, additive).
-    plant: PlantIdentification | None = None
-    plant_id_ms = 0.0
-    if identify or species_id:
-        plant, plant_id_ms = _identify_plant(image_bytes, manual_species_id=species_id)
 
     # Record inference time metric (Phase 2)
     try:

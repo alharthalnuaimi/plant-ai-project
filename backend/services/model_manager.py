@@ -70,8 +70,8 @@ class ModelManager:
                 self._plant_id_source = self._plant_id_model.__class__.__name__
             return self._plant_id_model
 
-    def active_versions(self) -> dict[str, Any]:
-        descriptor = resolve_model_descriptor()
+    def active_versions(self, species: str = "unknown") -> dict[str, Any]:
+        descriptor = resolve_model_descriptor(species)
         llama = self.get_llama_model()
         return {
             "vision_version": descriptor.version,
@@ -84,7 +84,11 @@ class ModelManager:
         }
 
     def health_status(self) -> ModelHealth:
-        descriptor = resolve_model_descriptor()
+        # In a multi-species world, "health" is more complex. For MVP healthcheck,
+        # we'll just check if the model router initialized (it always does).
+        # We pass "unknown" to the descriptor to avoid TypeError, though it's
+        # less meaningful globally now.
+        descriptor = resolve_model_descriptor("unknown")
         llama = self._llama_client
         return ModelHealth(
             vision_loaded=self._vision_model is not None,

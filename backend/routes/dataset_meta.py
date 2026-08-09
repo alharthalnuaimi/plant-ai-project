@@ -7,9 +7,7 @@ from services.model_manager import ModelManager
 from services.model_registry import (
     load_registry,
     registry_path,
-    resolve_active_version,
     resolve_model_descriptor,
-    resolve_weights_path,
 )
 
 router = APIRouter(tags=["dataset"])
@@ -40,19 +38,18 @@ async def api_models_health() -> dict:
         "llama_loaded": h.llama_loaded,
         "vision_version": h.vision_version,
         "llama_model": h.llama_model,
-        "active_versions": mm.active_versions(),
+        "active_versions": mm.active_versions("unknown"),
     }
 
 
 @router.get("/models/registry")
 async def api_models_registry() -> dict:
     reg = load_registry()
-    weights = resolve_weights_path()
-    descriptor = resolve_model_descriptor()
+    descriptor = resolve_model_descriptor("unknown")
     return {
         "registry_path": str(registry_path()),
-        "active_version": resolve_active_version(),
-        "resolved_weights": weights,
+        "active_version": "multi-species-router",
+        "resolved_weights": descriptor.weights_path,
         "resolved_model": {
             "version": descriptor.version,
             "weights_path": descriptor.weights_path,
