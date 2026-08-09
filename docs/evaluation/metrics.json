@@ -1,31 +1,31 @@
 {
-  "weights": "yolov8n.pt",
+  "weights": "cucumber_yolov8.pt",
   "data_yaml": "D:\\antigravity\\M.P.AI\\dataset\\yolov8\\data.yaml",
   "split": "test",
   "overall": {
-    "mAP50": 0.0,
-    "mAP50-95": 0.0,
-    "precision": 0.0,
-    "recall": 0.0
+    "mAP50": 0.995,
+    "mAP50-95": 0.995,
+    "precision": 0.0035,
+    "recall": 1.0
   },
   "per_class": {
-    "person": {
-      "precision": 0.0,
-      "recall": 0.0,
-      "mAP50": 0.0,
-      "mAP50-95": 0.0
+    "Bacterial Wilt Money Plant": {
+      "precision": 0.0047,
+      "recall": 1.0,
+      "mAP50": 0.995,
+      "mAP50-95": 0.995
     },
-    "bicycle": {
-      "precision": 0.0,
-      "recall": 0.0,
-      "mAP50": 0.0,
-      "mAP50-95": 0.0
+    "Healthy Money Plant": {
+      "precision": 0.0026,
+      "recall": 1.0,
+      "mAP50": 0.995,
+      "mAP50-95": 0.995
     },
-    "car": {
-      "precision": 0.0,
-      "recall": 0.0,
-      "mAP50": 0.0,
-      "mAP50-95": 0.0
+    "Manganese Toxicity Money Plant": {
+      "precision": 0.0033,
+      "recall": 1.0,
+      "mAP50": 0.995,
+      "mAP50-95": 0.995
     }
   }
 }

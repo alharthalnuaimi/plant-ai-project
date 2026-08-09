@@ -1,15 +1,15 @@
-# PlantVision Model Evaluation (Phase 1)
+# PlantVision Model Evaluation
 
-This folder contains evaluation metrics and artifacts generated on a 100% held-out test split (10% of total dataset stratified across all 3 classes).
+This folder contains evaluation metrics and artifacts generated on a 100% held-out test split.
 
 ## Summary Metrics
 
 | Metric | Score |
 |---|---|
-| **Precision** | `0.924` |
-| **Recall** | `0.898` |
-| **mAP@50** | `0.941` |
-| **mAP@50-95** | `0.785` |
+| **Precision** | `0.0035` |
+| **Recall** | `1.0` |
+| **mAP@50** | `0.995` |
+| **mAP@50-95** | `0.995` |
 
 ---
 
@@ -17,17 +17,17 @@ This folder contains evaluation metrics and artifacts generated on a 100% held-o
 
 | Class Name | Precision | Recall | mAP@50 | mAP@50-95 |
 |---|---|---|---|---|
-| **Bacterial Wilt Money Plant** | 0.912 | 0.880 | 0.935 | 0.768 |
-| **Healthy Money Plant** | 0.954 | 0.932 | 0.968 | 0.821 |
-| **Manganese Toxicity Money Plant** | 0.906 | 0.882 | 0.920 | 0.766 |
+| **Bacterial Wilt Money Plant** | 0.0047 | 1.0 | 0.995 | 0.995 |
+| **Healthy Money Plant** | 0.0026 | 1.0 | 0.995 | 0.995 |
+| **Manganese Toxicity Money Plant** | 0.0033 | 1.0 | 0.995 | 0.995 |
 
 ---
 
 ## Verification & Data Leakage Prevention
 
-- **Split Ratio**: 70% Train, 20% Validation, 10% Test (stratified by class).
+- **Split Ratio**: 70% Train, 20% Validation, 10% Test.
 - **Leakage Audit**: Verified that zero test set images or augmentations exist in the training or validation splits.
-- **Evaluation Command**: `yolo val model=artifacts/models/cucumber_yolov8.pt data=dataset/yolov8/data.yaml split=test`
+- **Evaluation Command**: `python scripts/run_eval.py`
 
 ---
 
