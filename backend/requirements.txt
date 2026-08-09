@@ -12,8 +12,7 @@ pyyaml>=6.0.0
 # Phase 2 — local Supabase / Postgres persistence
 asyncpg>=0.29.0
 
-# Optional: real YOLOv8 plant/disease detection (install when you have weights)
-# ultralytics>=8.0.0
+
 google-genai>=1.0.0
 
 # Phase 8 — AI provider agents (Claude, GPT-4o, Kimi, Roboflow)
