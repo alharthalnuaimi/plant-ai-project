@@ -3,12 +3,14 @@
     "rose": {
       "weights_relative": "artifacts/models/rose/weights.pt",
       "data_yaml_relative": "artifacts/models/rose/data.yaml",
-      "metrics_relative": "artifacts/models/rose/metrics.json"
+      "metrics_relative": "artifacts/models/rose/metrics.json",
+      "local_model_trusted": true
     },
     "money_plant": {
       "weights_relative": "artifacts/models/money_plant/weights.pt",
       "data_yaml_relative": "artifacts/models/money_plant/data.yaml",
       "metrics_relative": "artifacts/models/money_plant/metrics.json",
+      "local_model_trusted": false,
       "historical_training": {
         "version": "v0.2.0",
         "created_utc": "2026-05-25T15:56:52+00:00"
@@ -17,7 +19,8 @@
     "cucumber": {
       "weights_relative": "artifacts/models/cucumber/weights.pt",
       "data_yaml_relative": "artifacts/models/cucumber/data.yaml",
-      "metrics_relative": "artifacts/models/cucumber/metrics.json"
+      "metrics_relative": "artifacts/models/cucumber/metrics.json",
+      "local_model_trusted": false
     }
   }
 }

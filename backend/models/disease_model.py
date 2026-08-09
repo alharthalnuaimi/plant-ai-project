@@ -161,6 +161,42 @@ class YoloVisionPredictor:
         )
 
 
+class MultiProviderConsensusPredictor:
+    """
+    Fallback predictor that queries active LLM vision models instead of YOLO.
+    """
+    def __init__(self, species: str):
+        self.species = species
+        
+    def predict(self, image_bytes: bytes) -> DiseasePrediction:
+        from services.providers.multi_provider import PROVIDER_REGISTRY
+        
+        res = PROVIDER_REGISTRY.run_n_agent_consensus(image_bytes, context_label="")
+        active_count = res.get("active_provider_count", 0)
+        
+        if active_count == 0:
+            # Fallback to stub if zero providers are active
+            stub = StubVisionPredictor(self.species)
+            return stub.predict(image_bytes)
+            
+        disease = res.get("consensus_label", "Unknown")
+        confidence = float(res.get("consensus_rate", 0.0))
+        
+        raw = {
+            "model": "multi_provider_consensus",
+            "active_provider_count": active_count,
+            "majority_agree": res.get("majority_agree", False),
+            "provider_results": res.get("provider_results", []),
+        }
+        
+        return DiseasePrediction(
+            disease=disease,
+            confidence=confidence,
+            stress_hint="from_llm_consensus",
+            raw=raw,
+        )
+
+
 class SpeciesAwareVisionPredictor(VisionPredictor):
     """
     Routes vision prediction to the appropriate species-specific model.
@@ -175,29 +211,31 @@ class SpeciesAwareVisionPredictor(VisionPredictor):
         if species not in self._predictors:
             descriptor = resolve_model_descriptor(species)
             weights = descriptor.weights_path
+            trusted = descriptor.metadata.get("local_model_trusted", False)
             
-            if weights and os.path.isfile(weights):
+            if trusted and weights and os.path.isfile(weights):
                 try:
                     predictor = YoloVisionPredictor(weights, species)
                     logger.info("YOLO predictor loaded for species=%s weights=%s", species, weights)
                     self._predictors[species] = predictor
                 except ImportError as exc:
                     logger.warning(
-                        "YOLO weights found for %s at %s but `ultralytics` not installed (%s). Falling back to stub.",
+                        "YOLO weights found for %s at %s but `ultralytics` not installed (%s). Falling back to multi-provider.",
                         species, weights, exc,
                     )
-                    self._predictors[species] = StubVisionPredictor(species)
+                    self._predictors[species] = MultiProviderConsensusPredictor(species)
                 except Exception as exc:  # noqa: BLE001
                     logger.exception(
-                        "YOLO load failed for species=%s weights=%s — falling back to stub: %s",
+                        "YOLO load failed for species=%s weights=%s — falling back to multi-provider: %s",
                         species, weights, exc
                     )
-                    self._predictors[species] = StubVisionPredictor(species)
+                    self._predictors[species] = MultiProviderConsensusPredictor(species)
             else:
-                logger.warning(
-                    "No valid YOLO weights found for species=%s. Falling back to stub.", species
+                reason = "not trusted" if not trusted else "no weights found"
+                logger.info(
+                    "Routing species=%s to multi-provider consensus (reason: %s).", species, reason
                 )
-                self._predictors[species] = StubVisionPredictor(species)
+                self._predictors[species] = MultiProviderConsensusPredictor(species)
                 
         return self._predictors[species]
 

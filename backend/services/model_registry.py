@@ -49,12 +49,13 @@ def resolve_model_descriptor(species: str) -> ModelDescriptor:
             version="env_override",
             weights_path=env_w,
             source="env",
-            metadata={"species": species},
+            metadata={"species": species, "local_model_trusted": True},
         )
 
     # 2. Registry lookup
     reg = load_registry()
     species_config = reg.get("species", {}).get(species, {})
+    local_model_trusted = species_config.get("local_model_trusted", False)
     
     rel_weights = species_config.get("weights_relative")
     if rel_weights:
