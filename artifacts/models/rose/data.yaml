@@ -1,0 +1,10 @@
+path: D:/antigravity/M.P.AI/dataset/yolov8_rose
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: rose_nutrient_deficient
+  1: rose_healthy
+  2: rose_black_spot
+  3: rose_powdery_mildew

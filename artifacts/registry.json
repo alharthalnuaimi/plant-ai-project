@@ -1,21 +1,23 @@
 {
-  "active": null,
-  "versions": {
-    "v0.2.0": {
-      "weights_relative": "artifacts/models/v0.2.0/best.pt",
-      "data_yaml_relative": "artifacts/models/v0.2.0/data.yaml",
-      "metrics_relative": "artifacts/models/v0.2.0/metrics.json",
-      "created_utc": "2026-05-25T15:56:52+00:00",
-      "train_args": {
+  "species": {
+    "rose": {
+      "weights_relative": "artifacts/models/rose/weights.pt",
+      "data_yaml_relative": "artifacts/models/rose/data.yaml",
+      "metrics_relative": "artifacts/models/rose/metrics.json"
+    },
+    "money_plant": {
+      "weights_relative": "artifacts/models/money_plant/weights.pt",
+      "data_yaml_relative": "artifacts/models/money_plant/data.yaml",
+      "metrics_relative": "artifacts/models/money_plant/metrics.json",
+      "historical_training": {
         "version": "v0.2.0",
-        "data": "C:\\Users\\sasuki\\Desktop\\project\\plant-ai-project\\dataset\\yolov8\\data.yaml",
-        "model": "backend/best.pt",
-        "epochs": 50,
-        "imgsz": 640,
-        "batch": 16,
-        "project": "C:\\Users\\sasuki\\Desktop\\project\\plant-ai-project\\artifacts\\train_runs",
-        "promote": false
+        "created_utc": "2026-05-25T15:56:52+00:00"
       }
+    },
+    "cucumber": {
+      "weights_relative": "artifacts/models/cucumber/weights.pt",
+      "data_yaml_relative": "artifacts/models/cucumber/data.yaml",
+      "metrics_relative": "artifacts/models/cucumber/metrics.json"
     }
   }
 }

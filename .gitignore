@@ -243,3 +243,5 @@ vault/
 # Real model weights (*.pt / *.pth / *.onnx / *.engine / *.tflite / *.mlmodel)
 # are always ignored — fetch them via the model registry / your team's bucket.
 # =============================================================================
+!artifacts/models/**/data.yaml
+!artifacts/models/**/metrics.json
