@@ -26,6 +26,7 @@ def run_retrain_pipeline(extra_dataset_dirs: list[str] | None = None) -> dict[st
     """
     base_dir = Path(__file__).resolve().parent.parent
     yolo_dir = base_dir / "dataset" / "yolov8"
+    data_yaml_path = base_dir / "artifacts" / "models" / "cucumber" / "data.yaml"
     eval_metrics_path = base_dir / "docs" / "evaluation" / "metrics.json"
 
     # Read current baseline mAP50 from Phase 1 evaluation metrics
@@ -95,13 +96,13 @@ def run_retrain_pipeline(extra_dataset_dirs: list[str] | None = None) -> dict[st
     try:
         from ultralytics import YOLO
 
-        weights_path = base_dir / "artifacts" / "models" / "cucumber_yolov8.pt"
+        weights_path = base_dir / "artifacts" / "models" / "cucumber" / "weights.pt"
         if not weights_path.exists() or weights_path.stat().st_size < 1000:
             weights_path = base_dir / "yolov8n.pt"
 
         model = YOLO(str(weights_path) if weights_path.exists() else "yolov8n.pt")
         model.train(
-            data=str(yolo_dir / "data.yaml"),
+            data=str(data_yaml_path),
             epochs=2,
             imgsz=640,
             batch=8,
@@ -113,7 +114,7 @@ def run_retrain_pipeline(extra_dataset_dirs: list[str] | None = None) -> dict[st
 
         # Validate on the held-out test split
         val_res = model.val(
-            data=str(yolo_dir / "data.yaml"),
+            data=str(data_yaml_path),
             split="test",
             verbose=False,
         )
@@ -146,7 +147,7 @@ def run_retrain_pipeline(extra_dataset_dirs: list[str] | None = None) -> dict[st
 
     # EVALUATION GATE INVARIANT: new_mAP50 >= baseline_mAP50
     passed_gate = new_map50 >= baseline_map50
-    prod_weights_path = base_dir / "artifacts" / "models" / "cucumber_yolov8.pt"
+    prod_weights_path = base_dir / "artifacts" / "models" / "cucumber" / "weights.pt"
     prod_weights_path.parent.mkdir(parents=True, exist_ok=True)
 
     if passed_gate:

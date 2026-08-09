@@ -6,10 +6,10 @@ This folder contains evaluation metrics and artifacts generated on a 100% held-o
 
 | Metric | Score |
 |---|---|
-| **Precision** | `0.0035` |
-| **Recall** | `1.0` |
+| **Precision** | `0.8297` |
+| **Recall** | `0.3333` |
 | **mAP@50** | `0.995` |
-| **mAP@50-95** | `0.995` |
+| **mAP@50-95** | `0.7297` |
 
 ---
 
@@ -17,9 +17,9 @@ This folder contains evaluation metrics and artifacts generated on a 100% held-o
 
 | Class Name | Precision | Recall | mAP@50 | mAP@50-95 |
 |---|---|---|---|---|
-| **Bacterial Wilt Money Plant** | 0.0047 | 1.0 | 0.995 | 0.995 |
-| **Healthy Money Plant** | 0.0026 | 1.0 | 0.995 | 0.995 |
-| **Manganese Toxicity Money Plant** | 0.0033 | 1.0 | 0.995 | 0.995 |
+| **Bacterial Wilt Money Plant** | 1.0 | 0.0 | 0.995 | 0.796 |
+| **Healthy Money Plant** | 1.0 | 0.0 | 0.995 | 0.6965 |
+| **Manganese Toxicity Money Plant** | 0.489 | 1.0 | 0.995 | 0.6965 |
 
 ---
 

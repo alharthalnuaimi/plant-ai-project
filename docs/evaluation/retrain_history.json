@@ -5,5 +5,26 @@
     "new_mAP50": null,
     "status": "FAILED",
     "message": "Training/validation failed: RuntimeError: Dataset 'D://antigravity/M.P.AI/dataset/yolov8/data.yaml' error  'D:\\antigravity\\M.P.AI\\dataset\\yolov8\\data.yaml' does not exist"
+  },
+  {
+    "passed_gate": false,
+    "baseline_mAP50": 0.995,
+    "new_mAP50": null,
+    "status": "FAILED",
+    "message": "Training/validation failed: FileNotFoundError: 'D:\\antigravity\\M.P.AI\\dataset\\yolov8\\data.yaml' does not exist"
+  },
+  {
+    "passed_gate": true,
+    "baseline_mAP50": 0.995,
+    "new_mAP50": 0.995,
+    "status": "DEPLOYED",
+    "message": "PASSED EVAL GATE (0.9950 >= 0.9950). Production model updated."
+  },
+  {
+    "passed_gate": true,
+    "baseline_mAP50": 0.995,
+    "new_mAP50": 0.995,
+    "status": "DEPLOYED",
+    "message": "PASSED EVAL GATE (0.9950 >= 0.9950). Production model updated."
   }
 ]
