@@ -24,7 +24,7 @@ def run_retrain_pipeline(extra_dataset_dirs: list[str] | None = None) -> dict[st
         uploads) to merge into the training split. Only 🟢 Ready batches
         should be passed unless an override flag is used.
     """
-    base_dir = Path("d:/antigravity/M.P.AI")
+    base_dir = Path(__file__).resolve().parent.parent
     yolo_dir = base_dir / "dataset" / "yolov8"
     eval_metrics_path = base_dir / "docs" / "evaluation" / "metrics.json"
 

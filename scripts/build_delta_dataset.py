@@ -20,7 +20,7 @@ def build_delta_dataset() -> dict[str, int]:
 
     Returns summary dict with total_reviewed, exported_images, skipped counts.
     """
-    base_dir = Path("d:/antigravity/M.P.AI")
+    base_dir = Path(__file__).resolve().parent.parent
 
     # Import with sys.path setup for standalone execution
     import sys

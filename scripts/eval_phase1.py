@@ -80,7 +80,7 @@ def _verify_no_leakage(yolo_dir: Path) -> None:
 
 
 def generate_phase1_evaluation() -> dict:
-    base_dir = Path("d:/antigravity/M.P.AI")
+    base_dir = Path(__file__).resolve().parent.parent
     yolo_dir = base_dir / "dataset" / "yolov8"
     eval_dir = base_dir / "docs" / "evaluation"
     eval_dir.mkdir(parents=True, exist_ok=True)
