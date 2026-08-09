@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "passed_gate": false,
+    "baseline_mAP50": 0.995,
+    "new_mAP50": null,
+    "status": "FAILED",
+    "message": "Training/validation failed: RuntimeError: Dataset 'D://antigravity/M.P.AI/dataset/yolov8/data.yaml' error  Dataset 'D://antigravity/M.P.AI/dataset/yolov8/data.yaml' images not found, missing path 'D:\\antigravity\\M.P.AI\\datasets\\dataset\\yolov8\\images\\val'\nNote dataset download directory is 'D:\\antigravity\\M.P.AI\\datasets'. You can update this in 'C:\\Users\\pc\\AppData\\Roaming\\Ultralytics\\settings.json'"
+  },
+  {
+    "passed_gate": false,
+    "baseline_mAP50": 0.995,
+    "new_mAP50": null,
+    "status": "FAILED",
+    "message": "Training/validation failed: RuntimeError: Dataset 'D://antigravity/M.P.AI/dataset/yolov8/data.yaml' error  Dataset 'D://antigravity/M.P.AI/dataset/yolov8/data.yaml' images not found, missing path 'D:\\antigravity\\M.P.AI\\datasets\\dataset\\yolov8\\images\\val'\nNote dataset download directory is 'D:\\antigravity\\M.P.AI\\datasets'. You can update this in 'C:\\Users\\pc\\AppData\\Roaming\\Ultralytics\\settings.json'"
+  }
+]
