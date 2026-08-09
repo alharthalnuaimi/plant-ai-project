@@ -114,6 +114,7 @@ def run_evaluation(species: str) -> dict:
             name="yolo_eval",
             exist_ok=True,
             verbose=True,
+            conf=0.25,
         )
 
         # Extract metrics from results
