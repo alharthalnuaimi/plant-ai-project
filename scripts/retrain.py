@@ -95,6 +95,9 @@ def run_retrain_pipeline(extra_dataset_dirs: list[str] | None = None) -> dict[st
 
     try:
         from ultralytics import YOLO
+        from ultralytics import settings
+        
+        settings.update({"datasets_dir": str(base_dir)})
 
         weights_path = base_dir / "artifacts" / "models" / "cucumber" / "weights.pt"
         if not weights_path.exists() or weights_path.stat().st_size < 1000:

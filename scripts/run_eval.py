@@ -88,7 +88,8 @@ def audit_splits(data_yaml: Path) -> dict[str, int]:
 
 def run_evaluation(species: str) -> dict:
     """Run YOLO validation on the test split and save real metrics."""
-    EVAL_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    species_eval_dir = EVAL_OUTPUT_DIR / species
+    species_eval_dir.mkdir(parents=True, exist_ok=True)
     
     wp, data_yaml = get_species_config(species)
 
@@ -101,12 +102,15 @@ def run_evaluation(species: str) -> dict:
 
     try:
         from ultralytics import YOLO
+        from ultralytics import settings
+        
+        settings.update({"datasets_dir": str(REPO_ROOT)})
 
         model = YOLO(str(wp))
         results = model.val(
             data=str(data_yaml),
             split="test",
-            project=str(EVAL_OUTPUT_DIR),
+            project=str(species_eval_dir),
             name="yolo_eval",
             exist_ok=True,
             verbose=True,
@@ -144,22 +148,22 @@ def run_evaluation(species: str) -> dict:
             "per_class": per_class,
         }
 
-        # Copy YOLO output artifacts to docs/evaluation/
-        eval_run_dir = EVAL_OUTPUT_DIR / "yolo_eval"
+        # Copy YOLO output artifacts to docs/evaluation/<species>/
+        eval_run_dir = species_eval_dir / "yolo_eval"
         for artifact in ["confusion_matrix.png", "confusion_matrix_normalized.png",
                          "PR_curve.png", "P_curve.png", "R_curve.png", "F1_curve.png",
                          "results.csv"]:
             src = eval_run_dir / artifact
             if src.exists():
-                shutil.copy2(src, EVAL_OUTPUT_DIR / artifact)
+                shutil.copy2(src, species_eval_dir / artifact)
 
         # Write JSON summary
-        metrics_path = EVAL_OUTPUT_DIR / "metrics.json"
+        metrics_path = species_eval_dir / "metrics.json"
         metrics_path.write_text(json.dumps(summary, indent=2))
         
         # Auto-generate README.md
-        readme_path = EVAL_OUTPUT_DIR / "README.md"
-        readme_content = f"""# PlantVision Model Evaluation
+        readme_path = species_eval_dir / "README.md"
+        readme_content = f"""# PlantVision Model Evaluation ({species})
 
 This folder contains evaluation metrics and artifacts generated on a 100% held-out test split.
 

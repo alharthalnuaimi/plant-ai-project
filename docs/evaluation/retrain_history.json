@@ -26,5 +26,19 @@
     "new_mAP50": 0.995,
     "status": "DEPLOYED",
     "message": "PASSED EVAL GATE (0.9950 >= 0.9950). Production model updated."
+  },
+  {
+    "passed_gate": false,
+    "baseline_mAP50": 0.995,
+    "new_mAP50": 0.8292,
+    "status": "REJECTED",
+    "message": "FAILED EVAL GATE (0.8292 < 0.9950). Retaining current production weights."
+  },
+  {
+    "passed_gate": true,
+    "baseline_mAP50": 0.995,
+    "new_mAP50": 0.995,
+    "status": "DEPLOYED",
+    "message": "PASSED EVAL GATE (0.9950 >= 0.9950). Production model updated."
   }
 ]
