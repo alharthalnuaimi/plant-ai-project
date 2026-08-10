@@ -223,6 +223,98 @@ This folder contains evaluation metrics and artifacts generated on a 100% held-o
         return {"error": str(exc)}
 
 
+def extract_checkpoint_metrics(wp: Path, species: str, data_yaml: Path):
+    """Fallback logic: extract validation metrics embedded in the YOLOv8 checkpoint."""
+    print(f"\n--- Extracting Embedded Metrics from Checkpoint ---")
+    print(f"Loading {wp}...")
+    import torch
+    
+    try:
+        ckpt = torch.load(wp, map_location="cpu", weights_only=False)
+        
+        # We MUST read from train_results (final epoch), not train_metrics (best fitness),
+        # because best fitness can sometimes snapshot a degenerate early epoch if precision 
+        # is terrible but mAP happens to be mathematically high due to 100% recall.
+        results_history = ckpt.get("train_results", {})
+        
+        def get_final_metric(key):
+            val_list = results_history.get(key, [0.0])
+            if isinstance(val_list, list) and len(val_list) > 0:
+                return val_list[-1]
+            return float(val_list)
+
+        precision = round(float(get_final_metric("metrics/precision(B)")), 4)
+        recall = round(float(get_final_metric("metrics/recall(B)")), 4)
+        map50 = round(float(get_final_metric("metrics/mAP50(B)")), 4)
+        map50_95 = round(float(get_final_metric("metrics/mAP50-95(B)")), 4)
+
+        # Sanity check against degenerate/fabricated metrics
+        if abs(map50 - map50_95) < 1e-4 or recall == 1.0 or (precision < 0.05 and recall > 0.9):
+            raise ValueError(
+                f"Degenerate metrics detected in checkpoint! "
+                f"(precision={precision}, recall={recall}, mAP50={map50}, mAP50-95={map50_95}). "
+                f"Refusing to write fake/broken metrics."
+            )
+
+        print(f"[OK] Extracted real metrics from checkpoint: p={precision}, r={recall}, mAP50={map50}")
+
+        species_eval_dir = EVAL_OUTPUT_DIR / species
+        species_eval_dir.mkdir(parents=True, exist_ok=True)
+        
+        summary = {
+            "weights": str(wp.name),
+            "data_yaml": str(data_yaml),
+            "split": "validation (from checkpoint)",
+            "note": "No dedicated test dataset available locally. Metrics below are from the model checkpoint's own embedded training history (final validation epoch).",
+            "overall": {
+                "mAP50": map50,
+                "mAP50-95": map50_95,
+                "precision": precision,
+                "recall": recall
+            },
+            "per_class": {
+                "diseased": {
+                    "precision": precision,
+                    "recall": recall,
+                    "mAP50": map50,
+                    "mAP50-95": map50_95
+                }
+            }
+        }
+
+        metrics_path = species_eval_dir / "metrics.json"
+        metrics_path.write_text(json.dumps(summary, indent=2))
+        
+        readme_path = species_eval_dir / "README.md"
+        readme_content = f"""# PlantVision Model Evaluation ({species})
+
+This folder contains evaluation metrics extracted directly from the model checkpoint.
+
+## Summary Metrics
+
+| Metric | Score |
+|---|---|
+| **Precision** | `{precision}` |
+| **Recall** | `{recall}` |
+| **mAP@50** | `{map50}` |
+| **mAP@50-95** | `{map50_95}` |
+
+---
+
+## Verification Note
+
+A dedicated held-out test set was not found locally for this species. 
+These metrics reflect the final epoch's validation performance embedded in the model checkpoint.
+"""
+        readme_path.write_text(readme_content)
+        
+        print(f"\n[OK] Checkpoint metrics saved to {metrics_path}")
+        return summary
+        
+    except Exception as exc:
+        print(f"[ERROR] Failed to extract metrics from checkpoint: {type(exc).__name__}: {exc}")
+        return {"error": str(exc)}
+
 def main():
     parser = argparse.ArgumentParser(description="Run real YOLOv8 evaluation on test split")
     parser.add_argument("--species", type=str, default="rose", help="Species to evaluate (e.g. rose, money_plant, cucumber)")
@@ -243,8 +335,11 @@ def main():
     audit = audit_splits(data_yaml)
 
     if audit["test_images"] == 0:
-        print("\n[ERROR] Test split is empty. Cannot run evaluation.")
-        sys.exit(1)
+        print("\n[WARNING] Test split is empty. Cannot run live evaluation. Falling back to checkpoint metrics.")
+        result = extract_checkpoint_metrics(wp, args.species, data_yaml)
+        if "error" in result:
+            sys.exit(1)
+        sys.exit(0)
 
     # Step 2: Run evaluation
     print("\n--- Running YOLO Validation ---")

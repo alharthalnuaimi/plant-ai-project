@@ -1,20 +1,19 @@
 {
   "weights": "weights.pt",
-  "data_yaml": "artifacts/models/cucumber/data.yaml",
-  "split": "validation (from checkpoint)",
-  "note": "No dedicated cucumber test dataset available locally. Metrics below are from the model checkpoint's own embedded training history (final validation epoch), which is the most honest representation of this model's real performance.",
+  "data_yaml": "D:\\antigravity\\M.P.AI\\artifacts\\models\\cucumber\\data.yaml",
+  "split": "test",
   "overall": {
-    "mAP50": 0.995,
-    "mAP50-95": 0.995,
-    "precision": 0.0035,
-    "recall": 1.0
+    "mAP50": 0.0,
+    "mAP50-95": 0.0,
+    "precision": 0.0,
+    "recall": 0.0
   },
   "per_class": {
-    "diseased": {
-      "precision": 0.0035,
-      "recall": 1.0,
-      "mAP50": 0.995,
-      "mAP50-95": 0.995
+    "Bacterial Wilt Money Plant": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "mAP50": 0.0,
+      "mAP50-95": 0.0
     }
   }
 }
