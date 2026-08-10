@@ -1061,11 +1061,61 @@
     _loadPending();
   }
 
-  // Initialize Phase 3/6/7/8 Settings UI
+  // ── Phase 9: Model Performance ────────────────────────
+  function _wireModelPerformance() {
+    const perfListEl = document.getElementById('performance-list');
+    const infSummaryEl = document.getElementById('inference-summary-block');
+
+    async function loadPerformance() {
+      if (!perfListEl) return;
+      
+      try {
+        const resp = await fetch(`${_apiBase()}/admin/evaluation/summary`);
+        if (!resp.ok) { perfListEl.innerHTML = '<span class="mono set-hint">Could not load evaluation metrics</span>'; return; }
+        const data = await resp.json();
+        
+        let html = '';
+        for (const [species, metrics] of Object.entries(data.species || {})) {
+          if (typeof metrics === 'string') {
+            html += `<div class="pv-provider-item"><div class="pv-prov-info"><span class="pv-prov-name">${species.replace('_', ' ').toUpperCase()}</span><span class="pv-prov-model mono">${metrics}</span></div></div>`;
+          } else if (metrics && metrics.overall) {
+            html += `<div class="pv-provider-item">
+              <div class="pv-prov-info">
+                <span class="pv-prov-name">${species.replace('_', ' ').toUpperCase()}</span>
+                <span class="pv-prov-model mono">Precision: ${metrics.overall.precision} | Recall: ${metrics.overall.recall} | mAP50: ${metrics.overall.mAP50}</span>
+              </div>
+            </div>`;
+          }
+        }
+        perfListEl.innerHTML = html;
+        
+        if (infSummaryEl) {
+          const infResp = await fetch(`${_apiBase()}/admin/metrics/inference-summary`);
+          if (infResp.ok) {
+            const infData = await infResp.json();
+            const avg = typeof infData.avg_ms === 'number' ? infData.avg_ms.toFixed(1) : '?';
+            const p50 = typeof infData.p50_ms === 'number' ? infData.p50_ms.toFixed(1) : '?';
+            const p95 = typeof infData.p95_ms === 'number' ? infData.p95_ms.toFixed(1) : '?';
+            infSummaryEl.innerHTML = `<span class="set-desc mono">Avg: ${avg}ms | p50: ${p50}ms | p95: ${p95}ms</span>`;
+          } else {
+            infSummaryEl.innerHTML = '<span class="mono set-hint">No inference data recorded yet</span>';
+          }
+        }
+      } catch (e) {
+        perfListEl.innerHTML = '<span class="mono set-hint">Error loading metrics</span>';
+      }
+    }
+    
+    // Call immediately since setting.js runs on load
+    loadPerformance();
+  }
+
+  // Initialize Phase 3/6/7/8/9 Settings UI
   _wireFeedbackReview();
   _wireTrainingData();
   _wireTraining();
   _wireProviders();
+  _wireModelPerformance();
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
