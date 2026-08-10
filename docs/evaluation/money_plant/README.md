@@ -1,4 +1,4 @@
-# PlantVision Model Evaluation (cucumber)
+# PlantVision Model Evaluation
 
 This folder contains evaluation metrics and artifacts generated on a 100% held-out test split.
 
@@ -6,10 +6,10 @@ This folder contains evaluation metrics and artifacts generated on a 100% held-o
 
 | Metric | Score |
 |---|---|
-| **Precision** | `0.0` |
-| **Recall** | `0.0` |
-| **mAP@50** | `0.0` |
-| **mAP@50-95** | `0.0` |
+| **Precision** | `0.8297` |
+| **Recall** | `0.3333` |
+| **mAP@50** | `0.995` |
+| **mAP@50-95** | `0.7297` |
 
 ---
 
@@ -17,7 +17,9 @@ This folder contains evaluation metrics and artifacts generated on a 100% held-o
 
 | Class Name | Precision | Recall | mAP@50 | mAP@50-95 |
 |---|---|---|---|---|
-| **Bacterial Wilt Money Plant** | 0.0 | 0.0 | 0.0 | 0.0 |
+| **Bacterial Wilt Money Plant** | 1.0 | 0.0 | 0.995 | 0.796 |
+| **Healthy Money Plant** | 1.0 | 0.0 | 0.995 | 0.6965 |
+| **Manganese Toxicity Money Plant** | 0.489 | 1.0 | 0.995 | 0.6965 |
 
 ---
 
