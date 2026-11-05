@@ -32,8 +32,18 @@ def test_species_taxonomy_resolves_aliases():
     assert lookup("solanum_lycopersicum").species_id == "tomato"
 
 
-def test_species_taxonomy_unknown_falls_back():
-    assert lookup("dragonfruit").species_id == "cucumber"
+def test_species_taxonomy_unlisted_is_unknown():
+    assert lookup("dragonfruit").species_id == "unknown"
+
+
+def test_plantnet_name_resolves_by_full_name_then_genus():
+    from models.plant_id_model import PlantNetPredictor
+
+    assert PlantNetPredictor._resolve_species_id("Cucumis sativus", None) == "cucumber"
+    assert PlantNetPredictor._resolve_species_id("Rosa chinensis", None) == "rose"
+    assert PlantNetPredictor._resolve_species_id("Epipremnum aureum", None) == "money_plant"
+    assert PlantNetPredictor._resolve_species_id("Hylocereus undatus", None) == "unknown"
+    assert PlantNetPredictor._resolve_species_id(None, None) == "unknown"
 
 
 def test_family_for_helper():

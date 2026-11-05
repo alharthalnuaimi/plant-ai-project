@@ -65,6 +65,20 @@ _CATALOG: dict[str, SpeciesEntry] = {
         family="Lamiaceae",
         aliases=("ocimum_basilicum", "sweet_basil"),
     ),
+    "rose": SpeciesEntry(
+        species_id="rose",
+        common_name="Rose",
+        scientific_name="Rosa",
+        family="Rosaceae",
+        aliases=("garden_rose", "roses"),
+    ),
+    "money_plant": SpeciesEntry(
+        species_id="money_plant",
+        common_name="Money Plant",
+        scientific_name="Epipremnum aureum",
+        family="Araceae",
+        aliases=("epipremnum", "pothos", "devils_ivy"),
+    ),
     "strawberry": SpeciesEntry(
         species_id="strawberry",
         common_name="Strawberry",
@@ -76,12 +90,20 @@ _CATALOG: dict[str, SpeciesEntry] = {
 
 DEFAULT_SPECIES_ID = "cucumber"
 
+UNKNOWN_SPECIES = SpeciesEntry(
+    species_id="unknown",
+    common_name="Unknown",
+    scientific_name="",
+    family="",
+)
+
 
 def lookup(species_id: str | None) -> SpeciesEntry:
     """Resolve a species_id (or alias) to a concrete catalog entry.
 
-    Falls back to the cucumber default — used by the stub identifier and by
-    the unified report when no species was supplied.
+    No species supplied -> the cucumber default, used by the stub identifier
+    and the unified report. A species we don't list -> ``UNKNOWN_SPECIES``, so
+    it never picks up another plant's model or care plan.
     """
 
     if not species_id:
@@ -92,7 +114,7 @@ def lookup(species_id: str | None) -> SpeciesEntry:
     for entry in _CATALOG.values():
         if key in entry.aliases or key == entry.scientific_name.lower().replace(" ", "_"):
             return entry
-    return _CATALOG[DEFAULT_SPECIES_ID]
+    return UNKNOWN_SPECIES
 
 
 def family_for(species_id: str | None) -> str:

@@ -181,19 +181,18 @@ class PlantNetPredictor(PlantIdPredictor):
     def _resolve_species_id(scientific_name: str | None, family: str | None) -> str:
         """Map a Pl@ntNet scientific name onto our local catalog ID.
 
-        Falls back to ``DEFAULT_SPECIES_ID`` if there is no match — callers
-        still receive the real Pl@ntNet ``common_name`` / ``scientific_name``
-        / ``family`` for display, but ``species_id`` stays bound to a known
-        care plan so the rest of Phase 3 (care engine, plant profile) keeps
-        working.
+        Tries the full name, then the genus (Pl@ntNet returns ``Rosa chinensis``,
+        the catalog lists ``Rosa``). No match -> ``unknown``; callers still
+        receive the real Pl@ntNet names for display.
         """
 
         if scientific_name:
             key = scientific_name.lower().strip().replace(" ", "_")
-            entry = lookup(key)
-            if entry.species_id != DEFAULT_SPECIES_ID or key in ("cucumis_sativus", "cucumber"):
-                return entry.species_id
-        return DEFAULT_SPECIES_ID
+            species_id = lookup(key).species_id
+            if species_id == "unknown":
+                species_id = lookup(key.split("_")[0]).species_id
+            return species_id
+        return "unknown"
 
     # -- main API -----------------------------------------------------------
 
@@ -226,7 +225,7 @@ class PlantNetPredictor(PlantIdPredictor):
                 return self._fallback_predict(image_bytes)
             payload = resp.json()
         except Exception as exc:  # noqa: BLE001 — never crash /predict
-            log.warning("PlantNetPredictor: request failed (%s) — falling back to stub", exc)
+            log.warning("PlantNetPredictor: request failed (%s) — falling back to stub", type(exc).__name__)
             return self._fallback_predict(image_bytes)
 
         results = payload.get("results") if isinstance(payload, dict) else None

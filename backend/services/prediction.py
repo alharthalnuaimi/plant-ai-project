@@ -36,7 +36,8 @@ def _identify_plant(
                 common_name=entry.common_name,
                 scientific_name=entry.scientific_name,
                 family=entry.family,
-                confidence=1.0,  # user-asserted identity is treated as ground truth
+                # user-asserted identity is ground truth, unless we don't know that species
+                confidence=0.0 if entry.species_id == "unknown" else 1.0,
                 source="manual",
             ),
             round((time.perf_counter() - t0) * 1000.0, 2),
