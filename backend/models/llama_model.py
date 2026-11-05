@@ -64,11 +64,14 @@ class GeminiClient:
     def generate_chat(
         self,
         messages: list[dict[str, str]],
+        system_instruction: str | None = None,
+        image_bytes: bytes | None = None,
     ) -> str:
-        """Send messages to Gemini using system_instruction + user content."""
+        """Send messages to Gemini using system_instruction + user content, plus an optional image."""
         from google.genai import types as genai_types
+        from services.preprocess import image_mime
 
-        system_text = ""
+        system_text = f"{system_instruction}\n" if system_instruction else ""
         user_text = ""
         for m in messages:
             if m.get("role") == "system":
@@ -84,7 +87,11 @@ class GeminiClient:
 
         response = client.models.generate_content(
             model=self.model,
-            contents=user_text.strip(),
+            contents=(
+                [genai_types.Part.from_bytes(data=image_bytes, mime_type=image_mime(image_bytes)), user_text.strip()]
+                if image_bytes
+                else user_text.strip()
+            ),
             config=config,
         )
 

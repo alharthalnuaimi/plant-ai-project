@@ -9,6 +9,7 @@ import logging
 import os
 from models.llama_model import get_gemini_client
 from services.feedback_store import FEEDBACK_STORE
+from services.providers.multi_provider import _safe_error
 
 log = logging.getLogger("plantvision.gemini_second_opinion")
 
@@ -44,7 +45,8 @@ def evaluate_gemini_second_opinion(
 
         response_text = client.generate_chat(
             messages=[{"role": "user", "content": prompt}],
-            system_instruction="Provide concise, objective plant disease diagnostics."
+            system_instruction="Provide concise, objective plant disease diagnostics.",
+            image_bytes=image_bytes,
         )
 
         response_lower = response_text.lower()
@@ -73,5 +75,5 @@ def evaluate_gemini_second_opinion(
         return gemini_verdict, gemini_agrees, reasoning
 
     except Exception as exc:
-        log.warning("Gemini second-opinion call failed (non-fatal): %s", exc)
-        return yolo_label, True, f"Gemini second opinion unavailable: {exc}"
+        log.warning("Gemini second-opinion call failed (non-fatal): %s", _safe_error(exc))
+        return yolo_label, True, f"Gemini second opinion unavailable: {_safe_error(exc)}"
