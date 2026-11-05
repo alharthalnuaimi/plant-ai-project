@@ -60,46 +60,58 @@ def _slug(label: str) -> str:
     return s or "unknown"
 
 
+_ALIASES = {
+    "disease": "diseased",
+    "diseases": "diseased",
+    "cucumber_diseased": "diseased",
+    "cucumber_disease": "diseased",
+    "rust": "leaf_spot",
+    "blight": "bacterial_wilt",
+    "normal": "healthy",
+    "none": "healthy",
+}
+_NEGATIONS = {"no", "not", "non", "without", "never"}
+_NEGATION_ENDS = {"but", "however", "although", "though"}
+_HEALTHY_WORDS = {"healthy", "normal", "ok", "okay", "fine"}
+_UNHEALTHY_WORDS = {"unhealthy", "abnormal"}
+_DISEASE_WORDS = {
+    "disease", "diseases", "diseased", "mildew", "powdery", "downy", "spot", "spots",
+    "rust", "blight", "wilt", "rot", "bacterial", "infected", "infection", "fungal", "fungus",
+}
+
+
 def _match_class(slug: str) -> str:
+    """Match whole words, handling negation first: labels are free text from LLMs."""
     if slug in CLASS_CATALOG:
         return slug
-    aliases = {
-        "disease": "diseased",
-        "diseases": "diseased",
-        "cucumber_diseased": "diseased",
-        "cucumber_disease": "diseased",
-        "powdery_mildew": "powdery_mildew",
-        "powdery mildew": "powdery_mildew",
-        "downy_mildew": "downy_mildew",
-        "downy mildew": "downy_mildew",
-        "bacterial_wilt": "bacterial_wilt",
-        "bacterial wilt": "bacterial_wilt",
-        "leaf_spot": "leaf_spot",
-        "leaf spot": "leaf_spot",
-        "rust": "leaf_spot",
-        "blight": "bacterial_wilt",
-        "normal": "healthy",
-        "no_disease": "healthy",
-    }
-    if slug in aliases:
-        return aliases[slug]
-    for key in CLASS_CATALOG:
-        if key in slug or slug in key:
-            return key
-    if any(x in slug for x in ("healthy", "normal", "ok")):
-        return "healthy"
-    if any(x in slug for x in ("mildew", "spot", "rust", "blight", "wilt", "rot")):
-        if "powdery" in slug:
+    if slug in _ALIASES:
+        return _ALIASES[slug]
+
+    words: set[str] = set()
+    negated: set[str] = set()
+    in_negation = False
+    for token in slug.split("_"):
+        if token in _NEGATIONS:
+            in_negation = True
+        elif token in _NEGATION_ENDS:
+            in_negation = False
+        else:
+            (negated if in_negation else words).add(token)
+
+    if negated & _HEALTHY_WORDS or words & _UNHEALTHY_WORDS:
+        return "diseased"
+    if words & _DISEASE_WORDS:
+        if "powdery" in words:
             return "powdery_mildew"
-        if "downy" in slug:
+        if "downy" in words:
             return "downy_mildew"
-        if "bacterial" in slug or "wilt" in slug:
+        if words & {"bacterial", "wilt"}:
             return "bacterial_wilt"
-        if "spot" in slug:
+        if words & {"spot", "spots"}:
             return "leaf_spot"
         return "diseased"
-    if "disease" in slug or slug == "diseased":
-        return "diseased"
+    if negated & _DISEASE_WORDS or words & _HEALTHY_WORDS:
+        return "healthy"
     return "unknown"
 
 
