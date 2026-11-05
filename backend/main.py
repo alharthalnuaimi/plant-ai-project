@@ -23,6 +23,7 @@ from db.connection import close_pool, deployment_mode, get_pool, ping
 from repositories import analytics_events_repo
 from services import analytics_store, audit_log
 from routes.admin_datasets import router as admin_datasets_router
+from routes.admin_evaluation import router as admin_evaluation_router
 from routes.admin_feedback import router as admin_feedback_router
 from routes.admin_metrics import router as admin_metrics_router
 from routes.admin_providers import router as admin_providers_router
@@ -66,6 +67,7 @@ wire_observability(app)
 _APP_STARTED_AT = time.time()
 
 app.include_router(admin_datasets_router)
+app.include_router(admin_evaluation_router)
 app.include_router(admin_feedback_router)
 app.include_router(admin_metrics_router)
 app.include_router(admin_providers_router)

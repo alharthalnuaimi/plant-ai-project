@@ -4,13 +4,41 @@
     "baseline_mAP50": 0.995,
     "new_mAP50": null,
     "status": "FAILED",
-    "message": "Training/validation failed: RuntimeError: Dataset 'D://antigravity/M.P.AI/dataset/yolov8/data.yaml' error  Dataset 'D://antigravity/M.P.AI/dataset/yolov8/data.yaml' images not found, missing path 'D:\\antigravity\\M.P.AI\\datasets\\dataset\\yolov8\\images\\val'\nNote dataset download directory is 'D:\\antigravity\\M.P.AI\\datasets'. You can update this in 'C:\\Users\\pc\\AppData\\Roaming\\Ultralytics\\settings.json'"
+    "message": "Training/validation failed: RuntimeError: Dataset 'D://antigravity/M.P.AI/dataset/yolov8/data.yaml' error  'D:\\antigravity\\M.P.AI\\dataset\\yolov8\\data.yaml' does not exist"
   },
   {
     "passed_gate": false,
     "baseline_mAP50": 0.995,
     "new_mAP50": null,
     "status": "FAILED",
-    "message": "Training/validation failed: RuntimeError: Dataset 'D://antigravity/M.P.AI/dataset/yolov8/data.yaml' error  Dataset 'D://antigravity/M.P.AI/dataset/yolov8/data.yaml' images not found, missing path 'D:\\antigravity\\M.P.AI\\datasets\\dataset\\yolov8\\images\\val'\nNote dataset download directory is 'D:\\antigravity\\M.P.AI\\datasets'. You can update this in 'C:\\Users\\pc\\AppData\\Roaming\\Ultralytics\\settings.json'"
+    "message": "Training/validation failed: FileNotFoundError: 'D:\\antigravity\\M.P.AI\\dataset\\yolov8\\data.yaml' does not exist"
+  },
+  {
+    "passed_gate": true,
+    "baseline_mAP50": 0.995,
+    "new_mAP50": 0.995,
+    "status": "DEPLOYED",
+    "message": "PASSED EVAL GATE (0.9950 >= 0.9950). Production model updated."
+  },
+  {
+    "passed_gate": true,
+    "baseline_mAP50": 0.995,
+    "new_mAP50": 0.995,
+    "status": "DEPLOYED",
+    "message": "PASSED EVAL GATE (0.9950 >= 0.9950). Production model updated."
+  },
+  {
+    "passed_gate": false,
+    "baseline_mAP50": 0.995,
+    "new_mAP50": 0.8292,
+    "status": "REJECTED",
+    "message": "FAILED EVAL GATE (0.8292 < 0.9950). Retaining current production weights."
+  },
+  {
+    "passed_gate": true,
+    "baseline_mAP50": 0.995,
+    "new_mAP50": 0.995,
+    "status": "DEPLOYED",
+    "message": "PASSED EVAL GATE (0.9950 >= 0.9950). Production model updated."
   }
 ]
