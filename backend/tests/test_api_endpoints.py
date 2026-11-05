@@ -360,3 +360,9 @@ def test_readiness_crash_cleans_up_and_keeps_listing_working(client, jpeg_bytes,
     assert [p for p in tmp_path.iterdir() if p.name.startswith("batch_")] == []
     (tmp_path / "batch_other").mkdir()
     assert client.get("/admin/datasets").status_code == 200
+
+
+def test_evaluation_summary_lists_each_species(client):
+    resp = client.get("/admin/evaluation/summary")
+    assert resp.status_code == 200, resp.text
+    assert {"money_plant", "cucumber", "rose"} <= set(resp.json()["species"])
