@@ -631,7 +631,7 @@
     const model = $("prof-runtime-model");
     if (model && typeof fetchModelsRegistry === "function") {
       const reg = await fetchModelsRegistry();
-      if (reg.ok && reg.data) model.textContent = reg.data.vision?.weights_path || reg.data.yolo?.path || "—";
+      if (reg.ok && reg.data) model.textContent = reg.data.resolved_weights || "—";
     }
     const lastScanEl = $("prof-runtime-lastscan");
     if (lastScanEl) {

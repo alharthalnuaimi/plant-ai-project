@@ -167,7 +167,7 @@ const server = http.createServer((req, res) => {
       hotel:      { tags: ['[tourism~"hotel|motel|hostel|guest_house"]'] },
       atm:        { tags: ['[amenity~"atm|bank"]'] }
     };
-    const catDef = categoryMap[cat] || categoryMap.food;
+    const catDef = Object.hasOwn(categoryMap, cat) ? categoryMap[cat] : categoryMap.food;
 
     // Build Overpass QL query — union multiple tag groups
     const parts = catDef.tags.map(tag =>

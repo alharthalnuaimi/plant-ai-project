@@ -333,7 +333,7 @@ function showPredictResult(result){
   _setResultIcon(tone);
 
   const classLabel = result.class_name || result.disease_type || '';
-  if(titleEl) titleEl.textContent = _resultHeadline(result, tone, userOk);
+  if(titleEl) titleEl.innerHTML = _resultHeadline(result, tone, userOk); // static icon + fixed text only, no server data
 
   // Plant identification — canonical Pl@ntNet shape with legacy fallback.
   const plantName = (result.plant && result.plant.common_name)
@@ -1505,20 +1505,22 @@ zmSave.addEventListener('click', async ()=>{
     renderZoneChips();
     renderMapMarkers();
     _notifyZonesChanged();
+    // closeZoneModal() clears editingZone, so keep the reference for the save below.
+    const edited = editingZone;
     closeZoneModal();
 
     if(typeof saveZone === 'function'){
-      const saved = await saveZone(_zoneToBackend(editingZone));
+      const saved = await saveZone(_zoneToBackend(edited));
       if(!saved){
         // Roll back the optimistic edit.
-        Object.assign(editingZone, prev);
+        Object.assign(edited, prev);
         _persistZonesLocal();
         renderZoneChips();
         renderMapMarkers();
         _notifyZonesChanged();
         pvToast('Could not save zone — kept previous values');
       } else {
-        await syncDevicesForZone(editingZone.zone_id || editingZone.id, devices, prev.devices);
+        await syncDevicesForZone(edited.zone_id || edited.id, devices, prev.devices);
       }
     }
     return;
@@ -3210,6 +3212,7 @@ const origResModalShow = resModal.classList.add.bind(resModal.classList);
 const resObserver = new MutationObserver((mutations) => {
   mutations.forEach(m => {
     if(m.attributeName === 'class' && resModal.classList.contains('active')){
+      if(document.getElementById('r-title')?.textContent === 'Scan Failed') return;
       // Phase E — read from the new result-card ids; fall back to legacy
       // ids so any future debug overlay that re-mounts them still works.
       const plant = document.getElementById('r-plant-name')?.textContent
@@ -3441,7 +3444,7 @@ if(actAddZone) actAddZone.addEventListener('click', () => {
 
 const actExport = document.getElementById('act-export');
 if(actExport) actExport.addEventListener('click', () => {
-  document.getElementById('prof-export')?.click();
+  document.getElementById('prof-export-session')?.click();
 });
 
 const actHistory = document.getElementById('act-history');
