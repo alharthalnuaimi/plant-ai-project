@@ -95,19 +95,23 @@ async def upsert_device(payload: DeviceIn) -> DeviceOut:
 async def register_device(payload: DeviceRegisterIn) -> DeviceOut:
     """Phase 4 — thin self-registration endpoint for ESP32 firmware.
 
-    Upserts a device with a sensible default ``device_name`` (falling
-    back to the slug itself when ``label`` is missing) and the default
-    ``OFFLINE`` status. The first ``POST /sensor`` from this slug will
-    flip it to ``ONLINE`` via ``devices_repo.mark_seen``.
+    A device registers on every boot, so this merges with any existing row:
+    fields the request leaves out keep their values. A new device gets its
+    slug as ``device_name`` and the default ``OFFLINE`` status. The first
+    ``POST /sensor`` from this slug will flip it to ``ONLINE`` via
+    ``devices_repo.mark_seen``.
     """
 
+    slug = payload.slug.strip()
+    _, items = await garden_management.list_devices()
+    existing = next((d for d in items if d.get("slug") == slug), {})
     data: dict[str, Any] = {
-        "slug": payload.slug.strip(),
-        "device_name": (payload.label or payload.slug).strip() or payload.slug.strip(),
-        "zone_slug": (payload.zone_slug or "").strip() or None,
-        "ip_address": None,
-        "status": "OFFLINE",
-        "metadata": {"registered_via": "/devices/register"},
+        "slug": slug,
+        "device_name": (payload.label or "").strip() or existing.get("device_name") or slug,
+        "zone_slug": (payload.zone_slug or "").strip() or existing.get("zone_slug"),
+        "ip_address": existing.get("ip_address"),
+        "status": existing.get("status") or "OFFLINE",
+        "metadata": {**(existing.get("metadata") or {}), "registered_via": "/devices/register"},
     }
     saved = await garden_management.upsert_device(data)
     return DeviceOut(**saved)

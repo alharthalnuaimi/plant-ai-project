@@ -8,6 +8,7 @@ still works in offline / demo mode.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -50,6 +51,9 @@ def _normalize_row(row: dict[str, Any]) -> dict[str, Any]:
             out[k] = v.isoformat()
     if "id" in out and out["id"] is not None:
         out["id"] = str(out["id"])
+    if "metadata_json" in out:
+        meta = out.pop("metadata_json")
+        out["metadata"] = json.loads(meta) if isinstance(meta, str) else (meta or {})
     return out
 
 
