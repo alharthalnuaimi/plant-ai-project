@@ -8,6 +8,7 @@ from __future__ import annotations
 import datetime
 import io
 import json
+import logging
 import os
 import shutil
 import uuid
@@ -19,6 +20,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from services.readiness_check import evaluate_dataset_readiness
 
 router = APIRouter(prefix="/admin/datasets", tags=["admin_datasets"])
+log = logging.getLogger("plantvision.admin_datasets")
 
 # Resolve dataset uploads directory relative to the repo root.
 # Override with DATASET_UPLOADS_PATH env var for Railway volumes.
@@ -49,19 +51,24 @@ async def upload_dataset_batch(file: UploadFile = File(...)) -> dict[str, Any]:
         shutil.rmtree(batch_dir, ignore_errors=True)
         raise HTTPException(status_code=400, detail=f"Invalid zip archive: {exc}")
 
-    # Evaluate readiness
-    report = evaluate_dataset_readiness(batch_dir)
+    # Evaluate readiness. A failure must not leave a folder that breaks the listing.
+    try:
+        report = evaluate_dataset_readiness(batch_dir)
 
-    # Write batch metadata
-    meta = {
-        "upload_id": upload_id,
-        "filename": file.filename,
-        "uploaded_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "total_images": report["total_images"],
-        "status": report["status"],
-        "report": report,
-    }
-    (batch_dir / "batch_meta.json").write_text(json.dumps(meta, indent=2))
+        # Write batch metadata
+        meta = {
+            "upload_id": upload_id,
+            "filename": file.filename,
+            "uploaded_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "total_images": report["total_images"],
+            "status": report["status"],
+            "report": report,
+        }
+        (batch_dir / "batch_meta.json").write_text(json.dumps(meta, indent=2))
+    except Exception as exc:  # noqa: BLE001 - the zip's contents are untrusted
+        log.warning("Dataset readiness failed for %s: %s", upload_id, type(exc).__name__)
+        shutil.rmtree(batch_dir, ignore_errors=True)
+        raise HTTPException(status_code=400, detail="Dataset archive could not be evaluated") from exc
 
     return meta
 
@@ -82,7 +89,11 @@ async def list_dataset_batches() -> list[dict[str, Any]]:
                 except Exception:
                     pass
             else:
-                report = evaluate_dataset_readiness(d)
+                try:
+                    report = evaluate_dataset_readiness(d)
+                except Exception as exc:  # noqa: BLE001 - one bad folder must not break the listing
+                    log.warning("Skipping dataset folder %s: %s", d.name, type(exc).__name__)
+                    continue
                 batches.append({
                     "upload_id": d.name,
                     "filename": d.name,

@@ -38,6 +38,10 @@ def _compute_image_hashes(image_dir: Path) -> dict[str, list[str]]:
     return {h: names for h, names in hash_groups.items() if len(names) > 1}
 
 
+def _is_count(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
 def evaluate_dataset_readiness(
     batch_dir: Path,
     min_images_per_class: int = 10,
@@ -65,6 +69,7 @@ def evaluate_dataset_readiness(
     consensus_agreements = 0
     pending_reviews = 0
 
+    meta_invalid = False
     meta_file = batch_dir / "consensus_meta.json"
     if meta_file.exists():
         try:
@@ -72,8 +77,17 @@ def evaluate_dataset_readiness(
             consensus_agreements = meta.get("agreed_count", 0)
             class_counts = meta.get("class_counts", {})
             pending_reviews = meta.get("pending_reviews", 0)
-        except Exception:
-            pass
+            meta_invalid = not (
+                _is_count(consensus_agreements)
+                and _is_count(pending_reviews)
+                and isinstance(class_counts, dict)
+                and all(_is_count(v) for v in class_counts.values())
+            )
+        except Exception:  # noqa: BLE001 - this file comes from the uploaded zip
+            meta_invalid = True
+        if meta_invalid:
+            log.warning("Malformed consensus_meta.json in %s", batch_dir.name)
+            consensus_agreements, class_counts, pending_reviews = 0, {}, 0
 
     # If no consensus metadata, count from YOLO label files
     if not class_counts:
@@ -126,7 +140,10 @@ def evaluate_dataset_readiness(
     # --- Status logic ---
     issues: list[str] = []
 
-    if total_images == 0:
+    if meta_invalid:
+        status = "🔴 Not usable"
+        issues.append("consensus_meta.json is malformed.")
+    elif total_images == 0:
         status = "🔴 Not usable"
         issues.append("Dataset batch is empty.")
     elif agreement_rate < min_agreement_rate:

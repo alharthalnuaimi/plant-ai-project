@@ -20,9 +20,12 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 
 from schemas.report import PlantReport, ReportRequest
 from services.config_loader import get_runtime_config
+from services.preprocess import decoded_image_type
 from services.report_builder import (
     build_report_from_image,
     build_report_from_plant_id,
@@ -70,6 +73,10 @@ async def report(
         data = await file.read()
         if len(data) < _min_image_bytes():
             raise HTTPException(status_code=400, detail="Image too small or empty")
+        try:
+            decoded_image_type(data)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Uploaded file is not a readable image") from exc
 
         try:
             return build_report_from_image(
@@ -102,7 +109,10 @@ async def report(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON body")
 
-    payload = ReportRequest.model_validate(body or {})
+    try:
+        payload = ReportRequest.model_validate(body or {})
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors()) from exc
 
     try:
         return build_report_from_plant_id(
