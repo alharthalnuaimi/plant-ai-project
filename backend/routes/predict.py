@@ -5,12 +5,15 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 
 from schemas.contracts import OrchestratorRequest, OrchestratorResponse, SurvivalSensorInput, VisionResult
 from services.config_loader import get_runtime_config
 from services.orchestrator import run_analysis_pipeline
 from services import analytics_store, sensor_store, storage
 from services.plant_health import enrich_vision_result
+from services.preprocess import decoded_image_type
 from services.prediction import run_vision_prediction
 
 router = APIRouter(tags=["predict"])
@@ -69,6 +72,10 @@ async def predict(
     data = await file.read()
     if len(data) < _min_image_bytes():
         raise HTTPException(status_code=400, detail="Image too small or empty")
+    try:
+        image_ext, image_type = decoded_image_type(data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Uploaded file is not a readable image") from exc
 
     uid = _normalize_user_id(user_id)
     zid = _normalize_zone_id(zone_id)
@@ -87,8 +94,8 @@ async def predict(
     if storage.is_enabled():
         upload_res = await storage.upload_scan_image(
             file_bytes=data,
-            filename=file.filename or "image",
-            content_type=file.content_type or "image/jpeg",
+            filename=f"scan.{image_ext}",
+            content_type=image_type,
         )
         if upload_res.ok and upload_res.object_path:
             storage_used = True
@@ -102,7 +109,7 @@ async def predict(
             )
 
     if not storage_used:
-        fname = f"{uuid.uuid4().hex}_{file.filename or 'image'}"
+        fname = f"{uuid.uuid4().hex}.{image_ext}"  # the client's filename is never trusted
         dest = UPLOAD_DIR / fname
         dest.write_bytes(data)
         image_storage_path = dest.relative_to(UPLOAD_DIR.parent).as_posix()
@@ -227,17 +234,24 @@ async def analyze(
     image_bytes = await file.read()
     if len(image_bytes) < _min_image_bytes():
         raise HTTPException(status_code=400, detail="Image too small or empty")
+    try:
+        decoded_image_type(image_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Uploaded file is not a readable image") from exc
 
-    payload = OrchestratorRequest(
-        sensors=SurvivalSensorInput(
-            soil_moisture=soil_moisture,
-            temperature=temperature,
-            humidity=humidity,
-            species=species,
-        ),
-        user_question=user_question,
-        persist_upload=True,
-    )
+    try:
+        payload = OrchestratorRequest(
+            sensors=SurvivalSensorInput(
+                soil_moisture=soil_moisture,
+                temperature=temperature,
+                humidity=humidity,
+                species=species,
+            ),
+            user_question=user_question,
+            persist_upload=True,
+        )
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors()) from exc
     request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
     return run_analysis_pipeline(
         request_id=request_id,

@@ -122,10 +122,10 @@ def test_care_static_template(fastapi_client):
     assert body["scientific_name"] == "Cucumis sativus"
 
 
-def test_care_unknown_species_falls_back_without_404(fastapi_client):
+def test_care_unknown_species_returns_unknown_without_404(fastapi_client):
     r = fastapi_client.get("/care/species/dragonfruit")
     assert r.status_code == 200
-    assert r.json()["species_id"] == "cucumber"
+    assert r.json()["species_id"] == "unknown"
 
 
 def test_care_live_plan(fastapi_client):

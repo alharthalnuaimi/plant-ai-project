@@ -13,6 +13,8 @@ def configure_logging() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
     )
+    # httpx logs full request URLs at INFO, and PlantNet's API key is in the URL.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):

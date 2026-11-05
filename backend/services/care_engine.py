@@ -47,7 +47,8 @@ log = logging.getLogger("plantvision.care_engine")
 def load_template(species_id: str | None) -> CareTemplate:
     """Resolve a ``CareTemplate`` for the given species_id.
 
-    * Unknown species → falls back to cucumber (the MVP default).
+    * Unlisted species, or one with no template (rose, money_plant) → the
+      minimal template, not another plant's care plan.
     * Empty templates dict → returns a minimal template so the API
       contract still holds.
     """

@@ -245,3 +245,6 @@ vault/
 # =============================================================================
 !artifacts/models/**/data.yaml
 !artifacts/models/**/metrics.json
+
+# Local review notes
+REVIEW_REPORT.md

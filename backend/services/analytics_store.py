@@ -62,6 +62,7 @@ from schemas.contracts import VisionResult
 from schemas.sensors import SensorReading
 from services import sensor_store
 from services import persistence
+from services.disease_taxonomy import classify_disease
 
 _MAX_SCANS = 500
 _MAX_EVENTS = 120
@@ -96,8 +97,7 @@ def _zone_label(zone_id: str) -> str:
 
 
 def _is_healthy_disease(disease: str) -> bool:
-    d = (disease or "").lower()
-    return any(x in d for x in ("healthy", "normal", "no disease", "none"))
+    return classify_disease(disease or "")["class_name"] == "healthy"
 
 
 def _scan_status(disease: str, confidence: float, accepted: bool) -> str:

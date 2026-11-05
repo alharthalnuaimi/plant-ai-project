@@ -92,7 +92,21 @@ from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 _UPLOADS_DIR = Path(__file__).resolve().parent / "uploads"
 _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=str(_UPLOADS_DIR)), name="uploads")
+_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".jfif", ".png", ".webp", ".gif", ".bmp"}
+
+
+class ImageStaticFiles(StaticFiles):
+    """Serves images only, so a file saved before uploads were validated can't run as a page."""
+
+    async def get_response(self, path, scope):
+        if Path(path).suffix.lower() not in _IMAGE_SUFFIXES:
+            raise HTTPException(status_code=404)
+        response = await super().get_response(path, scope)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
+
+
+app.mount("/uploads", ImageStaticFiles(directory=str(_UPLOADS_DIR)), name="uploads")
 
 
 _LOG = logging.getLogger("plantvision.startup")
@@ -231,7 +245,11 @@ async def validation_exception_handler(
         content={
             "error": "validation_error",
             "request_id": request_id,
-            "details": exc.errors(),
+            # Not raw errors(): they echo the input, which can be inf or a file and can't be JSON-encoded.
+            "details": [
+                {"loc": list(e.get("loc", [])), "msg": str(e.get("msg", "")), "type": str(e.get("type", ""))}
+                for e in exc.errors()
+            ],
         },
     )
 

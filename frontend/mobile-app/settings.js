@@ -611,7 +611,7 @@
       const age = (d.age_seconds != null) ? _fmtAgeSec(d.age_seconds) : "—";
       return `<div class="set-dev-row ${cls}">`
         + `<span class="mono">${_escapeHtml(d.slug)}</span>`
-        + `<span>${_escapeHtml(d.zone_id || "—")}</span>`
+        + `<span>${_escapeHtml(d.zone_slug || "—")}</span>`
         + `<span class="set-dev-fresh">${_escapeHtml(fresh)}</span>`
         + `<span class="mono">${age}</span>`
         + `<span class="mono">${retries}</span>`
@@ -874,8 +874,8 @@
           const metricsStr = j.metrics_after
             ? ` · mAP50: ${j.metrics_after.mAP50 ?? '—'} · Gate: ${j.metrics_after.passed_gate ? '✓' : '✗'}`
             : '';
-          const staleNote = st === 'queued' && j.queued_at
-            && (Date.now() - new Date(j.queued_at).getTime()) > 30 * 60_000
+          const staleNote = st === 'queued' && j.created_at
+            && (Date.now() - new Date(j.created_at).getTime()) > 30 * 60_000
             ? ' <span style="color:#e6a520">⚠ Stale</span>' : '';
           return `<div class="pv-job-item">
             <div><span class="pv-job-name">${j.id?.slice(0, 8) || '—'}</span>

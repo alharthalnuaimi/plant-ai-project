@@ -39,6 +39,12 @@ _JSON_SCHEMA_PROMPT = (
 )
 
 
+def _safe_error(exc: Exception) -> str:
+    """Exception text can contain the request URL and its API key, so expose only type and status."""
+    status = getattr(exc, "status_code", None) or getattr(getattr(exc, "response", None), "status_code", None)
+    return f"{type(exc).__name__} (HTTP {status})" if status else type(exc).__name__
+
+
 def _parse_structured_response(
     raw_text: str, context_label: str, provider_name: str
 ) -> dict[str, Any]:
@@ -63,7 +69,9 @@ def _parse_structured_response(
     if json_start >= 0 and json_end > json_start:
         try:
             data = json.loads(text[json_start:json_end])
-            label = str(data.get("label", context_label or "Healthy")).strip()
+            label = str(data.get("label") or "").strip()
+            if not label:
+                raise ValueError("response has no label")
             confidence = float(data.get("confidence", 0.0))
             confidence = max(0.0, min(1.0, confidence))  # clamp
 
@@ -95,7 +103,7 @@ def _parse_structured_response(
         "confidence": 0.0,
         "bbox": None,
         "reasoning": f"[Unstructured response] {text[:300]}",
-        "status": "success",
+        "status": "no_result",
     }
 
 
@@ -127,12 +135,13 @@ class GeminiAgent(AnnotationAgent):
             response_text = client.generate_chat(
                 messages=[{"role": "user", "content": prompt}],
                 system_instruction="Plant disease diagnostics. Respond with JSON only.",
+                image_bytes=image_bytes,
             )
             return _parse_structured_response(response_text, context_label, self.name)
 
         except Exception as exc:
-            log.warning("GeminiAgent.annotate failed: %s", exc)
-            return self._stub_response(context_label, f"Error: {exc}")
+            log.warning("GeminiAgent.annotate failed: %s", _safe_error(exc))
+            return self._stub_response(context_label, f"Error: {_safe_error(exc)}")
 
     def _stub_response(self, label: str, reason: str) -> dict[str, Any]:
         return {
@@ -220,16 +229,16 @@ class RoboflowAgent(AnnotationAgent):
                 "confidence": 0.0,
                 "bbox": None,
                 "reasoning": "No predictions returned from Roboflow.",
-                "status": "success",
+                "status": "no_result",
             }
         except Exception as exc:
-            log.warning("RoboflowAgent.annotate failed: %s", exc)
+            log.warning("RoboflowAgent.annotate failed: %s", _safe_error(exc))
             return {
                 "provider": self.name,
                 "class_label": context_label or "Healthy",
                 "confidence": 0.0,
                 "bbox": None,
-                "reasoning": f"Roboflow API error: {exc}",
+                "reasoning": f"Roboflow API error: {_safe_error(exc)}",
                 "status": "error",
             }
 
@@ -273,10 +282,10 @@ class ClaudeAgent(AnnotationAgent):
             return _parse_structured_response(text, context_label, self.name)
 
         except Exception as exc:
-            log.warning("ClaudeAgent.annotate failed: %s", exc)
+            log.warning("ClaudeAgent.annotate failed: %s", _safe_error(exc))
             return {
                 "provider": self.name, "class_label": context_label or "Healthy",
-                "confidence": 0.0, "bbox": None, "reasoning": f"Claude error: {exc}",
+                "confidence": 0.0, "bbox": None, "reasoning": f"Claude error: {_safe_error(exc)}",
                 "status": "error",
             }
 
@@ -321,10 +330,10 @@ class GPTAgent(AnnotationAgent):
             return _parse_structured_response(text, context_label, self.name)
 
         except Exception as exc:
-            log.warning("GPTAgent.annotate failed: %s", exc)
+            log.warning("GPTAgent.annotate failed: %s", _safe_error(exc))
             return {
                 "provider": self.name, "class_label": context_label or "Healthy",
-                "confidence": 0.0, "bbox": None, "reasoning": f"GPT-4o error: {exc}",
+                "confidence": 0.0, "bbox": None, "reasoning": f"GPT-4o error: {_safe_error(exc)}",
                 "status": "error",
             }
 
@@ -347,31 +356,38 @@ class KimiAgent(AnnotationAgent):
         try:
             import openai
 
+            from services.preprocess import image_mime
+
             client = openai.OpenAI(
                 api_key=os.getenv("KIMI_API_KEY"),
                 base_url="https://api.moonshot.cn/v1",
             )
+            img_b64 = base64.b64encode(image_bytes).decode("utf-8")
 
             response = client.chat.completions.create(
-                model="moonshot-v1-8k",
+                # moonshot-v1-8k has no vision, and Kimi only accepts images as base64.
+                model=os.getenv("KIMI_VISION_MODEL", "kimi-k2.6"),
                 max_tokens=300,
                 messages=[{
                     "role": "user",
-                    "content": (
-                        f"Plant pathology: classify this plant image. "
-                        f"Prior model suggests '{context_label}'.\n\n"
-                        f"{_JSON_SCHEMA_PROMPT}"
-                    ),
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": f"data:{image_mime(image_bytes)};base64,{img_b64}"}},
+                        {"type": "text", "text": (
+                            f"Plant pathology: classify this plant image. "
+                            f"Prior model suggests '{context_label}'.\n\n"
+                            f"{_JSON_SCHEMA_PROMPT}"
+                        )},
+                    ],
                 }],
             )
             text = response.choices[0].message.content or ""
             return _parse_structured_response(text, context_label, self.name)
 
         except Exception as exc:
-            log.warning("KimiAgent.annotate failed: %s", exc)
+            log.warning("KimiAgent.annotate failed: %s", _safe_error(exc))
             return {
                 "provider": self.name, "class_label": context_label or "Healthy",
-                "confidence": 0.0, "bbox": None, "reasoning": f"Kimi error: {exc}",
+                "confidence": 0.0, "bbox": None, "reasoning": f"Kimi error: {_safe_error(exc)}",
                 "status": "error",
             }
 
@@ -434,18 +450,19 @@ class MultiProviderRegistry:
                 res = p.annotate(image_bytes, context_label=context_label)
                 results.append(res)
             except Exception as exc:
-                log.warning("Provider %s failed during consensus: %s", p.name, exc)
+                log.warning("Provider %s failed during consensus: %s", p.name, _safe_error(exc))
                 results.append({
                     "provider": p.name, "class_label": "error",
                     "confidence": 0.0, "bbox": None,
-                    "reasoning": str(exc), "status": "error",
+                    "reasoning": _safe_error(exc), "status": "error",
                 })
 
-        # Compute majority consensus label (exclude error results)
-        valid_results = [r for r in results if r.get("status") != "error"]
+        # Only real answers vote. Failed, stubbed and empty responses carry a
+        # placeholder label, so counting them would invent agreement.
+        valid_results = [r for r in results if r.get("status") == "success"]
         if not valid_results:
             return {
-                "consensus_label": context_label or "Healthy",
+                "consensus_label": "Unknown",
                 "consensus_rate": 0.0,
                 "majority_agree": False,
                 "active_provider_count": len(active),

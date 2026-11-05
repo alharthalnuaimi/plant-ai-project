@@ -22,6 +22,7 @@ from pydantic import BaseModel
 from db.connection import get_pool, is_postgres_enabled
 from repositories import scans_repo
 from services import analytics_store, storage
+from services.disease_taxonomy import classify_disease
 
 log = logging.getLogger("plantvision.scans")
 
@@ -80,7 +81,6 @@ class ZoneScanCounts(BaseModel):
 # ---------------------------------------------------------------- helpers
 
 
-_HEALTHY = ("healthy", "normal", "no disease", "none")
 _UNCLASSIFIED = {"", "unknown", "pending", "pending analysis", "unclassified", "n/a"}
 
 
@@ -96,7 +96,7 @@ def _status_from(disease: str | None, confidence: float, accepted: bool) -> str:
     d = (disease or "").strip().lower()
     if not d or d in _UNCLASSIFIED:
         return "UNKNOWN"
-    if any(x in d for x in _HEALTHY):
+    if classify_disease(d)["class_name"] == "healthy":
         return "PASS"
     if confidence >= 0.9 or (not accepted and confidence >= 0.7):
         return "CRITICAL"

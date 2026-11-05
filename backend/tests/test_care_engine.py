@@ -17,9 +17,10 @@ def test_load_template_known_species():
     assert t.temperature_c is not None and len(t.temperature_c) == 2
 
 
-def test_load_template_unknown_falls_back_to_cucumber():
+def test_load_template_unlisted_species_does_not_use_cucumber():
     t = load_template("dragonfruit")
-    assert t.species_id == "cucumber"
+    assert t.species_id == "unknown"
+    assert t.growth_stages == []
 
 
 def test_load_template_alias_resolution():
