@@ -143,11 +143,33 @@ def enrich_vision_result(
     )
 
 
+_ENV_STRESS_NOTE = " Also address environment stress (humidity, soil moisture, or temperature)."
+
+
+def apply_gemini_advice(health: PlantHealthScore, guidance: str | None) -> PlantHealthScore:
+    """Use Gemini's advice for a scan instead of the catalog tip.
+
+    The environment-stress advice derived from sensor readings is kept as it
+    was: it still wins for a healthy plant in a stressed environment and is
+    still appended otherwise.
+    """
+
+    advice = (guidance or "").strip()
+    if not advice:
+        return health
+    if health.environment_stress == "High":
+        if health.class_name == "healthy":
+            return health
+        advice += _ENV_STRESS_NOTE
+    return health.model_copy(update={"recommendation": advice})
+
+
 def compute_from_scan_record(scan: dict[str, Any], sensor: SensorReading | None) -> PlantHealthScore:
-    return compute_plant_health(
+    health = compute_plant_health(
         scan.get("disease", "unknown"),
         float(scan.get("confidence", 0)),
         accepted=bool(scan.get("accepted", True)),
         sensor=sensor,
         source="live",
     )
+    return apply_gemini_advice(health, (scan.get("metadata") or {}).get("guidance"))

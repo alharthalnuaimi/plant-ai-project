@@ -39,7 +39,7 @@ from schemas.sensors import SensorReading
 from services import analytics_store, sensor_store
 from services.care_engine import build_care_plan
 from services.disease_taxonomy import classify_disease
-from services.plant_health import compute_plant_health
+from services.plant_health import apply_gemini_advice, compute_plant_health
 from services.prediction import run_vision_prediction
 
 log = logging.getLogger("plantvision.report")
@@ -164,8 +164,12 @@ def _summarise(
     accepted: bool,
     health: PlantHealthScore,
     warnings: list[CareRecommendation],
+    uncertain: bool = False,
 ) -> str:
     label = plant_name or "Plant"
+    if uncertain:
+        # Gemini could not assess the photo, so there is no diagnosis or score to quote.
+        return f"{label}: the last photo could not be assessed. Retake a clear, close photo of the affected leaves."
     if health.class_name == "healthy" and not warnings:
         return (
             f"{label} looks healthy. Plant health {health.plant_health}/100, "
@@ -251,6 +255,7 @@ def build_report_from_image(
         sensor=sensor,
         source="live" if sensor is not None else "baseline",
     )
+    health = apply_gemini_advice(health, (vision.metadata or {}).get("guidance"))
 
     # Resolve species: explicit override > vision.plant > plant_id slug heuristic > cucumber.
     resolved_species = (
@@ -357,6 +362,7 @@ def build_report_from_plant_id(
         sensor=sensor,
         source="live" if sensor is not None else "baseline",
     )
+    health = apply_gemini_advice(health, meta.get("guidance"))
 
     resolved_species = (
         species_id
@@ -423,6 +429,7 @@ def _assemble_report(
         accepted=vision.accepted,
         health=health,
         warnings=care.warnings,
+        uncertain=((vision.metadata or {}).get("assessment") or {}).get("category") == "uncertain",
     )
 
     return PlantReport(

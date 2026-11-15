@@ -155,7 +155,11 @@ def _append_spark(user_id: str, zone_id: str, reading: SensorReading) -> None:
 
 
 # The parts of a scan's metadata that /report and /care read back later.
-_REPORT_META_KEYS = ("plant_id", "plant_name", "raw_disease_label", "plant_identification", "stress_hint")
+_REPORT_META_KEYS = (
+    "plant_id", "plant_name", "raw_disease_label", "plant_identification", "stress_hint",
+    # Gemini's own advice and verdict, so later views don't fall back to catalog text.
+    "guidance", "assessment",
+)
 
 
 def _report_meta(meta: Any) -> dict[str, Any]:

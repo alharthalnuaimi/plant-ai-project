@@ -235,6 +235,87 @@ function _pvAssessment(result){
   return { category, label: PV_ASSESSMENT_LABELS[category] };
 }
 
+// The scan result currently shown in the result modal (null after an error).
+let _pvLastScanResult = null;
+let _pvLastScanAt = null;
+
+// The two confidences a scan can carry, kept apart: plant identification vs
+// Gemini's diagnosis. Each is null when the scan doesn't really have it.
+function _pvConfidences(result){
+  const pct = (v) => {
+    const n = Number(v);
+    return (v !== null && v !== undefined && Number.isFinite(n) && n > 0) ? Math.round(n * 1000) / 10 : null;
+  };
+  const dx = result?.metadata?.gemini_diagnosis?.diagnosis || null;
+  const uncertain = _pvAssessment(result).category === 'uncertain';
+  return {
+    plantIdPct: pct(result?.plant?.confidence),
+    diagnosisPct: uncertain ? null : pct(dx ? dx.confidence : result?.confidence),
+  };
+}
+
+// Everything the export needs, read from the real /predict response.
+// Missing values stay null; nothing is filled in.
+function _pvBuildScanReport(result, extra = {}){
+  const meta = result?.metadata || {};
+  const gd = meta.gemini_diagnosis || null;
+  const dx = (gd && gd.diagnosis) || {};
+  const plant = result?.plant || null;
+  const assessment = _pvAssessment(result);
+  const conf = _pvConfidences(result);
+  const isCondition = assessment.category !== 'healthy' && assessment.category !== 'uncertain';
+  return {
+    generated_at: new Date().toISOString(),
+    app: 'PlantVision',
+    scan: {
+      result_received_at: extra.scannedAt || null,
+      scan_source: meta.scan_source || null,
+      image_url: meta.image_url || null,
+    },
+    plant_identification: {
+      common_name: plant ? plant.common_name || null : null,
+      scientific_name: plant ? plant.scientific_name || null : null,
+      family: plant ? plant.family || null : null,
+      genus: plant ? plant.genus || null : null,
+      plant_id_confidence_pct: conf.plantIdPct,
+      source: plant ? plant.source || null : null,
+    },
+    diagnosis: {
+      health_status: assessment.label,
+      health_category: assessment.category,
+      condition: isCondition ? (dx.primary_condition || meta.raw_disease_label || result?.disease || null) : null,
+      condition_category: dx.category || null,
+      diagnosis_status: meta.diagnosis_status || dx.status || null,
+      severity: dx.severity && dx.severity !== 'unknown' ? dx.severity : null,
+      ai_diagnosis_confidence_pct: conf.diagnosisPct,
+      confidence_kind: conf.diagnosisPct != null ? 'model_self_reported' : null,
+      summary: (gd && gd.summary) || result?.gemini_reasoning || null,
+      symptoms: Array.isArray(gd?.observations)
+        ? gd.observations.filter(o => o && o.finding).map(o => ({ finding: o.finding, category: o.category || null, certainty: o.certainty || null }))
+        : [],
+      alternative_diagnoses: Array.isArray(gd?.alternative_diagnoses) ? gd.alternative_diagnoses : [],
+      uncertainties: Array.isArray(gd?.uncertainties) ? gd.uncertainties : [],
+      image_quality: gd ? gd.image_quality || null : null,
+    },
+    recommendations: {
+      gemini_recommended_action: (gd && gd.recommended_action) || meta.guidance || null,
+      ai_analysis: extra.aiAnalysis || null,
+    },
+    environment: extra.environment || {},
+    ai_model: {
+      provider: meta.gemini?.provider || null,
+      model: meta.gemini?.model || null,
+      prompt_version: meta.gemini?.prompt_version || null,
+    },
+    context: {
+      user_id: result?.user_id || meta.user_id || null,
+      zone_id: result?.zone_id || meta.zone_id || null,
+      device_id: meta.device_id || null,
+      plant_id: meta.plant_id || null,
+    },
+  };
+}
+
 // Fill the Diagnosis section of the result modal from Gemini's structured answer.
 function _renderDiagnosisSection(result, assessment){
   const set = (id, text) => { const el = document.getElementById(id); if(el) el.textContent = text; };
@@ -454,6 +535,8 @@ function showPredictResult(result){
   const classLabel = result.class_name || result.disease_type || '';
   if(titleEl) titleEl.innerHTML = _resultHeadline(result, tone, userOk); // static icon + fixed text only, no server data
   _renderDiagnosisSection(result, _pvAssessment(result));
+  _pvLastScanResult = result;
+  _pvLastScanAt = new Date().toISOString();
 
   // Plant identification — canonical Pl@ntNet shape with legacy fallback.
   const plantName = (result.plant && result.plant.common_name)
@@ -717,6 +800,8 @@ function showScanError(message){
     if(el) el.textContent = '';
   });
   document.getElementById('r-dx-status')?.setAttribute('data-cat', 'uncertain');
+  _pvLastScanResult = null;
+  _pvLastScanAt = null;
   const msg = message || 'Could not complete the scan. Please try again.';
   const recEl = document.getElementById('r-recommendation');
   const recLegacy = document.getElementById('r-rec');
@@ -1109,21 +1194,14 @@ document.getElementById('r-save').addEventListener('click', function(){
   btn.style.opacity = '.6';
 
   try {
-    // Collect all data from the live result modal DOM
+    // The report is built from the scan result itself; only the environment
+    // block and Gemini's chat analysis are read from what the modal shows.
     const getText = (id) => { const el = document.getElementById(id); return el ? el.textContent.trim() : '—'; };
-
-    const report = {
-      generated_at: new Date().toISOString(),
-      app: 'Atlas',
-      scan: {
-        plant_name:      getText('r-plant-name'),
-        scientific_name: getText('r-plant-sci'),
-        family:          getText('r-plant-family'),
-        genus:           getText('r-plant-genus'),
-        confidence:      getText('r-plant-conf'),
-        diagnosis:       getText('r-title'),
-        recommendation:  getText('r-recommendation') || getText('r-rec'),
-      },
+    if(!_pvLastScanResult) throw new Error('no scan result to export');
+    const aiText = getText('r-recommendation');
+    const report = _pvBuildScanReport(_pvLastScanResult, {
+      scannedAt: _pvLastScanAt,
+      aiAnalysis: (aiText && aiText !== '—' && aiText !== 'Analysing your plant with AI...') ? aiText : null,
       environment: {
         air_temperature: getText('r-env-temp'),
         air_humidity:    getText('r-env-humid'),
@@ -1132,13 +1210,7 @@ document.getElementById('r-save').addEventListener('click', function(){
         soil_ph:         getText('r-env-ph'),
         soil_ec:         getText('r-env-ec'),
       },
-      context: {
-        zone_id:   window.PLANT_ZONE_ID   || 'zone_alpha',
-        device_id: window.PLANT_DEVICE_ID || 'esp32_001',
-        user_id:   window.PLANT_USER_ID   || 'demo_user',
-        plant_id:  window.PLANT_ID        || 'unknown',
-      },
-    };
+    });
 
     // Serialize and trigger download
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
@@ -3273,13 +3345,20 @@ const resObserver = new MutationObserver((mutations) => {
       const plant = document.getElementById('r-plant-name')?.textContent
                   || document.getElementById('r-species')?.textContent
                   || 'Plant';
-      const conf  = document.getElementById('r-plant-conf')?.textContent
-                  || document.getElementById('r-conf')?.textContent
-                  || '—';
+      // Label each confidence by what it measures, and leave out any the scan lacks.
+      const res = _pvLastScanResult;
+      const parts = [];
+      if(res){
+        parts.push(_pvAssessment(res).label);
+        const c = _pvConfidences(res);
+        if(c.diagnosisPct != null) parts.push(`AI Diagnosis Confidence: ${c.diagnosisPct}%`);
+        if(c.plantIdPct != null) parts.push(`Plant ID Confidence: ${c.plantIdPct}%`);
+      }
       // Use type-based SVG icon for the notification
       const tone = document.getElementById('res-modal-card')?.getAttribute('data-tone') || '';
       const scanType = tone === 'crit' ? 'alert' : tone === 'warn' ? 'alert' : 'scan';
-      pushNotification(scanType, '', `Scan Complete — ${plant}`, `Confidence: ${conf}. See result card for the AI recommendation.`);
+      const detail = parts.length ? parts.join(' · ') + '. ' : '';
+      pushNotification(scanType, '', `Scan Complete — ${plant}`, `${detail}See result card for the AI recommendation.`);
     }
   });
 });

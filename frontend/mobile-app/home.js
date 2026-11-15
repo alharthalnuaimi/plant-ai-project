@@ -10,6 +10,8 @@
   let pollTimer = null;
   let lastModeKey = "";
   let lastStatsKey = "";
+  // True when Gemini could not assess the newest scan (blurry photo, no plant, unclear cause).
+  let lastScanUncertain = false;
   let lastPulseKey = "";
   let lastFootKey = "";
 
@@ -63,7 +65,7 @@
     const warn = safeNum(summary && summary.warning);
     const crit = safeNum(summary && summary.critical);
     const total = Math.max(1, healthy + warn + crit);
-    const key = healthy + ":" + warn + ":" + crit + ":" + (healthData ? healthData.plant_health : "-");
+    const key = healthy + ":" + warn + ":" + crit + ":" + (healthData ? healthData.plant_health : "-") + ":" + lastScanUncertain;
     if (key === lastStatsKey) return;
     lastStatsKey = key;
 
@@ -96,10 +98,12 @@
     setFill("home-stat-warn-fill", (warn / total) * 100);
     setFill("home-stat-crit-fill", (crit / total) * 100);
 
-    const hp = healthData && typeof healthData.plant_health === "number" ? healthData.plant_health : null;
+    // No score is shown for a photo Gemini could not assess.
+    const hp = !lastScanUncertain && healthData && typeof healthData.plant_health === "number" ? healthData.plant_health : null;
     set(
       "home-stat-healthy-sub",
-      hp != null ? "Plant health " + hp + "%" : healthy > 0 ? "Operational" : "Awaiting sensor data"
+      lastScanUncertain ? "Last scan uncertain"
+        : hp != null ? "Plant health " + hp + "%" : healthy > 0 ? "Operational" : "Awaiting sensor data"
     );
     set("home-stat-warn-sub", warn > 0 ? "Investigate soon" : "All zones clear");
     set("home-stat-crit-sub", crit > 0 ? "Immediate action" : "No critical zones");
@@ -120,9 +124,16 @@
     if (key === lastFootKey) return;
     lastFootKey = key;
 
-    if (lastScan) {
+    if (lastScan && _isUnclassified(lastScan)) {
+      // Gemini could not assess the last photo: no confidence, no health number.
+      meta.textContent = "Plant Vision · not assessable · " + fmtAgo(lastScan.timestamp);
+      status.textContent = "● Uncertain — retake photo";
+      status.classList.remove("st-crit");
+      status.classList.add("st-warn");
+      if (idEl && lastScan.scan_id) idEl.textContent = lastScan.scan_id;
+    } else if (lastScan) {
       const conf = ((lastScan.confidence || 0) * 100).toFixed(1);
-      meta.textContent = "Plant Vision · " + conf + "% confidence · " + fmtAgo(lastScan.timestamp);
+      meta.textContent = "Plant Vision · " + conf + "% AI diagnosis confidence · " + fmtAgo(lastScan.timestamp);
       const hp = lastHealth && typeof lastHealth.plant_health === "number" ? lastHealth.plant_health : null;
       status.textContent = hp != null
         ? "● " + lastScan.disease + " — Health " + hp + "%"
@@ -244,6 +255,7 @@
     }
 
     setMode(isLive, sensorCtx);
+    lastScanUncertain = !!(history && history[0] && _isUnclassified(history[0]));
     renderStats(summary, health);
     updateScannerFoot(history && history[0], health, isLive);
     updateLogPulse(events && events[0]);
@@ -390,6 +402,24 @@
   function renderHeroHealth(health, latestScan) {
     const card = $("home-hero-health");
     if (!card) return;
+    if (latestScan && _isUnclassified(latestScan)) {
+      // Not assessable: an empty ring and an explicit state, never a number.
+      card.hidden = false;
+      const val0 = $("home-hero-val");
+      if (val0) val0.textContent = "?";
+      const fill0 = $("home-hero-ring-fill");
+      if (fill0) {
+        fill0.setAttribute("stroke-dasharray", HHR_CIRC.toFixed(2));
+        fill0.setAttribute("stroke-dashoffset", HHR_CIRC.toFixed(2));
+      }
+      card.classList.remove("tone-ok", "tone-crit");
+      card.classList.add("tone-warn");
+      const t0 = $("home-hero-title");
+      if (t0) t0.textContent = "Uncertain — retake photo";
+      const s0 = $("home-hero-sub");
+      if (s0) s0.textContent = "The last photo could not be assessed";
+      return;
+    }
     const score = health && typeof health.plant_health === "number"
       ? Math.max(0, Math.min(100, Math.round(health.plant_health)))
       : null;

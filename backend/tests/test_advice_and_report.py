@@ -120,3 +120,40 @@ def test_stored_scan_keeps_only_what_reports_need():
     assert analytics_store._report_meta(meta) == {k: meta[k] for k in ("plant_id", "raw_disease_label", "plant_identification")}
     assert analytics_store._report_meta('{"plant_id": "p2"}') == {"plant_id": "p2"}  # Postgres rows store JSON text
     assert analytics_store._report_meta("not json") == {}
+
+
+# --- later views keep Gemini's advice and the uncertain state -----------------
+
+def test_stored_scan_keeps_geminis_advice_and_verdict():
+    meta = {"guidance": "Water deeply once.", "assessment": {"category": "possible_water_stress", "label": "Possible water stress"}}
+    assert analytics_store._report_meta(meta) == meta
+
+
+def test_health_card_uses_geminis_advice_not_the_catalog_tip(fastapi_client, fake_gemini):
+    fake_gemini.diagnosis["recommended_action"] = "Remove the mildewed leaves and improve airflow today."
+    _scan(fastapi_client, color=(70, 140, 70))
+    health = fastapi_client.get("/health/plant").json()
+    assert health["recommendation"] == "Remove the mildewed leaves and improve airflow today."
+
+
+def test_report_summary_for_an_uncertain_scan_quotes_no_scores(fastapi_client, fake_gemini):
+    fake_gemini.diagnosis["diagnosis"].update(status="uncertain", primary_condition=None)
+    _scan(fastapi_client, color=(120, 120, 120), plant_id="unclear_plant")
+    report = fastapi_client.post("/report", json={"plant_id": "unclear_plant"}).json()
+    assert "could not be assessed" in report["analysis_summary"]
+    assert "/100" not in report["analysis_summary"]
+    assert "scan again" in report["health"]["recommendation"]
+
+
+def test_sensor_environment_advice_is_kept_with_geminis_advice():
+    from schemas.health import PlantHealthScore
+    from services.plant_health import apply_gemini_advice
+
+    base = dict(plant_health=40, survival_chance=50, class_name="diseased", recommendation="catalog tip")
+    stressed = PlantHealthScore(environment_stress="High", **base)
+    assert apply_gemini_advice(stressed, "Gemini step.").recommendation.startswith("Gemini step. Also address environment stress")
+    healthy_stressed = PlantHealthScore(environment_stress="High", **{**base, "class_name": "healthy", "recommendation": "Environment stress detected"})
+    assert apply_gemini_advice(healthy_stressed, "Gemini step.").recommendation == "Environment stress detected"
+    calm = PlantHealthScore(environment_stress="Low", **base)
+    assert apply_gemini_advice(calm, "Gemini step.").recommendation == "Gemini step."
+    assert apply_gemini_advice(calm, None).recommendation == "catalog tip"
