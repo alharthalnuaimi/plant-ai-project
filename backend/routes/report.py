@@ -20,9 +20,11 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
+from core.errors import AppError
 from schemas.report import PlantReport, ReportRequest
 from services.config_loader import get_runtime_config
 from services.preprocess import decoded_image_type
@@ -79,7 +81,8 @@ async def report(
             raise HTTPException(status_code=400, detail="Uploaded file is not a readable image") from exc
 
         try:
-            return build_report_from_image(
+            return await run_in_threadpool(
+                build_report_from_image,
                 data,
                 user_id=(user_id or "demo_user").strip() or "demo_user",
                 zone_id=(zone_id or "zone_alpha").strip() or "zone_alpha",
@@ -88,7 +91,7 @@ async def report(
                 species_id=(species_id or "").strip() or None,
                 identify=bool(identify),
             )
-        except HTTPException:
+        except (HTTPException, AppError):
             raise
         except Exception as exc:  # noqa: BLE001
             log.exception("/report image path failed")

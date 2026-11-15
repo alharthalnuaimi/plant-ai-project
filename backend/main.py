@@ -1,5 +1,5 @@
 """
-Plant health MVP API: vision → structured signals → rule-based survival → Llama narrative.
+Plant health API: Gemini vision diagnosis → rule-based survival score → Gemini reasoning.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ from routes.zones import router as zones_router
 
 app = FastAPI(
     title="Plant Health MVP",
-    description="Vision classifies images; Llama only reasons over structured context.",
+    description="Google Gemini diagnoses plant photos and reasons over scan + sensor context.",
     version="0.1.0",
 )
 
@@ -126,16 +126,21 @@ async def _startup() -> None:
         except Exception as exc:  # noqa: BLE001
             _LOG.warning("Scan history hydration skipped: %s", exc)
 
-    # Phase 4 — log live vs stubbed status for external AI services at startup
-    # so the information is visible in server boot logs, not just via /health/services.
-    import os as _os
-    _pn = bool((_os.getenv("PLANTNET_API_KEY") or _os.getenv("PLANT_ID_API_KEY") or "").strip())
-    _gm = bool(_os.getenv("GEMINI_API_KEY", "").strip())
-    _LOG.info(
-        "Service status → PlantNet: %s | Gemini: %s | YOLO: check /health/services",
-        "LIVE" if _pn else "STUBBED",
-        "LIVE" if _gm else "STUBBED",
-    )
+    # AI status at boot (never logs the key itself).
+    from services.gemini.config import load_gemini_config
+
+    _cfg = load_gemini_config()
+    if _cfg.configured:
+        _LOG.info(
+            "AI: Google Gemini LIVE (diagnosis=%s, reasoning=%s). Local YOLO/Ollama/Pl@ntNet: disabled.",
+            _cfg.diagnosis_model,
+            _cfg.reasoning_model,
+        )
+    else:
+        _LOG.warning(
+            "AI: GEMINI_API_KEY is not set — /predict, /chat, /analyze and image /report will "
+            "return 'gemini_not_configured' until it is. Local models are disabled."
+        )
 
 
 @app.on_event("shutdown")

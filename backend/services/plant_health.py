@@ -127,6 +127,11 @@ def enrich_vision_result(
     )
     meta = dict(result.metadata or {})
     meta.setdefault("raw_disease_label", raw_label)
+    # Gemini could not assess the photo (blurry / no plant / unclear cause):
+    # show its retake guidance instead of a generic taxonomy tip.
+    guidance = meta.get("guidance")
+    if guidance:
+        health = health.model_copy(update={"recommendation": str(guidance)})
     return result.model_copy(
         update={
             "disease": tax["display_label"],

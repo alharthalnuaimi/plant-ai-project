@@ -1,3 +1,12 @@
+# DISABLED — kept for reference / future re-enablement only.
+#
+# Since the Gemini-only migration, production routes (/predict, /analyze,
+# /report, /chat) never import or call this module. All diagnosis and
+# reasoning goes through ``services.gemini``. Do not wire this back into a
+# request path as a silent fallback: the stub predictors here produce
+# made-up labels, and the canned narratives are not AI output.
+# See docs/architecture/gemini-migration.md.
+
 """
 Vision-only plant disease / stress signals.
 

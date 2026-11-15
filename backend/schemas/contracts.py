@@ -104,8 +104,12 @@ class OrchestratorResponse(BaseModel):
     vision: VisionResult
     survival: SurvivalResponse
     recommendation: str
+    # Field name kept for backward compatibility; the text now comes from Gemini.
     llama_explanation: str
-    llm_source: Literal["ollama", "fallback", "fallback_empty_ollama", "fallback_error"]
+    llm_source: Literal["gemini"] = "gemini"
+    reasoning: dict[str, Any] | None = Field(
+        default=None, description="Structured Gemini reasoning (see services.gemini.schemas.GeminiReasoning)."
+    )
     timings_ms: dict[str, float]
     warnings: list[str] = Field(default_factory=list)
 

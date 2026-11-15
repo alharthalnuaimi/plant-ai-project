@@ -20,6 +20,12 @@ function _pvFx() {
 function extractApiError(errBody, statusCode) {
   const fallback = `HTTP ${statusCode}`;
   if (!errBody || typeof errBody !== "object") return fallback;
+  // Structured backend errors (e.g. Gemini): {"error": "<code>", "message": "<human text>"}.
+  // Show the human text, not the machine code.
+  if (typeof errBody.message === "string" && errBody.message && typeof errBody.error === "string"
+      && errBody.error !== "validation_error") {
+    return errBody.message;
+  }
   if (typeof errBody.error === "string" && errBody.error !== "validation_error") {
     return errBody.error;
   }
@@ -103,7 +109,7 @@ async function predictPlantImage(file, opts = {}) {
   return resp.json();
 }
 
-/** POST /chat — Gemini-backed plant assistant (Railway backend). */
+/** POST /chat — Gemini reasoning over the scan + sensor context. Errors carry the backend's message. */
 async function postChat(payload) {
   if (_pvDemoOn() && _pvFx().postChat) {
     return Promise.resolve(_pvFx().postChat(payload));
@@ -144,7 +150,7 @@ async function checkBackendHealth() {
   }
 }
 
-/** GET /models/health — YOLO / Llama load state. */
+/** GET /models/health — AI engine status (Gemini; local models report "disabled"). */
 async function fetchModelsHealth() {
   const base = window.PLANT_API_BASE;
   if (!base) return { ok: false, error: "No API base URL", data: null };

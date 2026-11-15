@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from services.dataset_config import dataset_info, default_data_yaml_path, get_yolo_class_names
-from services.model_manager import ModelManager
+from services.gemini.client import gemini_status
 from services.model_registry import (
     load_registry,
     registry_path,
@@ -31,14 +31,24 @@ async def api_dataset_classes() -> dict:
 
 @router.get("/models/health")
 async def api_models_health() -> dict:
-    mm = ModelManager.instance()
-    h = mm.health_status()
+    """AI engine status. Gemini handles diagnosis and reasoning; no local model is loaded."""
+
+    g = gemini_status()
     return {
-        "vision_loaded": h.vision_loaded,
-        "llama_loaded": h.llama_loaded,
-        "vision_version": h.vision_version,
-        "llama_model": h.llama_model,
-        "active_versions": mm.active_versions("unknown"),
+        "ai_provider": "google_gemini",
+        "gemini": g,
+        # Legacy keys kept for older clients. Local models are disabled.
+        "vision_loaded": False,
+        "llama_loaded": False,
+        "vision_version": "disabled",
+        "llama_model": None,
+        "local_models": {"yolo": "disabled", "ollama": "disabled", "plantnet": "disabled"},
+        "active_versions": {
+            "vision_version": g["diagnosis_model"],
+            "vision_source": "gemini",
+            "llama_model": None,
+            "reasoning_model": g["reasoning_model"],
+        },
     }
 
 

@@ -5,11 +5,16 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
+from core.errors import AppError
 from schemas.contracts import OrchestratorRequest, OrchestratorResponse, SurvivalSensorInput, VisionResult
 from services.config_loader import get_runtime_config
+from services.feedback_store import FEEDBACK_STORE
+from services.gemini.config import load_gemini_config
+from services.gemini.errors import ImageTooLargeError
 from services.orchestrator import run_analysis_pipeline
 from services import analytics_store, sensor_store, storage
 from services.plant_health import enrich_vision_result
@@ -31,6 +36,41 @@ def _min_image_bytes() -> int:
         .get("prediction", {})
         .get("min_image_bytes", 32)
     )
+
+
+async def _read_image(file: UploadFile) -> tuple[bytes, str, str]:
+    """Read and validate an upload: image content type, size limits, decodable."""
+
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Expected an image upload")
+    max_bytes = load_gemini_config().max_upload_bytes
+    data = await file.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise ImageTooLargeError(max_bytes)
+    if len(data) < _min_image_bytes():
+        raise HTTPException(status_code=400, detail="Image too small or empty")
+    try:
+        image_ext, image_type = decoded_image_type(data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Uploaded file is not a readable image") from exc
+    return data, image_ext, image_type
+
+
+async def _diagnose(data: bytes, *, identify: bool, species_id: str | None) -> VisionResult:
+    """Gemini diagnosis off the event loop; structured errors pass through unchanged."""
+
+    try:
+        return await run_in_threadpool(
+            run_vision_prediction, data, identify=identify, species_id=species_id
+        )
+    except (HTTPException, AppError):
+        raise
+    except Exception as exc:  # noqa: BLE001
+        log.exception("diagnosis failed unexpectedly")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Diagnosis failed: {type(exc).__name__}",
+        ) from exc
 
 
 def _normalize_user_id(user_id: str | None) -> str:
@@ -60,27 +100,23 @@ async def predict(
     # Phase 3 — plant identification controls (additive, all optional)
     species_id: str = Form(
         default="",
-        description="Optional manual species lock (e.g. 'cucumber'). Skips the identifier model.",
+        description="Optional manual species lock (e.g. 'cucumber'). Sent to Gemini as a hint and echoed back as the plant identity.",
     ),
     identify: bool = Form(
         default=True,
         description="Run plant identification (default true). Disable for fastest path on known plants.",
     ),
 ) -> VisionResult:
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Expected an image upload")
-    data = await file.read()
-    if len(data) < _min_image_bytes():
-        raise HTTPException(status_code=400, detail="Image too small or empty")
-    try:
-        image_ext, image_type = decoded_image_type(data)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Uploaded file is not a readable image") from exc
+    data, image_ext, image_type = await _read_image(file)
 
     uid = _normalize_user_id(user_id)
     zid = _normalize_zone_id(zone_id)
     did = _normalize_device_id(device_id)
     src = (source or "upload").strip().lower() or "upload"
+
+    # Diagnose first: if Gemini fails, nothing is persisted and the client
+    # gets a structured, retryable error (no fabricated fallback result).
+    pred = await _diagnose(data, identify=bool(identify), species_id=(species_id or None))
 
     # Phase 4 — try Supabase Storage first; gracefully fall back to the
     # legacy `backend/uploads/` write path when Storage is disabled OR
@@ -120,23 +156,6 @@ async def predict(
         fallback,
         image_storage_path,
     )
-
-    # Run inference. If a real model is configured but throws (e.g. corrupt
-    # weights at runtime), translate that into a 503 so the UI can show a
-    # clean "Vision engine unavailable" banner instead of a 500 stacktrace.
-    try:
-        pred = run_vision_prediction(
-            data,
-            identify=bool(identify),
-            species_id=(species_id or None),
-        )
-    except HTTPException:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(
-            status_code=503,
-            detail=f"Vision engine failed: {type(exc).__name__}",
-        ) from exc
 
     meta = dict(pred.metadata)
     meta["saved_path"] = image_storage_path
@@ -198,22 +217,22 @@ async def predict(
     base = pred.model_copy(update={"user_id": uid, "zone_id": zid, "metadata": meta})
     result = enrich_vision_result(base, uid, zid, did)
 
-    # Phase 3: Gemini Second-Opinion & Disagreement Logging
-    try:
-        from services.gemini_second_opinion import evaluate_gemini_second_opinion
-        g_verdict, g_agrees, g_reasoning = evaluate_gemini_second_opinion(
-            image_bytes=data,
-            yolo_label=result.disease,
-            yolo_confidence=result.confidence,
-            image_ref=image_storage_path,
-        )
-        result = result.model_copy(update={
-            "gemini_verdict": g_verdict,
-            "gemini_agrees": g_agrees,
-            "gemini_reasoning": g_reasoning,
-        })
-    except Exception as exc:
-        log.warning("Gemini second opinion non-fatal error: %s", exc)
+    # Queue low-confidence / non-assessable diagnoses for human review
+    # (admin feedback queue). The legacy ``yolo_*`` field names hold the
+    # primary diagnosis, which now comes from Gemini.
+    if not result.accepted or result.confidence < 0.60:
+        try:
+            label = (result.metadata or {}).get("raw_disease_label") or result.disease
+            FEEDBACK_STORE.insert_feedback(
+                image_ref=image_storage_path,
+                yolo_label=label,
+                yolo_confidence=result.confidence,
+                gemini_label=label,
+                gemini_agrees=True,
+                reasoning=f"Low-confidence Gemini diagnosis. {result.gemini_reasoning or ''}".strip(),
+            )
+        except Exception as exc:  # noqa: BLE001 - review queue is best-effort
+            log.warning("feedback queue insert failed: %s", exc)
 
     analytics_store.record_scan(result)
     return result
@@ -229,15 +248,7 @@ async def analyze(
     species: str | None = Form(default=None),
     user_question: str | None = Form(default=None),
 ) -> OrchestratorResponse:
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Expected an image upload")
-    image_bytes = await file.read()
-    if len(image_bytes) < _min_image_bytes():
-        raise HTTPException(status_code=400, detail="Image too small or empty")
-    try:
-        decoded_image_type(image_bytes)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Uploaded file is not a readable image") from exc
+    image_bytes, _, _ = await _read_image(file)
 
     try:
         payload = OrchestratorRequest(
@@ -253,7 +264,8 @@ async def analyze(
     except ValidationError as exc:
         raise RequestValidationError(exc.errors()) from exc
     request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
-    return run_analysis_pipeline(
+    return await run_in_threadpool(
+        run_analysis_pipeline,
         request_id=request_id,
         image_bytes=image_bytes,
         request=payload,

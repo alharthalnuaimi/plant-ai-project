@@ -28,22 +28,24 @@ router = APIRouter(tags=["health"])
 
 
 @router.get("/health/services")
-async def health_services() -> dict[str, bool | str]:
-    """Phase 4 — reports live vs stubbed status for external AI services."""
-    import os
-    plantnet_key = bool((os.getenv("PLANTNET_API_KEY") or os.getenv("PLANT_ID_API_KEY") or "").strip())
-    gemini_key = bool(os.getenv("GEMINI_API_KEY", "").strip())
-    
-    from services.model_registry import resolve_model_descriptor
-    desc = resolve_model_descriptor("unknown")
-    yolo_weights_exist = bool(desc.weights_path and os.path.isfile(desc.weights_path))
+async def health_services() -> dict[str, bool | str | None]:
+    """Reports which AI services are live. Gemini is the only AI path.
 
+    The local YOLO pipeline and the Pl@ntNet identifier are kept in the repo
+    but switched off, so they always report ``disabled``. No key values are
+    ever returned.
+    """
+    from services.gemini.config import load_gemini_config
+
+    cfg = load_gemini_config()
     return {
-        "plantnet_status": "live" if plantnet_key else "stubbed",
-        "plantnet_key_present": plantnet_key,
-        "gemini_status": "live" if gemini_key else "stubbed",
-        "gemini_key_present": gemini_key,
-        "yolo_status": "live" if yolo_weights_exist else "stubbed",
+        "gemini_status": "live" if cfg.configured else "not_configured",
+        "gemini_key_present": cfg.configured,
+        "gemini_diagnosis_model": cfg.diagnosis_model,
+        "gemini_reasoning_model": cfg.reasoning_model,
+        "yolo_status": "disabled",
+        "plantnet_status": "disabled",
+        "plantnet_key_present": False,
     }
 
 

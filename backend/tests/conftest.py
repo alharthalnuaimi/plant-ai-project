@@ -31,6 +31,42 @@ if str(ROOT) not in sys.path:
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
+FAKE_GEMINI_KEY = "test-fake-gemini-key"
+
+
+@pytest.fixture(autouse=True)
+def fake_gemini(request, monkeypatch):
+    """Replace the Google GenAI SDK with a hermetic fake for every test.
+
+    No test ever reaches the real Gemini API (the opt-in live test in
+    ``test_gemini_live.py`` is the only exception, and it is skipped unless
+    ``RUN_GEMINI_LIVE_TESTS=1``). Tests can tweak ``fake_gemini.diagnosis``,
+    ``fake_gemini.reasoning`` or push responses/exceptions onto
+    ``fake_gemini.script``.
+    """
+
+    from tests.gemini_fakes import FakeGenai
+    from services.gemini.client import set_gemini_client
+    from services.gemini.diagnosis import clear_diagnosis_cache
+
+    if request.node.get_closest_marker("gemini_live"):
+        # Opt-in live test: real SDK, real key from the environment / .env.
+        set_gemini_client(None)
+        clear_diagnosis_cache()
+        yield None
+        return
+
+    fake = FakeGenai()
+    monkeypatch.setenv("GEMINI_API_KEY", FAKE_GEMINI_KEY)
+    monkeypatch.setenv("GEMINI_BACKOFF_BASE_SECONDS", "0")
+    monkeypatch.setattr("google.genai.Client", fake.client_factory)
+    set_gemini_client(None)
+    clear_diagnosis_cache()
+    yield fake
+    set_gemini_client(None)
+    clear_diagnosis_cache()
+
+
 @pytest.fixture(scope="session")
 def jpeg_bytes() -> bytes:
     """Tiny RGB JPEG that the stub vision predictor + plant ID accept."""

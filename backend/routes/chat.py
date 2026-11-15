@@ -1,19 +1,22 @@
+"""POST /chat — Gemini reasoning over a scan, live sensor context and the user's question.
+
+There is no rule-based fallback narrative: if Gemini is unavailable the
+route returns a structured error (``{"error": "gemini_*", "message": ...}``)
+and the client can retry.
+"""
+
 from __future__ import annotations
 
 import logging
 from typing import Any
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel, Field, model_validator
 
-from models.llama_model import (
-    build_reasoning_prompts,
-    fallback_narrative,
-    get_gemini_client,
-    parse_reasoning_response,
-)
-from schemas.contracts import SurvivalSensorInput, SurvivalResponse, VisionResult
-from services import analytics_store
+from schemas.contracts import SurvivalResponse, VisionResult
+from services import analytics_store, sensor_store
+from services.gemini.reasoning import build_reasoning_context, reason_about_plant
 from services.survival import SurvivalInputs, compute_survival
 
 router = APIRouter(tags=["chat"])
@@ -21,20 +24,40 @@ router = APIRouter(tags=["chat"])
 log = logging.getLogger("plantvision.chat")
 
 
+class ChatSensors(BaseModel):
+    """Sensor context. Every field is optional: a missing value means "no data"."""
+
+    # Legacy names (kept so existing clients keep working).
+    soil_moisture: float | None = Field(default=None, ge=0, le=100, description="Soil moisture %")
+    temperature: float | None = Field(default=None, description="Air temperature °C")
+    humidity: float | None = Field(default=None, ge=0, le=100, description="Air humidity %")
+    species: str | None = None
+    # Full ESP32 sensor set.
+    soil_temperature: float | None = Field(default=None, description="Soil temperature °C")
+    soil_ph: float | None = Field(default=None, ge=0, le=14)
+    soil_ec: float | None = Field(default=None, ge=0, description="Soil EC mS/cm")
+    light_lux: float | None = Field(default=None, ge=0)
+    timestamp: str | None = Field(default=None, description="ISO time the readings were taken")
+
+
 class ChatRequest(BaseModel):
-    vision: VisionResult
-    sensors: SurvivalSensorInput
+    vision: VisionResult | None = None
+    sensors: ChatSensors = Field(default_factory=ChatSensors)
     user_question: str | None = None
+    # Optional: lets the backend pull the newest stored reading for this device.
+    user_id: str | None = None
+    zone_id: str | None = None
+    device_id: str | None = None
+
+    @model_validator(mode="after")
+    def _needs_something_to_reason_about(self) -> "ChatRequest":
+        if self.vision is None and not (self.user_question or "").strip():
+            raise ValueError("Provide a scan result (vision) or a user_question.")
+        return self
 
 
 def _recent_scan_summaries(limit: int = 5) -> list[dict[str, Any]]:
-    """Phase Final — Option A: enrich the LLM prompt with recent scans.
-
-    We pull the newest ``limit`` rows from the in-memory scan history (which
-    is hydrated from Postgres on startup) and reduce them to the smallest
-    reasonable summary so the prompt stays compact. Returns ``[]`` on any
-    error so /chat never breaks because of history enrichment.
-    """
+    """Newest scans, reduced to a compact summary. Returns [] on any error."""
 
     try:
         rows = analytics_store.get_history(limit=limit)
@@ -54,63 +77,107 @@ def _recent_scan_summaries(limit: int = 5) -> list[dict[str, Any]]:
     ]
 
 
+def _sensor_values(req: ChatRequest) -> dict[str, Any]:
+    """Prefer the newest stored device reading; otherwise use what the client sent."""
+
+    if req.zone_id or req.device_id or req.user_id:
+        try:
+            latest = sensor_store.get_latest(
+                user_id=(req.user_id or sensor_store.DEFAULT_USER_ID),
+                zone_id=(req.zone_id or sensor_store.DEFAULT_ZONE_ID),
+                device_id=(req.device_id or sensor_store.DEFAULT_DEVICE_ID),
+            )
+        except Exception:  # noqa: BLE001
+            latest = None
+        if latest is not None:
+            return {
+                "air_temperature": latest.air_temperature,
+                "air_humidity": latest.air_humidity,
+                "soil_temperature": latest.soil_temperature,
+                "soil_humidity": latest.soil_humidity,
+                "soil_ph": latest.soil_ph,
+                "soil_ec": latest.soil_ec,
+                "light_lux": latest.light_lux,
+                "timestamp": latest.timestamp,
+                "source": "device",
+            }
+
+    s = req.sensors
+    return {
+        "air_temperature": s.temperature,
+        "air_humidity": s.humidity,
+        "soil_temperature": s.soil_temperature,
+        "soil_humidity": s.soil_moisture,
+        "soil_ph": s.soil_ph,
+        "soil_ec": s.soil_ec,
+        "light_lux": s.light_lux,
+        "timestamp": s.timestamp,
+        "source": "client",
+    }
+
+
+def _survival(vision: VisionResult | None, values: dict[str, Any], species: str | None) -> SurvivalResponse | None:
+    """Rule-based score, only when the inputs it needs actually exist."""
+
+    needed = (values.get("soil_humidity"), values.get("air_temperature"), values.get("air_humidity"))
+    if vision is None or any(v is None for v in needed):
+        return None
+    return SurvivalResponse.model_validate(
+        compute_survival(
+            SurvivalInputs(
+                disease=vision.disease,
+                disease_confidence=vision.confidence,
+                stress_hint=vision.stress_hint,
+                soil_moisture=float(values["soil_humidity"]),
+                temperature_c=float(values["air_temperature"]),
+                humidity_pct=float(values["air_humidity"]),
+                species=species,
+            )
+        )
+    )
+
+
 @router.post("/chat")
 async def chat(req: ChatRequest) -> dict:
-    inp = SurvivalInputs(
-        disease=req.vision.disease,
-        disease_confidence=req.vision.confidence,
-        stress_hint=req.vision.stress_hint,
-        soil_moisture=req.sensors.soil_moisture,
-        temperature_c=req.sensors.temperature,
-        humidity_pct=req.sensors.humidity,
-        species=req.sensors.species,
+    values = _sensor_values(req)
+    species = req.sensors.species or (
+        req.vision.plant.common_name if req.vision and req.vision.plant else None
     )
-    survival = SurvivalResponse.model_validate(compute_survival(inp))
+    survival = _survival(req.vision, values, species)
 
-    history = _recent_scan_summaries(limit=5)
+    vision_summary = None
+    diagnosis = None
+    if req.vision is not None:
+        meta = req.vision.metadata or {}
+        diagnosis = meta.get("gemini_diagnosis")
+        vision_summary = {
+            "label": meta.get("raw_disease_label") or req.vision.disease,
+            "confidence": req.vision.confidence,
+            "accepted": req.vision.accepted,
+            "stress_hint": req.vision.stress_hint,
+            "species": species,
+            "plant": req.vision.plant.model_dump() if req.vision.plant else None,
+        }
 
-    context: dict[str, Any] = {
-        "vision": req.vision.model_dump(),
-        "sensors": req.sensors.model_dump(),
-        "survival": survival.model_dump(),
-    }
-    if history:
-        context["history"] = history
+    context = build_reasoning_context(
+        diagnosis=diagnosis,
+        vision_summary=vision_summary,
+        sensors=values,
+        survival=survival.model_dump() if survival else None,
+        history=_recent_scan_summaries(limit=5),
+        user_question=req.user_question,
+    )
 
-    client = get_gemini_client()
-    if client is None:
-        log.info("POST /chat — GEMINI_API_KEY missing; using fallback narrative")
-        recommendation = "Increase watering consistency and reduce prolonged heat exposure."
-        text = fallback_narrative(
-            {
-                "vision": context["vision"],
-                "sensors": context["sensors"],
-                "survival_probability": survival.survival_probability,
-            }
-        )
-        source = "fallback"
-    else:
-        try:
-            log.info("POST /chat — calling Gemini model=%s", client.model)
-            raw = client.generate_chat(build_reasoning_prompts(context, req.user_question))
-            log.debug("Gemini raw response: %s", raw)
-            recommendation, text = parse_reasoning_response(raw, context)
-            if not raw:
-                source = "fallback_empty_gemini"
-                log.warning("POST /chat — Gemini returned empty body; using fallback narrative")
-            else:
-                source = "gemini"
-                log.info("POST /chat — Gemini response ok (chars=%d)", len(text))
-        except Exception as exc:  # noqa: BLE001 — never crash the chat route
-            log.warning("Gemini call failed (%s) — using fallback narrative", exc)
-            recommendation = "Increase watering consistency and reduce prolonged heat exposure."
-            text = fallback_narrative(context)
-            source = "fallback_error"
+    outcome = await run_in_threadpool(reason_about_plant, context)
+    log.info("POST /chat — Gemini reasoning ok model=%s", outcome.model)
 
     return {
-        "recommendation": recommendation,
-        "reply": text,
-        "source": source,
-        "survival_probability": survival.survival_probability,
-        "breakdown": survival.breakdown.model_dump(),
+        "recommendation": outcome.primary_recommendation(),
+        "reply": outcome.reply_text(),
+        "source": "gemini",
+        "model": outcome.model,
+        "reasoning": outcome.reasoning.model_dump(),
+        "sensor_context": {"source": values.get("source"), "timestamp": values.get("timestamp")},
+        "survival_probability": survival.survival_probability if survival else None,
+        "breakdown": survival.breakdown.model_dump() if survival else None,
     }

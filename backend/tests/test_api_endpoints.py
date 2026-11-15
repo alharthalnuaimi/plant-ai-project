@@ -28,7 +28,8 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(predict, "UPLOAD_DIR", uploads)
     monkeypatch.setattr(admin_datasets, "UPLOADS_ROOT", tmp_path)
     monkeypatch.setenv("STORAGE_BACKEND", "local")
-    for key in ("GEMINI_API_KEY", "PLANTNET_API_KEY", "PLANT_ID_API_KEY", "ROBOFLOW_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "KIMI_API_KEY"):
+    # GEMINI_API_KEY keeps the fake key from conftest; the SDK itself is faked.
+    for key in ("PLANTNET_API_KEY", "PLANT_ID_API_KEY", "ROBOFLOW_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "KIMI_API_KEY"):
         monkeypatch.setenv(key, "")
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c
@@ -163,7 +164,8 @@ def test_dataset_upload_success(client, jpeg_bytes):
     assert not {"upload_id", "status", "report"} - set(resp.json())
 
 
-def test_provider_test_with_no_key_reports_stubbed(client):
+def test_provider_test_with_no_key_reports_stubbed(client, monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "")
     resp = client.post("/admin/providers/test", json={"provider_name": "GEMINI_API_KEY"})
     assert resp.status_code == 200, resp.text
     assert resp.json()["test_result"]["status"] == "stubbed"

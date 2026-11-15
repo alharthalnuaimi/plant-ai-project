@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![AI](https://img.shields.io/badge/AI-YOLOv8%20%7C%20Plant%20Vision-green)
+![AI](https://img.shields.io/badge/AI-Google%20Gemini-green)
 ![Backend](https://img.shields.io/badge/Backend-FastAPI-blue)
 ![Frontend](https://img.shields.io/badge/Frontend-Mobile%20Web-orange)
 ![IoT](https://img.shields.io/badge/IoT-ESP32-red)
@@ -24,9 +24,10 @@ Plant AI Project is a smart agriculture MVP that helps monitor plant health usin
 
 The current working MVP supports:
 
-✅ Plant disease detection from images using YOLOv8  
+✅ Plant disease diagnosis and species identification from photos using Google Gemini  
+✅ Gemini reasoning that cross-references the diagnosis with live sensor data  
 ✅ Frontend image upload and live prediction  
-✅ FastAPI backend AI inference  
+✅ FastAPI backend (the only component that talks to Gemini)  
 ✅ Sensor API integration for environmental monitoring  
 ✅ ESP32 firmware structure for IoT sensors  
 ✅ Real-time frontend environment data updates  
@@ -45,16 +46,16 @@ Future versions will combine:
 
 | Feature | Status | Description |
 |--------|--------|-------------|
-| AI Disease Detection | ✅ Working | Detect plant diseases from uploaded images using YOLOv8 |
+| AI Disease Diagnosis | ✅ Working | Gemini multimodal diagnosis: species, visible symptoms, primary/alternative diagnoses, uncertainties |
 | Frontend Scan Upload | ✅ Working | Upload image and receive live AI result |
 | FastAPI Backend | ✅ Working | Handles prediction and sensor APIs |
-| YOLOv8 Trained Model | ✅ Working | Multi-class plant disease detection model |
+| YOLOv8 Models | ⏸ Disabled | Kept in `backend/models/` and `training/`; not loaded by the API |
 | Sensor API | ✅ Working | Accept sensor readings via JSON |
 | Frontend Environment Dashboard | ✅ Working | Displays latest sensor/environment values |
 | ESP32 Firmware Structure | ✅ Ready | Placeholder firmware for sensor node |
 | Survival Prediction | ✅ Working | Calculates plant survival probability using vision and sensor inputs |
-| Gemini Plant Assistant | ✅ Working | Context-aware chatbot powered by Google Gemini |
-| AI Recommendations | ✅ Working | Generates recommendations based on scan and survival analysis |
+| Gemini Plant Assistant | ✅ Working | Structured reasoning over the diagnosis, all sensor readings and the user's question |
+| AI Recommendations | ✅ Working | Treatment plan, prevention, urgency and recovery outlook from Gemini |
 
 ---
 
@@ -77,17 +78,11 @@ FastAPI Backend
       └── /chat
               │
               ▼
-AI Inference Layer
+Gemini Intelligence Service (backend/services/gemini)
       │
-      └── YOLOv8 Plant Disease Detection
-              │
-              ▼
-              ▼
-AI Reasoning Layer
-      │
-      ├── Google Gemini
-      ├── Survival Analysis
-      └── Plant Assistant Chat
+      ├── Gemini Vision Diagnosis  (image → structured JSON)
+      ├── Gemini Reasoning         (diagnosis × sensors × question)
+      └── Rule-based Survival Score (backend/services/survival.py)
               │
               ▼
 ESP32 Sensor Node
@@ -100,12 +95,10 @@ ESP32 Sensor Node
              ├── pH
              └── EC
 🛠 Tech Stack
-AI / Machine Learning
-YOLOv8
-Ultralytics
-Python
-NumPy
-Pillow
+AI
+Google Gemini API (official google-genai SDK) — diagnosis + reasoning
+Pillow (image validation / compression)
+Training only (not used by the API): YOLOv8 / Ultralytics
 Backend
 FastAPI
 Uvicorn
@@ -177,15 +170,25 @@ plant-ai-project/
 
 # 🔑 Gemini Configuration
 
-PlantVision AI uses Google Gemini for contextual plant-health reasoning.
+All AI in PlantVision runs on the Google Gemini API: photo diagnosis
+(`/predict`, `/analyze`, image `/report`) and reasoning (`/chat`, `/analyze`).
+One key powers both, and it lives **only on the backend**.
 
-Required environment variable:
+1. Create a key at https://aistudio.google.com/app/apikey
+2. Put it in the repo-root `.env` (copy `.env.example`):
 
 ```bash
 GEMINI_API_KEY=your_api_key_here
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
-If Gemini is unavailable, the backend automatically switches to a built-in fallback narrative engine so the chatbot remains operational.
+There is no offline fallback: if Gemini is unreachable or the key is
+missing, the API returns a structured error such as
+`{"error": "gemini_not_configured", "message": "..."}` and the app shows it
+so the user can retry. Nothing is made up.
+
+How diagnosis and reasoning work, the error codes and troubleshooting:
+[SETUP.md](SETUP.md) and [docs/architecture/gemini-migration.md](docs/architecture/gemini-migration.md).
 
 
 🚀 Backend Setup
@@ -193,7 +196,6 @@ If Gemini is unavailable, the backend automatically switches to a built-in fallb
 
 Open CMD:
 
-set YOLO_WEIGHTS_PATH=D:\plant-ai-project\artifacts\models\cucumber_yolov8.pt
 cd /d D:\plant-ai-project\backend
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
@@ -290,7 +292,7 @@ Example:
   "vision": {
     "disease": "rose_nutrient_deficient",
     "confidence": 0.98,
-    "stress_hint": "from_yolo_only"
+    "stress_hint": "no_strong_visual_stress_signal"
   },
   "sensors": {
     "soil_moisture": 50,
@@ -304,10 +306,10 @@ Example:
 
 Expected:
 
-- AI-generated explanation
-- Recommendation
-- Survival probability
-- Disease-aware reasoning
+- `source: "gemini"`, `reply` (direct answer) and `recommendation`
+- `reasoning`: explanation, causes, environmental analysis, treatment plan, prevention, urgency, recovery outlook
+- Survival probability (rule-based) when soil moisture, temperature and humidity are provided
+- Sensor fields you omit are treated as "no data", never guessed
 
 🌐 Network Testing
 
@@ -375,7 +377,7 @@ Dataset Management	dataset/
 Documentation	docs/
 🎯 Current MVP Achievements
 
-✅ Working trained YOLOv8 rose disease model
+✅ Gemini multimodal plant diagnosis (YOLOv8 models kept for training, disabled in the API)
 ✅ Live backend inference
 ✅ FastAPI API documentation
 ✅ Frontend scan integration
@@ -386,7 +388,7 @@ Documentation	docs/
 ✅ Scan-aware chatbot context
 ✅ Survival probability engine
 ✅ AI-generated recommendations
-✅ Automatic fallback reasoning engine
+✅ Structured, retryable errors instead of fabricated fallback answers
 
 🚀 Future Improvements
 AI Improvements

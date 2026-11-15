@@ -110,6 +110,7 @@ for (const [name, body, expected] of [
   ['backend error field', { error: 'Expected an image upload' }, 'Expected an image upload'],
   ['validation details', { error: 'validation_error', details: [{ msg: 'field required' }] }, 'field required'],
   ['legacy detail field', { detail: 'nope' }, 'nope'],
+  ['structured Gemini error message', { error: 'gemini_quota_exceeded', message: 'The Gemini API quota is used up. Try again later.' }, 'The Gemini API quota is used up. Try again later.'],
 ]) {
   test(`predict: surfaces ${name}`, async () => {
     const { ctx } = loadApi(() => json(400, body));

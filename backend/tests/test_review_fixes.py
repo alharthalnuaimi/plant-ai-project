@@ -212,13 +212,9 @@ def test_gemini_client_accepts_system_instruction():
     assert kwargs["config"].system_instruction == "be brief"
 
 
-def test_gemini_agent_reaches_client_and_votes(monkeypatch):
-    monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
-    with patch("models.llama_model.genai") as genai:
-        genai.Client.return_value.models.generate_content.return_value = MagicMock(
-            text='{"label": "Rust", "confidence": 0.8, "bbox": null, "reasoning": "r"}'
-        )
-        result = GeminiAgent().annotate(b"img", context_label="")
+def test_gemini_agent_reaches_client_and_votes(fake_gemini):
+    fake_gemini.annotation_text = '{"label": "Rust", "confidence": 0.8, "bbox": null, "reasoning": "r"}'
+    result = GeminiAgent().annotate(b"img", context_label="")
     assert result["status"] == "success"
     assert result["class_label"] == "Rust"
 
@@ -231,13 +227,11 @@ def _png():
     return buf.getvalue()
 
 
-def test_gemini_consensus_vote_receives_the_image(monkeypatch):
-    monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
+def test_gemini_consensus_vote_receives_the_image(fake_gemini):
     image = _png()
-    with patch("models.llama_model.genai") as genai:
-        genai.Client.return_value.models.generate_content.return_value = MagicMock(text='{"label": "Rust", "confidence": 0.8}')
-        GeminiAgent().annotate(image)
-    part, text = genai.Client.return_value.models.generate_content.call_args.kwargs["contents"]
+    fake_gemini.annotation_text = '{"label": "Rust", "confidence": 0.8}'
+    GeminiAgent().annotate(image)
+    part, text = fake_gemini.calls[-1]["contents"]
     assert part.inline_data.data == image
     assert part.inline_data.mime_type == "image/png"
     assert "plant" in text.lower()
@@ -277,12 +271,10 @@ def test_kimi_vote_receives_the_image(monkeypatch):
     assert result["status"] == "success"
 
 
-def test_provider_connection_test_sends_a_real_image(fastapi_client, monkeypatch):
-    monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
-    with patch("models.llama_model.genai") as genai:
-        genai.Client.return_value.models.generate_content.return_value = MagicMock(text='{"label": "Rust", "confidence": 0.8}')
-        resp = fastapi_client.post("/admin/providers/test", json={"provider_name": "GEMINI_API_KEY"})
-    part, _ = genai.Client.return_value.models.generate_content.call_args.kwargs["contents"]
+def test_provider_connection_test_sends_a_real_image(fastapi_client, fake_gemini):
+    fake_gemini.annotation_text = '{"label": "Rust", "confidence": 0.8}'
+    resp = fastapi_client.post("/admin/providers/test", json={"provider_name": "GEMINI_API_KEY"})
+    part, _ = fake_gemini.calls[-1]["contents"]
     assert resp.status_code == 200
     assert Image.open(io.BytesIO(part.inline_data.data)).format == "JPEG"
 
@@ -308,7 +300,6 @@ def test_roboflow_key_never_appears(fastapi_client, jpeg_bytes, monkeypatch, cap
 
     monkeypatch.setenv("ROBOFLOW_API_KEY", FAKE_KEY)
     monkeypatch.setenv("ROBOFLOW_MODEL_ENDPOINT", "fake-model/1")
-    monkeypatch.setenv("GEMINI_API_KEY", "")
     caplog.set_level(logging.DEBUG)
     stored = []
     real_record = predict_route.analytics_store.record_scan
@@ -325,7 +316,8 @@ def test_roboflow_key_never_appears(fastapi_client, jpeg_bytes, monkeypatch, cap
         )
     assert test_resp.status_code == 200 and scan_resp.status_code == 200
     assert test_resp.json()["test_result"]["status"] == "error"  # the path under test really ran
-    assert scan_resp.json()["metadata"]["provider_results"][0]["status"] == "error"
+    # Scans are diagnosed by Gemini only; the multi-provider vote is not in that path.
+    assert "provider_results" not in scan_resp.json()["metadata"]
     assert len(stored) == 1  # what gets persisted as metadata_json
     history = fastapi_client.get("/scans/history").text
     for text in (test_resp.text, scan_resp.text, stored[0], history, caplog.text):
@@ -414,19 +406,20 @@ def test_answer_without_a_label_is_not_a_vote(raw):
     assert _parse_structured_response(raw, "", "p")["status"] == "no_result"
 
 
-def test_failing_gemini_is_not_reported_as_healthy(fastapi_client, jpeg_bytes, monkeypatch):
-    """The original bug: a Gemini failure came back as Healthy at 100% confidence."""
-    monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
-    with patch("models.llama_model.genai") as genai:
-        genai.Client.return_value.models.generate_content.side_effect = RuntimeError("boom")
-        resp = fastapi_client.post(
-            "/predict",
-            files={"file": ("x.jpg", jpeg_bytes, "image/jpeg")},
-            data={"species_id": "cucumber", "identify": "false"},
-        )
-    body = resp.json()
-    assert resp.status_code == 200
-    assert body["disease"] == "Unknown"
-    assert body["confidence"] == 0.0
-    assert body["accepted"] is False
-    assert FAKE_KEY not in resp.text
+def test_failing_gemini_is_not_reported_as_healthy(fastapi_client, jpeg_bytes, fake_gemini):
+    """The original bug: a Gemini failure came back as Healthy at 100% confidence.
+
+    Since the Gemini-only migration a failure is a structured error, never a result.
+    """
+    from tests.conftest import FAKE_GEMINI_KEY
+
+    fake_gemini.script.append(RuntimeError(f"boom {FAKE_GEMINI_KEY}"))
+    resp = fastapi_client.post(
+        "/predict",
+        files={"file": ("x.jpg", jpeg_bytes, "image/jpeg")},
+        data={"species_id": "cucumber", "identify": "false"},
+    )
+    assert resp.status_code == 502
+    assert resp.json()["error"] == "gemini_error"
+    assert "Healthy" not in resp.text
+    assert FAKE_GEMINI_KEY not in resp.text

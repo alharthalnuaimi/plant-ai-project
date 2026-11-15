@@ -121,21 +121,20 @@ class GeminiAgent(AnnotationAgent):
             return self._stub_response(context_label, "API key not configured")
 
         try:
-            from models.llama_model import get_gemini_client
+            from services.gemini.client import get_gemini_client
+            from services.preprocess import image_mime
 
             client = get_gemini_client()
-            if not client:
-                return self._stub_response(context_label, "Gemini client unavailable")
-
             prompt = (
                 "You are a plant pathology expert. Examine this plant image.\n"
                 f"Context: prior model suggested '{context_label}'.\n\n"
                 f"{_JSON_SCHEMA_PROMPT}"
             )
-            response_text = client.generate_chat(
-                messages=[{"role": "user", "content": prompt}],
+            response_text, _ = client.generate_text(
+                operation="annotation",
+                model=client.config.diagnosis_model,
+                contents=[client.image_part(image_bytes, image_mime(image_bytes)), prompt],
                 system_instruction="Plant disease diagnostics. Respond with JSON only.",
-                image_bytes=image_bytes,
             )
             return _parse_structured_response(response_text, context_label, self.name)
 

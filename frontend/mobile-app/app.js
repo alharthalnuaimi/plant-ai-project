@@ -255,6 +255,53 @@ function _resultHeadline(result, tone, userOk){
   return ico('scan') + ' Analysis Complete';
 }
 
+// Build the POST /chat body from a scan result + sensor reading.
+// Missing sensor values are sent as null (never as made-up defaults) so
+// Gemini can tell "no data" apart from a real reading. The scan's full
+// Gemini diagnosis travels in vision.metadata so the reasoning step sees
+// the actual visual findings, and user/zone/device let the backend use
+// the newest stored ESP32 reading.
+function _pvChatNum(v){
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+function _pvBuildChatPayload(scan, sensor, question){
+  sensor = sensor || {};
+  const meta = (scan && scan.metadata) || {};
+  const plant = (scan && scan.plant) || null;
+  const species = (plant && plant.common_name) || (scan && scan.plant_name) || sensor.species || null;
+  const vision = scan ? {
+    disease:      meta.raw_disease_label || scan.disease || 'unknown',
+    confidence:   Number(scan.confidence) || 0,
+    stress_hint:  scan.stress_hint || 'unknown',
+    class_name:   scan.class_name || '',
+    disease_type: scan.disease_type || 'unknown',
+    accepted:     scan.accepted !== false,
+    plant:        plant,
+    health:       (scan.health && typeof scan.health.plant_health === 'number') ? scan.health : null,
+    metadata:     { raw_disease_label: meta.raw_disease_label || null, gemini_diagnosis: meta.gemini_diagnosis || null },
+  } : null;
+  return {
+    vision,
+    sensors: {
+      soil_moisture:    _pvChatNum(sensor.soil_humidity ?? sensor.soil_moisture),
+      temperature:      _pvChatNum(sensor.air_temperature ?? sensor.temperature),
+      humidity:         _pvChatNum(sensor.air_humidity ?? sensor.humidity),
+      soil_temperature: _pvChatNum(sensor.soil_temperature),
+      soil_ph:          _pvChatNum(sensor.soil_ph),
+      soil_ec:          _pvChatNum(sensor.soil_ec),
+      light_lux:        _pvChatNum(sensor.light_lux),
+      timestamp:        sensor.timestamp || null,
+      species,
+    },
+    user_question: question,
+    user_id:   meta.user_id   || (scan && scan.user_id) || window.PLANT_USER_ID   || null,
+    zone_id:   meta.zone_id   || (scan && scan.zone_id) || window.PLANT_ZONE_ID   || null,
+    device_id: meta.device_id || window.PLANT_DEVICE_ID || null,
+  };
+}
+
 function showPredictResult(result){
   const scanZone = result.zone_id || (result.metadata && result.metadata.zone_id) || 'zone_alpha';
   const scanDevice = result.device_id || (result.metadata && result.metadata.device_id) || 'esp32_001';
@@ -446,9 +493,9 @@ function showPredictResult(result){
   }
 
   // ── Auto-Gemini Analysis ──────────────────────────────────────────────
-  // Immediately after showing the scan result, call Gemini with the full
-  // context (PlantNet ID + disease + sensor readings) so the recommendation
-  // shown in the result card is powered by real AI, not a hardcoded rule.
+  // Immediately after showing the scan result, ask Gemini (POST /chat) to
+  // reason over the photo diagnosis + current sensor readings, so the
+  // recommendation in the result card comes from the AI, not a fixed rule.
   //
   // IMPORTANT: capture the generation ID NOW (synchronously) so the async
   // callbacks below can bail out if showScanError has been called in the
@@ -467,46 +514,21 @@ function showPredictResult(result){
 
     try {
       const snap   = (result.metadata && result.metadata.sensor_snapshot) || {};
-      const health = result.health || {};
       const plant  = result.plant  || {};
 
-      const species =
-        plant.common_name ||
-        result.plant_name ||
-        snap.species ||
-        'plant';
-
       // Build a natural question so Gemini knows context and purpose.
-      const diseaseLabel = (result.metadata?.raw_disease_label || result.disease || 'unknown')
+      const diagnosisLabel = (result.metadata?.raw_disease_label || result.disease || 'unknown')
         .replace(/_/g, ' ');
       const plantName = plant.common_name
         ? `${plant.common_name} (${plant.scientific_name || 'unknown species'})`
-        : species;
+        : 'plant';
       const autoQuestion =
         `I just scanned my ${plantName}. ` +
-        `The disease model detected: "${diseaseLabel}" with ${((result.confidence || 0) * 100).toFixed(1)}% confidence. ` +
-        `Based on the plant identification, disease result, and current sensor readings, ` +
-        `what is your diagnosis and what should I do to take care of this plant right now?`;
+        `The Gemini photo diagnosis is: "${diagnosisLabel}". ` +
+        `Using the diagnosis and the current sensor readings, explain what is going on ` +
+        `and what I should do to take care of this plant right now.`;
 
-      const payload = {
-        vision: {
-          disease:       result.metadata?.raw_disease_label || result.disease || 'unknown',
-          confidence:    Number(result.confidence) || 0,
-          stress_hint:   result.stress_hint || 'unknown',
-          class_name:    result.class_name || '',
-          disease_type:  result.disease_type || 'unknown',
-          accepted:      result.accepted !== false,
-          plant:         plant,
-          health:        health,
-        },
-        sensors: {
-          soil_moisture: Number(snap.soil_humidity  ?? snap.soil_moisture  ?? 50),
-          temperature:   Number(snap.air_temperature ?? snap.temperature   ?? 25),
-          humidity:      Number(snap.air_humidity    ?? snap.humidity      ?? 60),
-          species,
-        },
-        user_question: autoQuestion,
-      };
+      const payload = _pvBuildChatPayload(result, snap, autoQuestion);
 
       const data = await postChat(payload);
 
@@ -533,15 +555,18 @@ function showPredictResult(result){
         if (recLegacyEl) recLegacyEl.textContent = ruleRec;
       }
     } catch (err) {
-      console.warn('Auto Gemini analysis failed (non-fatal):', err);
+      console.warn('Gemini reasoning failed (non-fatal):', err);
       if (isStale()) return;
-      // Restore the original rule-based recommendation.
-      const fallbackRec = (result.health && result.health.recommendation)
+      // Keep the scan's own recommendation and say plainly that the
+      // detailed AI analysis did not run, so the user can retry.
+      const baseRec = (result.health && result.health.recommendation)
         || result.recommendation
-        || result.stress_hint
         || '—';
-      if (recEl)       recEl.textContent = fallbackRec;
-      if (recLegacyEl) recLegacyEl.textContent = fallbackRec;
+      const note = `
+
+(Detailed AI analysis unavailable: ${err && err.message ? err.message : 'request failed'} Ask the assistant to retry.)`;
+      if (recEl)       recEl.textContent = baseRec + note;
+      if (recLegacyEl) recLegacyEl.textContent = baseRec + note;
     }
   })(_scanGeneration);
   // ─────────────────────────────────────────────────────────────────────
@@ -2361,33 +2386,7 @@ function handleChatQuickAction(qa){
       try { await window.plantAssistant.refreshContext(); } catch(_) { /* offline */ }
     }
     const ctx      = window.plantAssistant?.getContext?.() || {};
-    const lastScan = ctx.lastScan;
-    const sensor   = ctx.lastSensor || {};
-    const species  =
-      (lastScan?.plant && lastScan.plant.common_name) ||
-      lastScan?.plant_name ||
-      sensor.species ||
-      'plant';
-
-    const payload = {
-      vision: {
-        disease:      lastScan?.metadata?.raw_disease_label || lastScan?.disease || 'unknown',
-        confidence:   Number(lastScan?.confidence) || 0,
-        stress_hint:  lastScan?.stress_hint  || 'unknown',
-        class_name:   lastScan?.class_name   || '',
-        disease_type: lastScan?.disease_type || 'unknown',
-        accepted:     lastScan?.accepted !== false,
-        plant:        lastScan?.plant  || null,
-        health:       lastScan?.health || null,
-      },
-      sensors: {
-        soil_moisture: Number(sensor.soil_humidity   ?? sensor.soil_moisture ?? 50),
-        temperature:   Number(sensor.air_temperature ?? sensor.temperature   ?? 25),
-        humidity:      Number(sensor.air_humidity    ?? sensor.humidity      ?? 60),
-        species,
-      },
-      user_question: userText,
-    };
+    const payload  = _pvBuildChatPayload(ctx.lastScan || null, ctx.lastSensor || {}, userText);
 
     try {
       const data = await postChat(payload);
@@ -2589,36 +2588,7 @@ async function sendMsg() {
     const ctx = window.plantAssistant?.getContext?.();
 
     // All messages go to Gemini for genuine AI responses.
-    const lastScan = ctx?.lastScan;
-    const sensor = ctx?.lastSensor || {};
-    const species =
-      (lastScan?.plant && lastScan.plant.common_name) ||
-      lastScan?.plant_name ||
-      sensor.species ||
-      'plant';
-
-    const payload = {
-      vision: {
-        disease:
-          lastScan?.metadata?.raw_disease_label ||
-          lastScan?.disease ||
-          'unknown',
-        confidence: Number(lastScan?.confidence) || 0,
-        stress_hint: lastScan?.stress_hint || 'unknown',
-        class_name: lastScan?.class_name || '',
-        disease_type: lastScan?.disease_type || 'unknown',
-        accepted: lastScan?.accepted !== false,
-        plant: lastScan?.plant || null,
-        health: lastScan?.health || null,
-      },
-      sensors: {
-        soil_moisture: Number(sensor.soil_humidity ?? sensor.soil_moisture ?? 50),
-        temperature: Number(sensor.air_temperature ?? sensor.temperature ?? 25),
-        humidity: Number(sensor.air_humidity ?? sensor.humidity ?? 60),
-        species,
-      },
-      user_question: text,
-    };
+    const payload = _pvBuildChatPayload(ctx?.lastScan || null, ctx?.lastSensor || {}, text);
 
     const data = await postChat(payload);
     removeChatTyping();

@@ -1,3 +1,17 @@
+"""Image → ``VisionResult`` via Gemini multimodal diagnosis.
+
+This is the single image-analysis entry point used by ``/predict``,
+``/analyze`` and ``/report``. It calls only the Gemini service; the legacy
+local pipeline (YOLO ``SpeciesAwareVisionPredictor``, the random-label
+``StubVisionPredictor``, the Pl@ntNet / stub plant identifiers and the
+multi-provider consensus) is kept in ``models/`` for reference but is no
+longer reachable from here.
+
+The response keeps the existing ``VisionResult`` contract so the frontend,
+persistence and survival scoring work unchanged. The full structured
+Gemini assessment is attached under ``metadata["gemini_diagnosis"]``.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -6,61 +20,130 @@ import time
 from schemas.contracts import PlantIdentification, VisionResult
 from services.config_loader import get_runtime_config
 from services.disease_taxonomy import classify_disease
-from services.model_manager import ModelManager
-from services.preprocess import should_preprocess, standardize_for_model
+from services.gemini.diagnosis import (
+    DiagnosisOutcome,
+    diagnose_plant_image,
+    primary_label,
+    stress_hint,
+    user_guidance,
+)
+from services.gemini.schemas import GeminiDiagnosis
 from services.species_taxonomy import lookup as species_lookup
 
 log = logging.getLogger("plantvision.prediction")
 
+MODEL_NAME = "gemini"
 
-def _identify_plant(
-    image_bytes: bytes,
+
+def _threshold() -> float:
+    return float(
+        get_runtime_config()
+        .get("thresholds", {})
+        .get("prediction", {})
+        .get("confidence_accept_threshold", 0.25)
+    )
+
+
+def _resolve_species_id(scientific_name: str | None, common_name: str | None) -> str:
+    """Map a Gemini species name onto the local care catalog (``unknown`` if absent)."""
+
+    for name in (scientific_name, common_name):
+        if not name:
+            continue
+        key = name.lower().strip().replace(" ", "_")
+        species_id = species_lookup(key).species_id
+        if species_id == "unknown":
+            species_id = species_lookup(key.split("_")[0]).species_id
+        if species_id != "unknown":
+            return species_id
+    return "unknown"
+
+
+def _manual_plant(species_id: str) -> PlantIdentification:
+    entry = species_lookup(species_id)
+    return PlantIdentification(
+        species_id=entry.species_id,
+        common_name=entry.common_name,
+        scientific_name=entry.scientific_name,
+        family=entry.family,
+        # user-asserted identity is ground truth, unless we don't know that species
+        confidence=0.0 if entry.species_id == "unknown" else 1.0,
+        source="manual",
+    )
+
+
+def _gemini_plant(d: GeminiDiagnosis) -> PlantIdentification | None:
+    p = d.plant_identification
+    if not p.is_plant or not (p.common_name or p.scientific_name):
+        return None
+    return PlantIdentification(
+        species_id=_resolve_species_id(p.scientific_name, p.common_name),
+        common_name=p.common_name or p.scientific_name,
+        scientific_name=p.scientific_name,
+        family=p.family,
+        genus=p.genus,
+        confidence=p.confidence,
+        source="gemini",
+    )
+
+
+def vision_result_from_diagnosis(
+    outcome: DiagnosisOutcome,
     *,
-    manual_species_id: str | None = None,
-) -> tuple[PlantIdentification | None, float]:
-    """Run plant identification (Phase 3, plug-in seam).
+    identify: bool,
+    species_id: str | None,
+    elapsed_ms: float,
+) -> VisionResult:
+    d = outcome.diagnosis
+    label = primary_label(d)
+    tax = classify_disease(label)
+    threshold = _threshold()
 
-    Returns (identification, elapsed_ms). When ``manual_species_id`` is set,
-    the model is skipped and the manual selection is echoed back as a
-    ``source='manual'`` identification — this keeps the API contract uniform
-    regardless of whether the identity came from the user or a model.
-    """
+    confidence = d.diagnosis.confidence
+    assessable = d.diagnosis.status not in ("uncertain", "not_assessable")
+    accepted = bool(assessable and confidence is not None and confidence >= threshold)
 
-    t0 = time.perf_counter()
+    if species_id and species_id.strip():
+        plant = _manual_plant(species_id)
+    elif identify:
+        plant = _gemini_plant(d)
+    else:
+        plant = None
 
-    if manual_species_id and manual_species_id.strip():
-        entry = species_lookup(manual_species_id)
-        return (
-            PlantIdentification(
-                species_id=entry.species_id,
-                common_name=entry.common_name,
-                scientific_name=entry.scientific_name,
-                family=entry.family,
-                # user-asserted identity is ground truth, unless we don't know that species
-                confidence=0.0 if entry.species_id == "unknown" else 1.0,
-                source="manual",
-            ),
-            round((time.perf_counter() - t0) * 1000.0, 2),
-        )
+    meta = {
+        "threshold": threshold,
+        "raw_disease_label": label,
+        "diagnosis_status": d.diagnosis.status,
+        "confidence_available": confidence is not None,
+        "confidence_kind": "model_self_reported",
+        "gemini_diagnosis": d.model_dump(),
+        "gemini": outcome.metadata(),
+        "image_size": list(outcome.image.original_size),
+    }
+    guidance = user_guidance(d)
+    if guidance:
+        meta["guidance"] = guidance
 
-    try:
-        model = ModelManager.instance().get_plant_id_model()
-        pid_pred = model.predict(image_bytes)
-        return (
-            PlantIdentification(
-                species_id=pid_pred.species_id,
-                common_name=pid_pred.common_name,
-                scientific_name=pid_pred.scientific_name,
-                family=pid_pred.family,
-                genus=getattr(pid_pred, "genus", None),
-                confidence=round(float(pid_pred.confidence), 4),
-                source=pid_pred.source,
-            ),
-            round((time.perf_counter() - t0) * 1000.0, 2),
-        )
-    except Exception as exc:  # noqa: BLE001 — never fail /predict on identification
-        log.warning("plant identification failed (non-fatal): %s", exc)
-        return None, round((time.perf_counter() - t0) * 1000.0, 2)
+    return VisionResult(
+        disease=tax["display_label"],
+        confidence=round(float(confidence or 0.0), 4),
+        stress_hint=stress_hint(d),
+        class_name=tax["class_name"],
+        disease_type=tax["disease_type"],
+        model_name=MODEL_NAME,
+        model_version=f"{outcome.model}/{outcome.prompt_version}",
+        accepted=accepted,
+        inference_ms=round(elapsed_ms, 2),
+        health=None,
+        plant=plant,
+        # Gemini is now the primary diagnosis, so there is no second opinion to
+        # disagree with. ``gemini_agrees`` stays None, which hides the legacy
+        # "disagreement" banner in the frontend.
+        gemini_verdict=label,
+        gemini_agrees=None,
+        gemini_reasoning=d.summary,
+        metadata=meta,
+    )
 
 
 def run_vision_prediction(
@@ -69,83 +152,35 @@ def run_vision_prediction(
     identify: bool = True,
     species_id: str | None = None,
 ) -> VisionResult:
-    """Run disease detection + (optional) plant identification on one image.
+    """Diagnose one image with Gemini and return the legacy ``VisionResult`` shape.
 
-    Parameters
-    ----------
-    image_bytes : bytes
-        Raw image content (JPEG/PNG/...).
-    identify : bool, default True
-        Disable to skip plant identification entirely (fastest path; useful
-        for the ESP32 firmware that already knows the plant).
-    species_id : str | None, default None
-        When provided, the identifier is bypassed and the supplied species
-        is echoed back with ``source='manual'``. Used by the Home scan UI
-        when the user explicitly tags the plant.
+    ``species_id`` (manual lock) is passed to Gemini as a hint and echoed back
+    as a ``source='manual'`` identification. ``identify=False`` omits the plant
+    block. Raises ``GeminiError`` / ``InvalidImageError`` (structured
+    ``AppError``s) on failure; there is no local fallback.
     """
 
     t0 = time.perf_counter()
-    if should_preprocess():
-        image_bytes = standardize_for_model(image_bytes, output="jpeg_bytes")  # type: ignore[assignment]
+    hint = None
+    if species_id and species_id.strip():
+        entry = species_lookup(species_id)
+        hint = entry.common_name if entry.species_id != "unknown" else species_id.strip()
 
-    # 1. Plant identification (Phase 3, additive). Must happen first so we can route the disease model!
-    plant: PlantIdentification | None = None
-    plant_id_ms = 0.0
-    species_str = "unknown"
-    
-    if identify or species_id:
-        plant, plant_id_ms = _identify_plant(image_bytes, manual_species_id=species_id)
-        if plant and plant.species_id:
-            species_str = plant.species_id
-
-    # 2. Disease detection (species-aware).
-    predictor = ModelManager.instance().get_vision_model()
-    pred = predictor.predict(image_bytes, species=species_str)
-    inference_ms = (time.perf_counter() - t0) * 1000.0
-
-    threshold = float(
-        get_runtime_config()
-        .get("thresholds", {})
-        .get("prediction", {})
-        .get("confidence_accept_threshold", 0.25)
+    outcome = diagnose_plant_image(image_bytes, species_hint=hint)
+    elapsed_ms = (time.perf_counter() - t0) * 1000.0
+    result = vision_result_from_diagnosis(
+        outcome, identify=identify, species_id=species_id, elapsed_ms=elapsed_ms
     )
-    accepted = pred.confidence >= threshold
-    raw = pred.raw or {}
-    model_name = str(raw.get("model", "unknown"))
-    model_version = ModelManager.instance().active_versions(species_str).get("vision_version") or "unversioned"
-    if "stub" in model_name:
-        model_version = "stub"
 
-    tax = classify_disease(pred.disease)
-
-    # Record inference time metric (Phase 2)
     try:
         from services.metrics_store import METRICS_STORE
-        img_size = raw.get("image_size", [640, 640]) if isinstance(raw, dict) else [640, 640]
+
         METRICS_STORE.record(
-            inference_ms=round(inference_ms, 2),
-            model_source=model_name,
-            image_size=img_size,
+            inference_ms=round(elapsed_ms, 2),
+            model_source=f"gemini:{outcome.model}",
+            image_size=list(outcome.image.original_size),
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - metrics must never fail a scan
         log.warning("failed to log scan metrics: %s", exc)
 
-    return VisionResult(
-        disease=tax["display_label"],
-        confidence=round(float(pred.confidence), 4),
-        stress_hint=pred.stress_hint,
-        class_name=tax["class_name"],
-        disease_type=tax["disease_type"],
-        model_name=model_name,
-        model_version=model_version,
-        accepted=accepted,
-        inference_ms=round(inference_ms, 2),
-        health=None,
-        plant=plant,
-        metadata={
-            "threshold": threshold,
-            "raw_disease_label": pred.disease,
-            "plant_id_ms": plant_id_ms,
-            **raw,
-        },
-    )
+    return result

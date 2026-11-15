@@ -1,15 +1,19 @@
+"""/analyze pipeline: Gemini diagnosis → rule-based survival score → Gemini reasoning.
+
+Both AI steps call Google Gemini through ``services.gemini``. If either
+fails, the structured ``GeminiError`` propagates to the client; there is
+no Ollama call and no canned fallback narrative.
+"""
+
 from __future__ import annotations
 
 import time
-from typing import Any, Literal
+from typing import Any
 
-from models.llama_model import (
-    build_reasoning_prompts,
-    fallback_narrative,
-    parse_reasoning_response,
-)
 from schemas.contracts import OrchestratorRequest, OrchestratorResponse, SurvivalResponse
-from services.model_manager import ModelManager
+from services.gemini.images import prepare_image
+from services.gemini.reasoning import build_reasoning_context, reason_about_plant
+from services.gemini.config import load_gemini_config
 from services.prediction import run_vision_prediction
 from services.survival import SurvivalInputs, compute_survival
 
@@ -28,7 +32,8 @@ def run_analysis_pipeline(
     t_vision = (time.perf_counter() - t_vision_0) * 1000.0
     if not vision.accepted:
         warnings.append(
-            f"Vision confidence below threshold ({vision.confidence:.3f}); outputs may be unreliable."
+            "Gemini could not give a confident diagnosis for this photo "
+            f"(status: {vision.metadata.get('diagnosis_status', 'unknown')}); treat the results as provisional."
         )
 
     t_survival_0 = time.perf_counter()
@@ -46,41 +51,31 @@ def run_analysis_pipeline(
     survival = SurvivalResponse.model_validate(survival_dict)
     t_survival = (time.perf_counter() - t_survival_0) * 1000.0
 
-    context: dict[str, Any] = {
-        "vision": vision.model_dump(),
-        "sensors": request.sensors.model_dump(),
-        "survival": survival.model_dump(),
+    sensors: dict[str, Any] = {
+        "air_temperature": request.sensors.temperature,
+        "air_humidity": request.sensors.humidity,
+        "soil_humidity": request.sensors.soil_moisture,
+        "source": "request",
     }
+    context = build_reasoning_context(
+        diagnosis=vision.metadata.get("gemini_diagnosis"),
+        vision_summary={
+            "label": vision.metadata.get("raw_disease_label", vision.disease),
+            "confidence": vision.confidence if vision.metadata.get("confidence_available") else None,
+            "accepted": vision.accepted,
+            "species": request.sensors.species,
+        },
+        sensors=sensors,
+        survival=survival.model_dump(),
+        history=None,
+        user_question=request.user_question,
+    )
+
+    # The reasoning step also sees the (compressed) photo, not just the findings.
+    prepared = prepare_image(image_bytes, load_gemini_config())
 
     t_llm_0 = time.perf_counter()
-    llm_source: Literal["ollama", "fallback", "fallback_empty_ollama", "fallback_error"] = "fallback"
-    client = ModelManager.instance().get_llama_model()
-    if client is None:
-        explanation = fallback_narrative(
-            {
-                "vision": context["vision"],
-                "sensors": context["sensors"],
-                "survival_probability": survival.survival_probability,
-            }
-        )
-        recommendation = "Increase watering consistency and reduce prolonged heat exposure."
-        warnings.append("Ollama unavailable; used deterministic fallback narrative.")
-    else:
-        try:
-            raw = client.generate_chat(build_reasoning_prompts(context, request.user_question))
-            recommendation, explanation = parse_reasoning_response(raw, context)
-            llm_source = "fallback_empty_ollama" if not raw else "ollama"
-        except Exception:
-            recommendation = "Increase watering consistency and reduce prolonged heat exposure."
-            explanation = fallback_narrative(
-                {
-                    "vision": context["vision"],
-                    "sensors": context["sensors"],
-                    "survival_probability": survival.survival_probability,
-                }
-            )
-            llm_source = "fallback_error"
-            warnings.append("LLM call failed; fallback narrative was returned.")
+    outcome = reason_about_plant(context, image=(prepared.data, prepared.mime_type))
     t_llm = (time.perf_counter() - t_llm_0) * 1000.0
 
     total_ms = (time.perf_counter() - t0) * 1000.0
@@ -88,9 +83,10 @@ def run_analysis_pipeline(
         request_id=request_id,
         vision=vision,
         survival=survival,
-        recommendation=recommendation,
-        llama_explanation=explanation,
-        llm_source=llm_source,
+        recommendation=outcome.primary_recommendation(),
+        llama_explanation=outcome.reply_text(),
+        llm_source="gemini",
+        reasoning=outcome.reasoning.model_dump(),
         timings_ms={
             "vision_ms": round(t_vision, 2),
             "survival_ms": round(t_survival, 2),
@@ -99,4 +95,3 @@ def run_analysis_pipeline(
         },
         warnings=warnings,
     )
-

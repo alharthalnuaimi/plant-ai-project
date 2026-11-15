@@ -12,10 +12,12 @@ pyyaml>=6.0.0
 # Phase 2 — local Supabase / Postgres persistence
 asyncpg>=0.29.0
 
+# AI engine: Google Gemini via the official Google GenAI SDK. It handles
+# plant diagnosis (image understanding) and reasoning. No local model
+# runtime (ultralytics / torch / Ollama) is needed to run the API.
+google-genai>=3.3.0,<4.0.0
 
-google-genai>=1.0.0
-
-# Phase 8 — AI provider agents (Claude, GPT-4o, Kimi, Roboflow)
+# Admin dataset-annotation tools only (/admin/providers) — not used for scans.
 anthropic>=0.40.0
 openai>=1.50.0
-requests>=2.31.0
+requests>=2.31.0
