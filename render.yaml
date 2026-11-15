@@ -1,0 +1,27 @@
+# Render Blueprint for the FastAPI backend. Mirrors the dashboard settings of the
+# existing service; Render only applies this file to services managed as a Blueprint.
+services:
+  - type: web
+    name: plant-ai-project
+    runtime: python
+    plan: free
+    # rootDir left unset: the build runs from the repo root.
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn --app-dir backend main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      # Secrets and per-deploy values: set in the Render dashboard, never here.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PERSISTENCE_BACKEND
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
