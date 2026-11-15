@@ -12,6 +12,8 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash
       # Secrets and per-deploy values: set in the Render dashboard, never here.
       - key: GEMINI_API_KEY
         sync: false

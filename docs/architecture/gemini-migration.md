@@ -116,13 +116,16 @@ substitutes defaults.
 | Network error | 503 | `gemini_network_error` | yes |
 | Safety block (prompt or candidate) | 422 | `gemini_safety_blocked` | no |
 | Non-JSON / schema-invalid / truncated / empty | 502 | `gemini_invalid_response` | no |
-| Model not found / bad request | 400 | `gemini_bad_request` | no |
+| Model not available to the key | 503 | `gemini_model_unavailable` | once, on the fallback model |
+| Other bad request | 400 | `gemini_bad_request` | no |
 | Unreadable / tiny image | 400 | `invalid_image` | — (Gemini not called) |
 | Upload over `MAX_UPLOAD_BYTES` | 413 | `image_too_large` | — (Gemini not called) |
 
-Retries: up to `GEMINI_MAX_RETRIES` (default 2) with exponential backoff and
-jitter (`1s, 2s, 4s…`, capped by `GEMINI_BACKOFF_MAX_SECONDS`). The SDK's own
-retrying is switched off so attempts are not multiplied. Error bodies are
+Retries: up to `GEMINI_MAX_RETRIES` (default 1), on `GEMINI_FALLBACK_MODEL`
+(default `gemini-3.5-flash-lite`) when set, with backoff and jitter. The whole
+call, retry included, stops after `GEMINI_DEADLINE_SECONDS` (default 30); each
+attempt is capped at `GEMINI_TIMEOUT_SECONDS` (default 25) and the time left.
+The SDK's own retrying is switched off so attempts are not multiplied. Error bodies are
 `{"error", "message", "request_id"}`; messages never contain the key or the
 upstream response. On `/predict` the diagnosis runs **before** anything is
 persisted, so a failed scan leaves no record and can simply be retried.

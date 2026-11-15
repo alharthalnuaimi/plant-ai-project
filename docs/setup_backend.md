@@ -39,7 +39,7 @@ and put it in the repo-root `.env` (copied from `.env.example`):
 
 ```
 GEMINI_API_KEY=your-key-here
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.5-flash
 ```
 
 The key stays on the server. Without it the API still starts, but
