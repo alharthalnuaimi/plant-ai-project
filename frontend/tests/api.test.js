@@ -244,6 +244,16 @@ test('the header chip uses the real AI check, not just /health', () => {
   assert.match(chip, /AI Unavailable/);
 });
 
+// ---- uncertain scans ----------------------------------------------------------
+
+test('scans without a usable diagnosis are labelled "Uncertain — retake photo"', () => {
+  for (const file of ['analytics.js', 'home.js', 'garden.js', 'assistant.js', 'app.js']) {
+    const code = fs.readFileSync(path.join(APP, file), 'utf8');
+    assert.doesNotMatch(code, /Pending analysis/, file);
+    assert.match(code, /Uncertain — retake photo/, file);
+  }
+});
+
 // ---- demo mode ------------------------------------------------------------
 
 test('demo mode: predict and chat use fixtures with no network call', async () => {

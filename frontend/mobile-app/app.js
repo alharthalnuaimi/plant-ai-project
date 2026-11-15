@@ -342,7 +342,7 @@ function showPredictResult(result){
   const _isUnclassified = !_diseaseLower || _UNCLASSIFIED_RES.has(_diseaseLower)
     || (result.disease_type === 'unknown' && !_rawDisease);
   const disease = _isUnclassified
-    ? 'Pending analysis'
+    ? 'Uncertain — retake photo'
     : _rawDisease.replace(/\b\w/g, c => c.toUpperCase());
 
   const userOk = true; // result modal always renders; tone resolves color.

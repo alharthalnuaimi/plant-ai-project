@@ -126,6 +126,9 @@ def vision_result_from_diagnosis(
         "image_size": list(outcome.image.original_size),
     }
     guidance = user_guidance(d)
+    # The catalog's generic tip doesn't fit a condition it doesn't list, so use Gemini's own advice.
+    if not guidance and tax["class_name"] == "unknown" and (d.recommended_action or "").strip():
+        guidance = d.recommended_action.strip()
     if guidance:
         meta["guidance"] = guidance
 

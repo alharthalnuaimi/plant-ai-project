@@ -47,7 +47,7 @@ def test_defaults(monkeypatch):
     cfg = load_gemini_config()
     assert DEFAULT_MODEL == "gemini-3.5-flash" == cfg.diagnosis_model == cfg.reasoning_model
     assert cfg.fallback_model == DEFAULT_FALLBACK_MODEL == "gemini-3.5-flash-lite"
-    assert (cfg.max_retries, cfg.deadline_s, cfg.timeout_s) == (1, 30.0, 25.0)
+    assert (cfg.max_retries, cfg.deadline_s, cfg.timeout_s) == (1, 30.0, 20.0)
 
 
 def test_fallback_can_be_turned_off(monkeypatch):
@@ -167,8 +167,26 @@ def test_each_attempt_fits_inside_the_deadline(fake_gemini, monkeypatch):
 
     monkeypatch.setattr(c._sdk.models, "generate_content", record)
     c.generate_text(operation="t", model=DEFAULT_MODEL, contents=["x"])
-    assert seen[0] == 25_000  # per-attempt timeout
+    assert seen[0] == 20_000  # per-attempt timeout
     assert seen[1] <= 18_000  # only what is left of the 30 s
+
+
+def test_a_retry_after_a_timeout_still_gets_at_least_10_seconds(fake_gemini, monkeypatch):
+    clock = _Clock()
+    monkeypatch.setattr(gclient.time, "perf_counter", clock)
+    c = gclient.GeminiClient(load_gemini_config(), sleep=lambda s: None)
+    seen = []
+
+    def timed_out_then_ok(**kwargs):
+        seen.append(kwargs["config"].http_options.timeout)
+        if len(seen) == 1:
+            clock.now += 20.0  # first attempt used its full 20 s
+            raise DEADLINE
+        return fake_gemini.generate_content(**kwargs)
+
+    monkeypatch.setattr(c._sdk.models, "generate_content", timed_out_then_ok)
+    c.generate_text(operation="t", model=DEFAULT_MODEL, contents=["x"])
+    assert seen == [20_000, 10_000]  # the API rejects deadlines under 10 s
 
 
 # --- real readiness check ------------------------------------------------------

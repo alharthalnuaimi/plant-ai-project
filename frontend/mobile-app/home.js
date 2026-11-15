@@ -544,7 +544,7 @@
     return !d || _UNCLASSIFIED.has(d);
   }
   function _friendlyDisease(r) {
-    if (_isUnclassified(r)) return "Pending analysis";
+    if (_isUnclassified(r)) return "Uncertain — retake photo";
     return r.disease;
   }
   function _friendlyConfidence(r) {

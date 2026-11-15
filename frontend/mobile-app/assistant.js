@@ -152,8 +152,8 @@
 
   function _classifiedDisease(s) {
     const d = (s && s.disease) ? String(s.disease).trim() : "";
-    if (!d) return "Pending analysis";
-    if (/^(unknown|pending|unclassified|n\/a)$/i.test(d)) return "Pending analysis";
+    if (!d) return "Uncertain — retake photo";
+    if (/^(unknown|pending|unclassified|n\/a)$/i.test(d)) return "Uncertain — retake photo";
     return d;
   }
 

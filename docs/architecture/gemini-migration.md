@@ -124,7 +124,8 @@ substitutes defaults.
 Retries: up to `GEMINI_MAX_RETRIES` (default 1), on `GEMINI_FALLBACK_MODEL`
 (default `gemini-3.5-flash-lite`) when set, with backoff and jitter. The whole
 call, retry included, stops after `GEMINI_DEADLINE_SECONDS` (default 30); each
-attempt is capped at `GEMINI_TIMEOUT_SECONDS` (default 25) and the time left.
+attempt is capped at `GEMINI_TIMEOUT_SECONDS` (default 20) and the time left,
+but never under 10 s, the API's minimum, so the worst case is about 32 s.
 The SDK's own retrying is switched off so attempts are not multiplied. Error bodies are
 `{"error", "message", "request_id"}`; messages never contain the key or the
 upstream response. On `/predict` the diagnosis runs **before** anything is

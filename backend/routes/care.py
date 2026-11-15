@@ -96,7 +96,8 @@ async def get_plant_care(
         latest = analytics_store.get_latest_scan_for_plant(plant_id=pid, user_id=user_id)
         if latest is not None:
             meta = latest.get("metadata") or {}
-            ident = (meta or {}).get("plant_identification") or {}
+            # Only a scan tagged with this plant says what species it is; untagged legacy scans don't.
+            ident = (meta.get("plant_identification") or {}) if meta.get("plant_id") == pid else {}
             if not resolved_species:
                 resolved_species = ident.get("species_id") or _species_from_plant_id(pid)
             if not resolved_zone:

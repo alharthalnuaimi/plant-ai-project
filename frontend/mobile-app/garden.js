@@ -614,7 +614,7 @@
       const dRaw = (s.disease || "").trim();
       const conf = Number(s.confidence) || 0;
       const unclassified = _UNK.has(dRaw.toLowerCase()) || conf < 0.4;
-      const disease = unclassified ? "Pending analysis" : dRaw;
+      const disease = unclassified ? "Uncertain — retake photo" : dRaw;
       const confTxt = unclassified ? "—" : (conf * 100).toFixed(1) + "%";
       const statusLbl = s.status === "PASS" ? "Healthy" : (s.status === "CRITICAL" ? "Critical" : (s.status === "UNKNOWN" ? "—" : "Warn"));
       const src = s.scan_source || "—";
