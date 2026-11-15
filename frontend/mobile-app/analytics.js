@@ -120,7 +120,7 @@
 
   function _friendlyDisease(scan) {
     if (_isUnclassified(scan)) {
-      return scan && scan.is_legacy ? "Unclassified scan" : "Pending analysis";
+      return scan && scan.is_legacy ? "Unclassified scan" : "Uncertain — retake photo";
     }
     return scan.disease;
   }
