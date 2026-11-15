@@ -956,12 +956,22 @@ async function refreshApiChip(){
   if(typeof checkBackendHealth !== 'function') return;
   try {
     const h = await checkBackendHealth();
-    if(h.ok){
+    // The backend can be up while its AI model is not usable, so check that separately.
+    const ai = h.ok && typeof fetchAiStatus === 'function' ? await fetchAiStatus() : { ok: h.ok };
+    if(h.ok && ai.ok){
       setSysChip('sys-chip-ai', 'ai', 'AI Ready');
       const aiText = document.getElementById('sys-ai');
       if(aiText) aiText.textContent = 'AI Ready';
       setSysChip('sys-chip-net', 'ok', 'System Online');
       setSidebarMini('online', 'AI', 'AI Core ready');
+      _setOfflineBanner(false);
+    } else if(h.ok){
+      const label = ai.status === 'not_configured' ? 'AI Not Set Up' : 'AI Unavailable';
+      setSysChip('sys-chip-ai', 'warn', label);
+      const aiText = document.getElementById('sys-ai');
+      if(aiText) aiText.textContent = label;
+      setSysChip('sys-chip-net', 'ok', 'System Online');
+      setSidebarMini('warn', 'AI', 'AI model not answering — scans will fail until it is back');
       _setOfflineBanner(false);
     } else {
       setSysChip('sys-chip-ai', 'crit', 'AI Offline');

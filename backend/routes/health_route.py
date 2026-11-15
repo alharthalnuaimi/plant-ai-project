@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Query
 
@@ -28,18 +29,26 @@ router = APIRouter(tags=["health"])
 
 
 @router.get("/health/services")
-async def health_services() -> dict[str, bool | str | None]:
+async def health_services() -> dict[str, Any]:
     """Reports which AI services are live. Gemini is the only AI path.
 
     The local YOLO pipeline and the Pl@ntNet identifier are kept in the repo
     but switched off, so they always report ``disabled``. No key values are
     ever returned.
     """
+    from fastapi.concurrency import run_in_threadpool
+
+    from services.gemini.client import check_gemini_ready
     from services.gemini.config import load_gemini_config
 
     cfg = load_gemini_config()
+    # A real model call (cached), not just "a key exists": live | unavailable | not_configured.
+    ai = await run_in_threadpool(check_gemini_ready)
     return {
-        "gemini_status": "live" if cfg.configured else "not_configured",
+        "gemini_status": ai["status"],
+        "gemini_model_in_use": ai["model"],
+        "gemini_last_error": ai["error"],
+        "gemini_checked_at": ai["checked_at"],
         "gemini_key_present": cfg.configured,
         "gemini_diagnosis_model": cfg.diagnosis_model,
         "gemini_reasoning_model": cfg.reasoning_model,

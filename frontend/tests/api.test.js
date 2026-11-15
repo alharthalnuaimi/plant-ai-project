@@ -220,6 +220,30 @@ test('a failed scan does not create a scan notification', () => {
   assert.match(observer, /'Scan Failed'\) return/);
 });
 
+// ---- AI status (header chip) -----------------------------------------------
+
+for (const [status, ok] of [['live', true], ['unavailable', false], ['not_configured', false]]) {
+  test(`AI status: gemini_status=${status} gives ok=${ok}`, async () => {
+    const { ctx, calls } = loadApi(() => json(200, { gemini_status: status }));
+    const out = await ctx.fetchAiStatus();
+    assert.equal(out.ok, ok);
+    assert.equal(out.status, status);
+    assert.equal(calls[0].url, 'http://api.test/health/services');
+  });
+}
+
+test('AI status: backend unreachable is not ready', async () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(await loadApi(down).ctx.fetchAiStatus())), { ok: false, status: 'unreachable' });
+});
+
+test('the header chip uses the real AI check, not just /health', () => {
+  const app = fs.readFileSync(path.join(APP, 'app.js'), 'utf8');
+  const start = app.indexOf('async function refreshApiChip');
+  const chip = app.slice(start, app.indexOf('\nrefreshApiChip();', start));
+  assert.match(chip, /fetchAiStatus\(\)/);
+  assert.match(chip, /AI Unavailable/);
+});
+
 // ---- demo mode ------------------------------------------------------------
 
 test('demo mode: predict and chat use fixtures with no network call', async () => {

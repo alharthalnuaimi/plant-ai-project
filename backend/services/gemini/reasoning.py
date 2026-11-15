@@ -125,4 +125,4 @@ def reason_about_plant(
         system_instruction=REASONING_SYSTEM,
         temperature=client.config.reasoning_temperature,
     )
-    return ReasoningOutcome(reasoning=reasoning, model=model, call=info.as_dict())
+    return ReasoningOutcome(reasoning=reasoning, model=info.model, call=info.as_dict())

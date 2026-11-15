@@ -113,7 +113,7 @@ def diagnose_plant_image(
     cache.set(key, diagnosis)
     return DiagnosisOutcome(
         diagnosis=diagnosis,
-        model=model,
+        model=info.model,  # the model that answered, which is the fallback after a retry
         prompt_version=PROMPT_VERSION,
         image=image,
         cached=False,

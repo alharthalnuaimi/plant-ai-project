@@ -151,7 +151,7 @@ def test_predict_maps_gemini_diagnosis_onto_the_existing_contract(client, fake_g
     assert body["confidence"] == 0.82
     assert body["accepted"] is True
     assert body["model_name"] == "gemini"
-    assert body["model_version"].startswith("gemini-2.5-flash/")
+    assert body["model_version"].startswith("gemini-3.5-flash/")
     assert body["plant"] == {
         "species_id": "cucumber",
         "common_name": "Cucumber",

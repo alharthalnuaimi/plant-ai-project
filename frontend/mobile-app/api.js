@@ -137,6 +137,20 @@ async function postChat(payload) {
   return resp.json();
 }
 
+/** GET /health/services: ok only when the server's Gemini model answered a real call. */
+async function fetchAiStatus() {
+  const base = window.PLANT_API_BASE;
+  if (!base) return { ok: false, status: "no_api_base" };
+  try {
+    const resp = await fetch(`${base}/health/services`, { method: "GET" });
+    if (!resp.ok) return { ok: false, status: `http_${resp.status}` };
+    const data = await resp.json();
+    return { ok: data.gemini_status === "live", status: data.gemini_status, data };
+  } catch (e) {
+    return { ok: false, status: "unreachable" };
+  }
+}
+
 async function checkBackendHealth() {
   const base = window.PLANT_API_BASE;
   if (!base) return { ok: false, error: "No API base URL" };
