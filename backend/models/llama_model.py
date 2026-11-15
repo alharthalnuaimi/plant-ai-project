@@ -129,7 +129,7 @@ def get_gemini_client() -> GeminiClient | None:
     if not api_key:
         return None
 
-    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 
     return GeminiClient(
         api_key=api_key,

@@ -84,6 +84,14 @@ class GeminiInvalidResponse(GeminiError):
     default_message = "The AI service returned an unusable answer. Please retry."
 
 
+class GeminiModelNotFound(GeminiError):
+    """The configured model does not exist or is closed to this key. A server problem, not the user's."""
+
+    code = "gemini_model_unavailable"
+    status = 503
+    default_message = "The AI model configured on the server is not available right now. Please try again later."
+
+
 class GeminiBadRequest(GeminiError):
     code = "gemini_bad_request"
     status = 400

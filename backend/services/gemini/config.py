@@ -12,7 +12,9 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3.5-flash"
+# Used for the one retry when the main model is overloaded, times out or is not available.
+DEFAULT_FALLBACK_MODEL = "gemini-3.5-flash-lite"
 
 
 def _env_str(name: str, default: str = "") -> str:
@@ -49,14 +51,17 @@ class GeminiConfig:
     api_key: str = field(repr=False)
     diagnosis_model: str = DEFAULT_MODEL
     reasoning_model: str = DEFAULT_MODEL
-    timeout_s: float = 60.0
-    max_retries: int = 2
+    fallback_model: str = DEFAULT_FALLBACK_MODEL
+    timeout_s: float = 25.0
+    deadline_s: float = 30.0
+    max_retries: int = 1
     backoff_base_s: float = 1.0
     backoff_max_s: float = 8.0
     diagnosis_temperature: float = 0.2
     reasoning_temperature: float = 0.4
     max_output_tokens: int = 8192
     thinking_budget: int | None = None
+    thinking_level: str | None = None
     max_image_side: int = 1536
     jpeg_quality: int = 85
     max_upload_bytes: int = 10 * 1024 * 1024
@@ -73,7 +78,9 @@ class GeminiConfig:
             "configured": self.configured,
             "diagnosis_model": self.diagnosis_model,
             "reasoning_model": self.reasoning_model,
+            "fallback_model": self.fallback_model or None,
             "timeout_s": self.timeout_s,
+            "deadline_s": self.deadline_s,
             "max_retries": self.max_retries,
         }
 
@@ -84,14 +91,19 @@ def load_gemini_config() -> GeminiConfig:
         api_key=_env_str("GEMINI_API_KEY"),
         diagnosis_model=_env_str("GEMINI_DIAGNOSIS_MODEL", base_model),
         reasoning_model=_env_str("GEMINI_REASONING_MODEL", base_model),
-        timeout_s=max(1.0, _env_float("GEMINI_TIMEOUT_SECONDS", 60.0)),
-        max_retries=max(0, _env_int("GEMINI_MAX_RETRIES", 2)),
+        # "none" turns the fallback off.
+        fallback_model="" if _env_str("GEMINI_FALLBACK_MODEL").lower() == "none"
+        else _env_str("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL),
+        timeout_s=max(1.0, _env_float("GEMINI_TIMEOUT_SECONDS", 25.0)),
+        deadline_s=max(5.0, _env_float("GEMINI_DEADLINE_SECONDS", 30.0)),
+        max_retries=max(0, _env_int("GEMINI_MAX_RETRIES", 1)),
         backoff_base_s=max(0.0, _env_float("GEMINI_BACKOFF_BASE_SECONDS", 1.0)),
         backoff_max_s=max(0.0, _env_float("GEMINI_BACKOFF_MAX_SECONDS", 8.0)),
         diagnosis_temperature=_env_float("GEMINI_DIAGNOSIS_TEMPERATURE", 0.2),
         reasoning_temperature=_env_float("GEMINI_REASONING_TEMPERATURE", 0.4),
         max_output_tokens=max(256, _env_int("GEMINI_MAX_OUTPUT_TOKENS", 8192)),
         thinking_budget=_env_opt_int("GEMINI_THINKING_BUDGET"),
+        thinking_level=_env_str("GEMINI_THINKING_LEVEL").lower() or None,
         max_image_side=max(256, _env_int("GEMINI_MAX_IMAGE_SIDE", 1536)),
         jpeg_quality=min(95, max(40, _env_int("GEMINI_JPEG_QUALITY", 85))),
         max_upload_bytes=max(1024, _env_int("MAX_UPLOAD_BYTES", 10 * 1024 * 1024)),

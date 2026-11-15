@@ -29,6 +29,7 @@ from services.gemini.errors import (
     GeminiBadRequest,
     GeminiError,
     GeminiInvalidResponse,
+    GeminiModelNotFound,
     GeminiNetworkError,
     GeminiNotConfigured,
     GeminiQuotaExceeded,
@@ -50,6 +51,19 @@ _SAFETY_FINISH_REASONS = {
     "IMAGE_SAFETY",
     "RECITATION",
 }
+
+
+# Below this much time left before the deadline, a retry is not attempted.
+_MIN_ATTEMPT_S = 3.0
+
+
+def _is_gemini3(model: str) -> bool:
+    """True for Gemini 3.x and later, which use thinking_level and the default temperature."""
+    name = model.rsplit("/", 1)[-1]
+    if not name.startswith("gemini-"):
+        return False
+    major = name[len("gemini-"):].split(".", 1)[0].split("-", 1)[0]
+    return major.isdigit() and int(major) >= 3
 
 
 @dataclass
@@ -111,9 +125,8 @@ def classify_exception(exc: BaseException, model: str = "") -> GeminiError:
                 return GeminiQuotaExceeded()
             return GeminiRateLimited()
         if code == 404:
-            return GeminiBadRequest(
-                f"The configured Gemini model '{model}' was not found. Check GEMINI_MODEL."
-            )
+            log.warning("Gemini model %r is not available to this key (404)", model)
+            return GeminiModelNotFound()
         if code == 400:
             if "api key" in text:
                 return GeminiAuthError()
@@ -230,22 +243,30 @@ class GeminiClient:
     def _build_config(
         self,
         *,
+        model: str,
         system_instruction: str | None,
         temperature: float,
         response_schema: type[BaseModel] | None,
+        timeout_s: float | None = None,
     ) -> Any:
         from google.genai import types
 
-        kwargs: dict[str, Any] = {
-            "temperature": temperature,
-            "max_output_tokens": self.config.max_output_tokens,
-        }
+        gemini3 = _is_gemini3(model)
+        kwargs: dict[str, Any] = {"max_output_tokens": self.config.max_output_tokens}
+        # Google advises leaving temperature at its default on Gemini 3.x; lower values can loop.
+        if not gemini3:
+            kwargs["temperature"] = temperature
+        if timeout_s is not None:
+            kwargs["http_options"] = types.HttpOptions(timeout=max(1000, int(timeout_s * 1000)))
         if system_instruction:
             kwargs["system_instruction"] = system_instruction
         if response_schema is not None:
             kwargs["response_mime_type"] = "application/json"
             kwargs["response_schema"] = response_schema
-        if self.config.thinking_budget is not None:
+        # Gemini 3.x takes thinking_level; sending thinking_budget as well is an API error.
+        if gemini3 and self.config.thinking_level:
+            kwargs["thinking_config"] = types.ThinkingConfig(thinking_level=self.config.thinking_level.upper())
+        elif not gemini3 and self.config.thinking_budget is not None:
             kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=self.config.thinking_budget)
         return types.GenerateContentConfig(**kwargs)
 
@@ -271,42 +292,53 @@ class GeminiClient:
         temperature: float = 0.3,
         response_schema: type[BaseModel] | None = None,
     ) -> tuple[str, GeminiCallInfo]:
-        gen_config = self._build_config(
-            system_instruction=system_instruction,
-            temperature=temperature,
-            response_schema=response_schema,
-        )
         t0 = time.perf_counter()
+        deadline = t0 + self.config.deadline_s
+        current = model
         attempt = 0
         while True:
             attempt += 1
+            gen_config = self._build_config(
+                model=current,
+                system_instruction=system_instruction,
+                temperature=temperature,
+                response_schema=response_schema,
+                timeout_s=min(self.config.timeout_s, deadline - time.perf_counter()),
+            )
             try:
                 response = self._sdk.models.generate_content(
-                    model=model, contents=contents, config=gen_config
+                    model=current, contents=contents, config=gen_config
                 )
                 text = extract_text(response)
             except Exception as exc:  # noqa: BLE001 - classified below
-                err = classify_exception(exc, model)
-                if err.retryable and attempt <= self.config.max_retries:
-                    delay = self._backoff(attempt - 1)
+                err = classify_exception(exc, current)
+                fallback = self.config.fallback_model
+                fallback = fallback if fallback and fallback != current else None
+                retry = err.retryable or (fallback is not None and isinstance(err, GeminiModelNotFound))
+                left = deadline - time.perf_counter()
+                if retry and attempt <= self.config.max_retries and left > _MIN_ATTEMPT_S:
+                    delay = min(self._backoff(attempt - 1), left - _MIN_ATTEMPT_S)
                     log.warning(
-                        "gemini op=%s model=%s attempt=%d failed (%s); retrying in %.1fs",
-                        operation, model, attempt, err.code, delay,
+                        "gemini op=%s model=%s attempt=%d failed (%s); retrying on %s in %.1fs",
+                        operation, current, attempt, err.code, fallback or current, delay,
                     )
                     self._sleep(delay)
+                    current = fallback or current
                     continue
                 log.warning(
                     "gemini op=%s model=%s failed after %d attempt(s): %s (%s)",
-                    operation, model, attempt, err.code, type(exc).__name__,
+                    operation, current, attempt, err.code, type(exc).__name__,
                 )
+                _record_health(not isinstance(err, _MODEL_DOWN_ERRORS), current, err.code)
                 if err is exc:
                     raise
                 raise err from exc
 
             prompt_t, output_t, total_t = _usage(response)
+            _record_health(True, current, None)
             info = GeminiCallInfo(
                 operation=operation,
-                model=model,
+                model=current,
                 attempts=attempt,
                 latency_ms=round((time.perf_counter() - t0) * 1000.0, 1),
                 prompt_tokens=prompt_t,
@@ -372,13 +404,66 @@ def get_gemini_client() -> GeminiClient:
 
 
 def set_gemini_client(client: GeminiClient | None) -> None:
-    """Inject a client for tests (``None`` clears the injection and the cache)."""
+    """Inject a client for tests (``None`` clears the injection, the cache and the health result)."""
 
-    global _client, _client_key, _injected
+    global _client, _client_key, _injected, _health
     with _lock:
         _injected = client
         _client = None
         _client_key = None
+        _health = None
+
+
+# --------------------------------------------------------------------------
+# Real readiness check
+# --------------------------------------------------------------------------
+# A key can be accepted and a model can appear in the model list while
+# generating still fails, so readiness comes from an actual call. Every real
+# call updates it, and a one-line probe runs only when nothing has run lately.
+
+HEALTH_MAX_AGE_S = 600.0
+# Errors meaning the AI path is down, as opposed to a problem with one request.
+_MODEL_DOWN_ERRORS = (
+    GeminiAuthError,
+    GeminiModelNotFound,
+    GeminiUnavailable,
+    GeminiTimeout,
+    GeminiNetworkError,
+    GeminiQuotaExceeded,
+    GeminiRateLimited,
+)
+_health: dict[str, Any] | None = None
+_health_lock = threading.Lock()
+
+
+def _record_health(ok: bool, model: str, error: str | None) -> None:
+    global _health
+    _health = {"ok": ok, "model": model, "error": error, "checked_at": time.time()}
+
+
+def check_gemini_ready(max_age_s: float = HEALTH_MAX_AGE_S) -> dict[str, Any]:
+    """``status`` is live, unavailable or not_configured, from a real call at most ``max_age_s`` old."""
+
+    config = load_gemini_config()
+    if not config.configured:
+        return {"status": "not_configured", "model": config.diagnosis_model, "error": None, "checked_at": None}
+    with _health_lock:
+        if _health is None or time.time() - _health["checked_at"] > max_age_s:
+            try:
+                get_gemini_client().generate_text(
+                    operation="health_check",
+                    model=config.diagnosis_model,
+                    contents=["Reply with the word OK."],
+                )
+            except GeminiError:
+                pass  # recorded by generate_text
+        h = _health or {"ok": False, "model": config.diagnosis_model, "error": "gemini_error", "checked_at": time.time()}
+    return {
+        "status": "live" if h["ok"] else "unavailable",
+        "model": h["model"],
+        "error": h["error"],
+        "checked_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(h["checked_at"])),
+    }
 
 
 def gemini_status() -> dict[str, Any]:
