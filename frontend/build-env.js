@@ -1,7 +1,7 @@
 // Vercel build helper for PlantVision frontend.
 //
 // Generates mobile-app/env.js from the PLANT_API_BASE environment variable.
-// Falls back to the live Railway backend if PLANT_API_BASE is unset so a
+// Falls back to the live Render backend if PLANT_API_BASE is unset so a
 // clean clone still talks to the real API out of the box.
 //
 // To change the API URL in production, set PLANT_API_BASE in:
@@ -12,7 +12,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const DEFAULT_API_BASE = "https://plant-ai-project-production.up.railway.app";
+const DEFAULT_API_BASE = "https://plant-ai-project-de01.onrender.com";
 
 const raw = (process.env.PLANT_API_BASE || DEFAULT_API_BASE).trim();
 const apiBase = raw.replace(/\/$/, "");
