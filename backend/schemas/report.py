@@ -108,4 +108,4 @@ class ReportRequest(BaseModel):
     user_id: str = "demo_user"
     zone_id: str = "zone_alpha"
     device_id: str = "esp32_001"
-    species_id: str | None = None
+    species_id: str | None = Field(default=None, max_length=100)

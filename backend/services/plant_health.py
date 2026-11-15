@@ -134,7 +134,7 @@ def enrich_vision_result(
         health = health.model_copy(update={"recommendation": str(guidance)})
     return result.model_copy(
         update={
-            "disease": tax["display_label"],
+            # "disease" stays as set by prediction, which keeps condition names the catalog lacks.
             "class_name": tax["class_name"],
             "disease_type": tax["disease_type"],
             "health": health,

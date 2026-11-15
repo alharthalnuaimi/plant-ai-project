@@ -100,6 +100,7 @@ async def predict(
     # Phase 3 — plant identification controls (additive, all optional)
     species_id: str = Form(
         default="",
+        max_length=100,
         description="Optional manual species lock (e.g. 'cucumber'). Sent to Gemini as a hint and echoed back as the plant identity.",
     ),
     identify: bool = Form(
@@ -245,8 +246,8 @@ async def analyze(
     soil_moisture: float = Form(...),
     temperature: float = Form(...),
     humidity: float = Form(...),
-    species: str | None = Form(default=None),
-    user_question: str | None = Form(default=None),
+    species: str | None = Form(default=None, max_length=100),
+    user_question: str | None = Form(default=None, max_length=2000),
 ) -> OrchestratorResponse:
     image_bytes, _, _ = await _read_image(file)
 

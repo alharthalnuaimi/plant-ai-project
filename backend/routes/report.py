@@ -56,7 +56,7 @@ async def report(
     zone_id: str = Form(default="zone_alpha"),
     device_id: str = Form(default="esp32_001"),
     plant_id: str = Form(default=""),
-    species_id: str = Form(default=""),
+    species_id: str = Form(default="", max_length=100),
     identify: bool = Form(default=True),
 ) -> PlantReport:
     """Build a unified plant report.

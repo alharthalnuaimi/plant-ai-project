@@ -97,6 +97,11 @@ def vision_result_from_diagnosis(
     d = outcome.diagnosis
     label = primary_label(d)
     tax = classify_disease(label)
+    # The local catalog lists only a few classes, so keep Gemini's own name for
+    # any real condition it doesn't cover instead of storing "Unknown".
+    disease = tax["display_label"]
+    if tax["class_name"] == "unknown" and d.diagnosis.status in ("diseased", "stressed"):
+        disease = label
     threshold = _threshold()
 
     confidence = d.diagnosis.confidence
@@ -125,7 +130,7 @@ def vision_result_from_diagnosis(
         meta["guidance"] = guidance
 
     return VisionResult(
-        disease=tax["display_label"],
+        disease=disease,
         confidence=round(float(confidence or 0.0), 4),
         stress_hint=stress_hint(d),
         class_name=tax["class_name"],

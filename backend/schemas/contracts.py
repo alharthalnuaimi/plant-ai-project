@@ -15,6 +15,7 @@ class SurvivalSensorInput(BaseModel):
     humidity: float = Field(ge=0, le=100, description="Relative humidity 0-100%")
     species: str | None = Field(
         default=None,
+        max_length=100,
         description="Optional species/cultivar; used for sensitivity scoring",
     )
 
