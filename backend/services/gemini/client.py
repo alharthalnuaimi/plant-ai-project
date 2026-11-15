@@ -53,8 +53,11 @@ _SAFETY_FINISH_REASONS = {
 }
 
 
-# Below this much time left before the deadline, a retry is not attempted.
-_MIN_ATTEMPT_S = 3.0
+# The Gemini API rejects request deadlines under 10 s, so no attempt gets less.
+_MIN_ATTEMPT_S = 10.0
+# A retry starts if at least this much of the deadline is left; it still gets
+# 10 s, so the worst case runs about 2 s past the deadline.
+_MIN_LEFT_FOR_RETRY_S = 8.0
 
 
 def _is_gemini3(model: str) -> bool:
@@ -303,7 +306,7 @@ class GeminiClient:
                 system_instruction=system_instruction,
                 temperature=temperature,
                 response_schema=response_schema,
-                timeout_s=min(self.config.timeout_s, deadline - time.perf_counter()),
+                timeout_s=max(_MIN_ATTEMPT_S, min(self.config.timeout_s, deadline - time.perf_counter())),
             )
             try:
                 response = self._sdk.models.generate_content(
@@ -316,8 +319,8 @@ class GeminiClient:
                 fallback = fallback if fallback and fallback != current else None
                 retry = err.retryable or (fallback is not None and isinstance(err, GeminiModelNotFound))
                 left = deadline - time.perf_counter()
-                if retry and attempt <= self.config.max_retries and left > _MIN_ATTEMPT_S:
-                    delay = min(self._backoff(attempt - 1), left - _MIN_ATTEMPT_S)
+                if retry and attempt <= self.config.max_retries and left >= _MIN_LEFT_FOR_RETRY_S:
+                    delay = max(0.0, min(self._backoff(attempt - 1), left - _MIN_LEFT_FOR_RETRY_S))
                     log.warning(
                         "gemini op=%s model=%s attempt=%d failed (%s); retrying on %s in %.1fs",
                         operation, current, attempt, err.code, fallback or current, delay,

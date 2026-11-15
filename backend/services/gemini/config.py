@@ -52,7 +52,7 @@ class GeminiConfig:
     diagnosis_model: str = DEFAULT_MODEL
     reasoning_model: str = DEFAULT_MODEL
     fallback_model: str = DEFAULT_FALLBACK_MODEL
-    timeout_s: float = 25.0
+    timeout_s: float = 20.0
     deadline_s: float = 30.0
     max_retries: int = 1
     backoff_base_s: float = 1.0
@@ -94,7 +94,7 @@ def load_gemini_config() -> GeminiConfig:
         # "none" turns the fallback off.
         fallback_model="" if _env_str("GEMINI_FALLBACK_MODEL").lower() == "none"
         else _env_str("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL),
-        timeout_s=max(1.0, _env_float("GEMINI_TIMEOUT_SECONDS", 25.0)),
+        timeout_s=max(10.0, _env_float("GEMINI_TIMEOUT_SECONDS", 20.0)),
         deadline_s=max(5.0, _env_float("GEMINI_DEADLINE_SECONDS", 30.0)),
         max_retries=max(0, _env_int("GEMINI_MAX_RETRIES", 1)),
         backoff_base_s=max(0.0, _env_float("GEMINI_BACKOFF_BASE_SECONDS", 1.0)),
