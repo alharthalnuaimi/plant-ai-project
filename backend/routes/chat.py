@@ -7,15 +7,17 @@ and the client can retry.
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from schemas.contracts import SurvivalResponse, VisionResult
 from services import analytics_store, sensor_store
+from services.gemini.schemas import GeminiDiagnosis
 from services.gemini.reasoning import build_reasoning_context, reason_about_plant
 from services.survival import SurvivalInputs, compute_survival
 
@@ -31,7 +33,7 @@ class ChatSensors(BaseModel):
     soil_moisture: float | None = Field(default=None, ge=0, le=100, description="Soil moisture %")
     temperature: float | None = Field(default=None, description="Air temperature °C")
     humidity: float | None = Field(default=None, ge=0, le=100, description="Air humidity %")
-    species: str | None = None
+    species: str | None = Field(default=None, max_length=100)
     # Full ESP32 sensor set.
     soil_temperature: float | None = Field(default=None, description="Soil temperature °C")
     soil_ph: float | None = Field(default=None, ge=0, le=14)
@@ -43,7 +45,7 @@ class ChatSensors(BaseModel):
 class ChatRequest(BaseModel):
     vision: VisionResult | None = None
     sensors: ChatSensors = Field(default_factory=ChatSensors)
-    user_question: str | None = None
+    user_question: str | None = Field(default=None, max_length=2000)
     # Optional: lets the backend pull the newest stored reading for this device.
     user_id: str | None = None
     zone_id: str | None = None
@@ -54,6 +56,27 @@ class ChatRequest(BaseModel):
         if self.vision is None and not (self.user_question or "").strip():
             raise ValueError("Provide a scan result (vision) or a user_question.")
         return self
+
+
+# The client sends this back from an earlier /predict, so accept it only in the
+# shape /predict produces and at a sane size.
+_MAX_DIAGNOSIS_CHARS = 20_000
+# Upper bound on everything sent to Gemini for one chat turn.
+_MAX_CONTEXT_CHARS = 60_000
+
+
+def _checked_diagnosis(raw: Any) -> dict[str, Any] | None:
+    if raw is None:
+        return None
+    try:
+        diagnosis = GeminiDiagnosis.model_validate(raw).model_dump()
+    except ValidationError:
+        log.info("POST /chat — ignoring a gemini_diagnosis that doesn't match the schema")
+        return None
+    if len(json.dumps(diagnosis, default=str)) > _MAX_DIAGNOSIS_CHARS:
+        log.info("POST /chat — ignoring an oversized gemini_diagnosis")
+        return None
+    return diagnosis
 
 
 def _recent_scan_summaries(limit: int = 5) -> list[dict[str, Any]]:
@@ -149,7 +172,7 @@ async def chat(req: ChatRequest) -> dict:
     diagnosis = None
     if req.vision is not None:
         meta = req.vision.metadata or {}
-        diagnosis = meta.get("gemini_diagnosis")
+        diagnosis = _checked_diagnosis(meta.get("gemini_diagnosis"))
         vision_summary = {
             "label": meta.get("raw_disease_label") or req.vision.disease,
             "confidence": req.vision.confidence,
@@ -167,6 +190,9 @@ async def chat(req: ChatRequest) -> dict:
         history=_recent_scan_summaries(limit=5),
         user_question=req.user_question,
     )
+
+    if len(json.dumps(context, default=str)) > _MAX_CONTEXT_CHARS:
+        raise HTTPException(status_code=413, detail="Request is too large to analyse")
 
     outcome = await run_in_threadpool(reason_about_plant, context)
     log.info("POST /chat — Gemini reasoning ok model=%s", outcome.model)
