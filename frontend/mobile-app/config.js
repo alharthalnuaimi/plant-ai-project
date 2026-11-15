@@ -8,17 +8,16 @@
  * Production safety:
  * - env.js (Vercel build or committed default) sets __PLANT_API_URL__
  * - Stale pv-api-base pointing at localhost is ignored on deployed hosts
- * - Vercel / production hosts always fall back to the Railway backend
+ * - Vercel / production hosts always fall back to the Render backend
  * - localhost defaults to a local backend, so local testing can't change live data
  */
 (function () {
-  const RAILWAY_DEFAULT = "https://plant-ai-project-production.up.railway.app";
+  const RENDER_DEFAULT = "https://plant-ai-project-de01.onrender.com";
   const params = new URLSearchParams(window.location.search);
   const fromQuery = params.get("api");
   let fromStorage = localStorage.getItem("pv-api-base");
   const host = window.location.hostname;
   const isLocalHost = host === "localhost" || host === "127.0.0.1";
-  const isDeployedHost = /\.vercel\.app$/i.test(host) || /\.railway\.app$/i.test(host);
 
   // A leftover localhost override breaks scans/chat on the live Vercel site.
   if (fromStorage && !isLocalHost && /localhost|127\.0\.0\.1/i.test(fromStorage)) {
@@ -33,7 +32,7 @@
       base = window.__PLANT_API_URL__;
     } else {
       // A deployed host, or a phone on the local Wi-Fi network.
-      base = RAILWAY_DEFAULT;
+      base = RENDER_DEFAULT;
     }
   }
   window.PLANT_API_BASE = base.replace(/\/$/, "");
