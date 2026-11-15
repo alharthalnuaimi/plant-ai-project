@@ -263,7 +263,6 @@ def test_upload_cannot_store_html(client):
     assert not list(predict.UPLOAD_DIR.glob("*.html"))
 
 
-@known_bug("a report for a named plant ignores that plant's scans")
 def test_report_uses_the_named_plants_scan(client, jpeg_bytes):
     client.post("/predict", **_image_form(jpeg_bytes, plant_id="ep_tomato"))
     assert client.post("/report", json={"plant_id": "ep_tomato"}).json()["disease"] != "Unknown"

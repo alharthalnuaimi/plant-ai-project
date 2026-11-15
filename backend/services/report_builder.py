@@ -336,7 +336,8 @@ def build_report_from_plant_id(
     vision = VisionResult(
         user_id=user_id,
         zone_id=resolved_zone,
-        disease=tax["display_label"],
+        # The stored name already keeps conditions the catalog doesn't list.
+        disease=latest.get("disease") or tax["display_label"],
         confidence=round(confidence, 4),
         stress_hint=meta.get("stress_hint", ""),
         class_name=tax["class_name"],

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 import uuid
@@ -153,6 +154,19 @@ def _append_spark(user_id: str, zone_id: str, reading: SensorReading) -> None:
     buckets["soil_ec"].append(float(reading.soil_ec))
 
 
+# The parts of a scan's metadata that /report and /care read back later.
+_REPORT_META_KEYS = ("plant_id", "plant_name", "raw_disease_label", "plant_identification", "stress_hint")
+
+
+def _report_meta(meta: Any) -> dict[str, Any]:
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except ValueError:
+            return {}
+    return {k: meta[k] for k in _REPORT_META_KEYS if isinstance(meta, dict) and meta.get(k) is not None}
+
+
 def record_scan(result: VisionResult) -> ScanHistoryItem:
     global _scan_counter
     _scan_counter += 1
@@ -168,6 +182,8 @@ def record_scan(result: VisionResult) -> ScanHistoryItem:
         "inference_ms": float(result.inference_ms),
         "timestamp": ts,
         "accepted": result.accepted,
+        "device_id": (result.metadata or {}).get("device_id"),
+        "metadata": {**_report_meta(result.metadata), "stress_hint": result.stress_hint},
     }
     _scans.appendleft(item)
     conf_pct = result.confidence * 100
@@ -282,6 +298,8 @@ async def hydrate_from_db(limit: int = 200) -> int:
                     "inference_ms": float(row.get("inference_ms") or 0.0),
                     "timestamp": ts,
                     "accepted": accepted,
+                    "device_id": row.get("device_slug") or row.get("device_id"),
+                    "metadata": _report_meta(row.get("metadata_json")),
                 })
                 loaded += 1
             except Exception:  # noqa: BLE001 — never let one bad row break boot
