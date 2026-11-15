@@ -23,6 +23,7 @@ from services.disease_taxonomy import classify_disease
 from services.gemini.diagnosis import (
     DiagnosisOutcome,
     diagnose_plant_image,
+    health_assessment,
     primary_label,
     stress_hint,
     user_guidance,
@@ -97,10 +98,10 @@ def vision_result_from_diagnosis(
     d = outcome.diagnosis
     label = primary_label(d)
     tax = classify_disease(label)
-    # The local catalog lists only a few classes, so keep Gemini's own name for
-    # any real condition it doesn't cover instead of storing "Unknown".
+    # Gemini's own condition name is the diagnosis (e.g. "Rose Black Spot"); the
+    # local catalog only supplies class/risk metadata and never renames it.
     disease = tax["display_label"]
-    if tax["class_name"] == "unknown" and d.diagnosis.status in ("diseased", "stressed"):
+    if d.diagnosis.status in ("diseased", "stressed"):
         disease = label
     threshold = _threshold()
 
@@ -124,11 +125,10 @@ def vision_result_from_diagnosis(
         "gemini_diagnosis": d.model_dump(),
         "gemini": outcome.metadata(),
         "image_size": list(outcome.image.original_size),
+        "assessment": health_assessment(d),
     }
-    guidance = user_guidance(d)
-    # The catalog's generic tip doesn't fit a condition it doesn't list, so use Gemini's own advice.
-    if not guidance and tax["class_name"] == "unknown" and (d.recommended_action or "").strip():
-        guidance = d.recommended_action.strip()
+    # Retake guidance for unusable/unclear photos; otherwise Gemini's own next step.
+    guidance = user_guidance(d) or (d.recommended_action or "").strip() or None
     if guidance:
         meta["guidance"] = guidance
 

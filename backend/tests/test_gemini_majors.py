@@ -50,9 +50,11 @@ def test_survival_score_uses_the_condition_name(fastapi_client, jpeg_bytes, fake
     assert expected != round(_disease_component("Unknown", body["vision"]["confidence"]), 4)
 
 
-def test_catalog_conditions_are_still_normalised(fastapi_client, jpeg_bytes, fake_gemini):
+def test_catalog_conditions_keep_geminis_name_and_get_the_catalog_class(fastapi_client, jpeg_bytes, fake_gemini):
     fake_gemini.diagnosis["diagnosis"]["primary_condition"] = "powdery mildew (early stage)"
-    assert _scan(fastapi_client, jpeg_bytes).json()["disease"] == "Powdery Mildew"
+    body = _scan(fastapi_client, jpeg_bytes).json()
+    assert body["disease"] == "powdery mildew (early stage)"
+    assert body["class_name"] == "powdery_mildew"
 
 
 @pytest.mark.parametrize("status", ["uncertain", "not_assessable"])

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-PROMPT_VERSION = "gemini-v2"
+PROMPT_VERSION = "gemini-v3"
 
 DIAGNOSIS_SYSTEM = """\
 You are a careful plant pathologist examining ONE photograph.
@@ -32,6 +32,14 @@ Work only from what is visible in the image. Your job:
    when you have no basis for a value.
 7. List in uncertainties anything that cannot be determined from this photo (e.g. root health,
    underside of leaves, lab confirmation needed).
+8. Set health_category to the single best overall verdict:
+   - "healthy": no meaningful problem visible.
+   - "possible_disease": visible signs of a fungal, bacterial or viral disease.
+   - "possible_water_stress": wilting, drooping, limp or curling leaves, dry or crispy edges, or
+     yellowing/soft tissue that points to under- or over-watering rather than a pathogen.
+   - "other_problem": pests, nutrient deficiency, sun scorch, cold or physical damage.
+   - "uncertain": the image is insufficient or the cause is unclear (status uncertain/not_assessable).
+9. Put the single most useful next step for the grower in recommended_action (also for healthy plants).
 
 Never invent a disease that the image does not show. Respond with JSON matching the schema only.
 """

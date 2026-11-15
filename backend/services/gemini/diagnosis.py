@@ -149,6 +149,46 @@ def stress_hint(d: GeminiDiagnosis) -> str:
     return _STRESS_HINTS.get(d.stress_signal, "unknown")
 
 
+ASSESSMENT_LABELS = {
+    "healthy": "Healthy",
+    "possible_disease": "Possible disease",
+    "possible_water_stress": "Possible water stress",
+    "other_problem": "Other visible problem",
+    "uncertain": "Uncertain — image insufficient",
+}
+
+
+def health_assessment(d: GeminiDiagnosis) -> dict[str, str]:
+    """The user-facing verdict, taken from Gemini's own structured answer.
+
+    The diagnosis status always wins (an unusable or unclear photo is never
+    shown as a confident verdict). Otherwise Gemini's ``health_category`` is
+    used; if Gemini left it empty, it is read from Gemini's category,
+    stress signal and observations.
+    """
+
+    status = d.diagnosis.status
+    if status in ("uncertain", "not_assessable"):
+        category = "uncertain"
+    elif status == "healthy":
+        category = "healthy"
+    elif d.health_category in ("possible_disease", "possible_water_stress", "other_problem"):
+        category = d.health_category
+    elif d.diagnosis.category in ("fungal", "bacterial", "viral"):
+        category = "possible_disease"
+    elif d.stress_signal == "dehydration_or_sun_stress" or any(
+        o.category == "wilting" for o in d.observations
+    ):
+        category = "possible_water_stress"
+    else:
+        category = "other_problem"
+    return {
+        "category": category,
+        "label": ASSESSMENT_LABELS[category],
+        "source": "gemini" if d.health_category == category else "gemini_derived",
+    }
+
+
 def user_guidance(d: GeminiDiagnosis) -> str | None:
     """A recommendation for diagnoses that cannot be acted on (bad photo / no plant / unclear)."""
 

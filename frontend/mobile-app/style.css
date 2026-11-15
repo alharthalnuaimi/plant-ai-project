@@ -4998,3 +4998,37 @@ img,video,canvas,svg{max-width:100%}
 }
 
 /* === End PlantVision v4.2 final polish === */
+
+/* Scan result — Gemini diagnosis verdict (healthy / disease / water stress / other / uncertain). */
+.rm-dx-verdict{
+  display:inline-block;
+  margin:0 0 6px;
+  padding:4px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:.2px;
+  border:1px solid currentColor;
+  color:var(--t2);
+}
+.rm-dx-verdict[data-cat="healthy"]{color:var(--sage)}
+.rm-dx-verdict[data-cat="possible_disease"]{color:var(--coral)}
+.rm-dx-verdict[data-cat="possible_water_stress"]{color:var(--gold)}
+.rm-dx-verdict[data-cat="other_problem"]{color:var(--olive)}
+.rm-dx-verdict[data-cat="uncertain"]{color:var(--t3)}
+.rm-dx-summary{
+  margin:6px 0 0;
+  font-size:12px;
+  line-height:1.5;
+  color:var(--t2);
+  overflow-wrap:anywhere;
+}
+.rm-dx-summary:empty,.rm-dx-signs:empty{display:none}
+.rm-dx-signs{
+  margin:6px 0 0;
+  padding-left:16px;
+  font-size:11.5px;
+  line-height:1.45;
+  color:var(--t3);
+}
+.rm-dx-signs li{margin:2px 0;overflow-wrap:anywhere}

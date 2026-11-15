@@ -64,6 +64,14 @@ StressSignal = Literal[
     "other_stress",
     "unknown",
 ]
+# The user-facing health verdict shown on the scan result.
+HealthCategory = Literal[
+    "healthy",
+    "possible_disease",
+    "possible_water_stress",
+    "other_problem",
+    "uncertain",
+]
 
 
 class PlantIdentificationOut(BaseModel):
@@ -117,6 +125,15 @@ class GeminiDiagnosis(BaseModel):
     alternative_diagnoses: list[AlternativeDiagnosis]
     uncertainties: list[str] = Field(description="What cannot be determined from this image, and why.")
     stress_signal: StressSignal
+    health_category: HealthCategory | None = Field(
+        default=None,
+        description=(
+            "Overall verdict: healthy | possible_disease (fungal, bacterial or viral signs) | "
+            "possible_water_stress (wilting, drooping, dry or crispy edges, curling from under- or "
+            "over-watering) | other_problem (pests, nutrient deficiency, sun scorch, physical damage) | "
+            "uncertain (image insufficient or cause unclear)."
+        ),
+    )
     summary: str = Field(description="One or two plain sentences summarising the visual assessment.")
     recommended_action: str | None = Field(
         default=None,

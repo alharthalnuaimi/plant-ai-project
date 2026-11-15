@@ -208,10 +208,77 @@ function _isHealthyDisease(name){
   return n === 'healthy' || n.includes('no disease') || n.includes('no_disease');
 }
 
+// Gemini's overall verdict for a scan: healthy / possible_disease /
+// possible_water_stress / other_problem / uncertain. Uses the backend's
+// metadata.assessment; older results (and demo fixtures) without it get a
+// conservative reading of the fields they do have.
+const PV_ASSESSMENT_LABELS = {
+  healthy: 'Healthy',
+  possible_disease: 'Possible disease',
+  possible_water_stress: 'Possible water stress',
+  other_problem: 'Other visible problem',
+  uncertain: 'Uncertain — image insufficient',
+};
+function _pvAssessment(result){
+  const a = result?.metadata?.assessment;
+  if(a && PV_ASSESSMENT_LABELS[a.category]){
+    return { category: a.category, label: PV_ASSESSMENT_LABELS[a.category] };
+  }
+  const status = String(result?.metadata?.diagnosis_status || '').toLowerCase();
+  const raw = String(result?.metadata?.raw_disease_label || result?.disease || '').trim().toLowerCase();
+  let category = 'possible_disease';
+  if(status === 'uncertain' || status === 'not_assessable' || !raw || ['unknown','uncertain','not assessable'].includes(raw)){
+    category = 'uncertain';
+  } else if(status === 'healthy' || _isHealthyDisease(raw)){
+    category = 'healthy';
+  }
+  return { category, label: PV_ASSESSMENT_LABELS[category] };
+}
+
+// Fill the Diagnosis section of the result modal from Gemini's structured answer.
+function _renderDiagnosisSection(result, assessment){
+  const set = (id, text) => { const el = document.getElementById(id); if(el) el.textContent = text; };
+  const dx = result?.metadata?.gemini_diagnosis || null;
+  const d = (dx && dx.diagnosis) || {};
+  const statusEl = document.getElementById('r-dx-status');
+  if(statusEl){
+    statusEl.textContent = assessment.label;
+    statusEl.setAttribute('data-cat', assessment.category);
+  }
+  let condition = '—';
+  if(assessment.category === 'healthy') condition = 'No problem visible';
+  else if(assessment.category === 'uncertain') condition = 'Not determined';
+  else condition = d.primary_condition || result?.metadata?.raw_disease_label || result?.disease || '—';
+  set('r-dx-condition', condition);
+  const sev = d.severity && d.severity !== 'unknown' ? d.severity : null;
+  set('r-dx-severity', sev ? sev.charAt(0).toUpperCase() + sev.slice(1) : '—');
+  // Gemini's own (uncalibrated) certainty; shown only when it gave one.
+  const conf = Number(d.confidence ?? result?.confidence);
+  const hasConf = assessment.category !== 'uncertain' && Number.isFinite(conf) && conf > 0;
+  set('r-dx-conf', hasConf ? Math.round(conf * 100) + '% (AI estimate)' : '—');
+  set('r-dx-summary', (dx && dx.summary) || result?.gemini_reasoning || '');
+  const signsEl = document.getElementById('r-dx-signs');
+  if(signsEl){
+    signsEl.textContent = '';
+    const obs = Array.isArray(dx?.observations) ? dx.observations : [];
+    obs.filter(o => o && o.finding && o.category !== 'healthy_tissue').slice(0, 3).forEach(o => {
+      const li = document.createElement('li');
+      li.textContent = o.finding + (o.certainty === 'possible' ? ' (possible)' : '');
+      signsEl.appendChild(li);
+    });
+  }
+}
+
 function _resolveResultTone(result, userOk){
   const healthPct = result?.health?.plant_health;
   const risk = String(result?.health?.disease_risk || '').toLowerCase();
   if(!userOk) return 'warn';
+  const cat = _pvAssessment(result).category;
+  if(cat === 'uncertain' || cat === 'possible_water_stress' || cat === 'other_problem') return 'warn';
+  if(cat === 'possible_disease'){
+    const sev = String(result?.metadata?.gemini_diagnosis?.diagnosis?.severity || '').toLowerCase();
+    return (sev === 'severe' || risk === 'high' || risk === 'critical') ? 'crit' : 'warn';
+  }
   if(_isHealthyDisease(result?.disease)){
     if(typeof healthPct === 'number' && healthPct < 50) return 'crit';
     if(typeof healthPct === 'number' && healthPct < 75) return 'warn';
@@ -249,6 +316,11 @@ function _resultHeadline(result, tone, userOk){
   // Icon-prefixed headlines using inline SVG spans — no emojis.
   const ico = (key) => '<span class="headline-ico" aria-hidden="true">' + (RESULT_SVGS[key] || '') + '</span>';
   if(!userOk)                            return ico('warn') + ' Low Confidence';
+  const cat = _pvAssessment(result).category;
+  if(cat === 'uncertain')                return ico('warn') + ' Uncertain — Retake Photo';
+  if(cat === 'possible_water_stress')    return ico('warn') + ' Possible Water Stress';
+  if(cat === 'other_problem')            return ico('warn') + ' Visible Health Problem';
+  if(cat === 'possible_disease')         return ico(tone === 'crit' ? 'crit' : 'warn') + ' Possible Disease Detected';
   if(_isHealthyDisease(result?.disease)) return ico('ok')   + ' Healthy Plant';
   if(tone === 'crit')                    return ico('crit') + ' Critical Detection';
   if(tone === 'warn')                    return ico('warn') + ' Disease Detected';
@@ -381,6 +453,7 @@ function showPredictResult(result){
 
   const classLabel = result.class_name || result.disease_type || '';
   if(titleEl) titleEl.innerHTML = _resultHeadline(result, tone, userOk); // static icon + fixed text only, no server data
+  _renderDiagnosisSection(result, _pvAssessment(result));
 
   // Plant identification — canonical Pl@ntNet shape with legacy fallback.
   const plantName = (result.plant && result.plant.common_name)
@@ -390,17 +463,13 @@ function showPredictResult(result){
   const famName = (result.plant && result.plant.family) || '—';
   const genusName = (result.plant && result.plant.genus) || '—';
 
-  // Confidence priority for the result card: plant-id confidence first
-  // (this is the "how sure are we about the species?" number), then the
-  // disease confidence as a fallback so the field is never empty when
-  // any real value is available.
+  // "ID Confidence" is the species-identification confidence only; the
+  // diagnosis confidence has its own row in the Diagnosis section.
   const _plantConfRaw   = Number(result.plant && result.plant.confidence);
   const _diseaseConfRaw = Number(result.confidence);
   const _plantConfOk    = Number.isFinite(_plantConfRaw)   && _plantConfRaw   > 0;
   const _diseaseConfOk  = Number.isFinite(_diseaseConfRaw) && _diseaseConfRaw > 0;
-  const _confValue      = _plantConfOk ? _plantConfRaw
-                        : _diseaseConfOk ? _diseaseConfRaw
-                        : null;
+  const _confValue      = _plantConfOk ? _plantConfRaw : null;
   const confPct = _confValue != null ? (_confValue * 100).toFixed(1) + '%' : '—';
   // The notification observer + legacy debug surfaces read the disease
   // confidence string; keep that derivation honest.
@@ -637,11 +706,17 @@ function showScanError(message){
     'r-env-temp', 'r-env-humid', 'r-env-light',
     'r-env-soil-moist', 'r-env-ph', 'r-env-ec',
     'r-species', 'r-conf', 'r-hp', 'r-risk', 'r-surv',
+    'r-dx-status', 'r-dx-condition', 'r-dx-severity', 'r-dx-conf',
   ];
   _resetIds.forEach(id => {
     const el = document.getElementById(id);
     if(el) el.textContent = '—';
   });
+  ['r-dx-summary', 'r-dx-signs'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.textContent = '';
+  });
+  document.getElementById('r-dx-status')?.setAttribute('data-cat', 'uncertain');
   const msg = message || 'Could not complete the scan. Please try again.';
   const recEl = document.getElementById('r-recommendation');
   const recLegacy = document.getElementById('r-rec');

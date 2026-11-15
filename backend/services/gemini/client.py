@@ -317,10 +317,17 @@ class GeminiClient:
                 err = classify_exception(exc, current)
                 fallback = self.config.fallback_model
                 fallback = fallback if fallback and fallback != current else None
-                retry = err.retryable or (fallback is not None and isinstance(err, GeminiModelNotFound))
+                # Daily quotas are counted per model, so an exhausted model can
+                # still be served by the fallback model straight away.
+                switch_model = fallback is not None and isinstance(
+                    err, (GeminiModelNotFound, GeminiQuotaExceeded)
+                )
+                retry = err.retryable or switch_model
                 left = deadline - time.perf_counter()
                 if retry and attempt <= self.config.max_retries and left >= _MIN_LEFT_FOR_RETRY_S:
-                    delay = max(0.0, min(self._backoff(attempt - 1), left - _MIN_LEFT_FOR_RETRY_S))
+                    delay = 0.0 if isinstance(err, GeminiQuotaExceeded) else max(
+                        0.0, min(self._backoff(attempt - 1), left - _MIN_LEFT_FOR_RETRY_S)
+                    )
                     log.warning(
                         "gemini op=%s model=%s attempt=%d failed (%s); retrying on %s in %.1fs",
                         operation, current, attempt, err.code, fallback or current, delay,

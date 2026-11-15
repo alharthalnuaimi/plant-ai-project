@@ -65,8 +65,9 @@ _ALIASES = {
     "diseases": "diseased",
     "cucumber_diseased": "diseased",
     "cucumber_disease": "diseased",
-    "rust": "leaf_spot",
-    "blight": "bacterial_wilt",
+    # Rust and blight are distinct diseases; only file them under the generic class.
+    "rust": "diseased",
+    "blight": "diseased",
     "normal": "healthy",
     "none": "healthy",
 }
@@ -105,10 +106,11 @@ def _match_class(slug: str) -> str:
             return "powdery_mildew"
         if "downy" in words:
             return "downy_mildew"
-        if words & {"bacterial", "wilt"}:
-            return "bacterial_wilt"
         if words & {"spot", "spots"}:
             return "leaf_spot"
+        # Only "bacterial wilt" itself: Fusarium/Verticillium wilt are fungal.
+        if {"bacterial", "wilt"} <= words:
+            return "bacterial_wilt"
         return "diseased"
     if negated & _DISEASE_WORDS or words & _HEALTHY_WORDS:
         return "healthy"

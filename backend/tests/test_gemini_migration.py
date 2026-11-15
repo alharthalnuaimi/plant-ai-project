@@ -453,19 +453,40 @@ def test_parse_strips_code_fences():
 # --------------------------------------------------------------------------
 
 
-def test_quota_exhaustion_is_not_retried(client, fake_gemini):
-    fake_gemini.script.append(
-        _api_error(
-            429,
-            "You exceeded your current quota, please check your plan and billing details.",
-            "RESOURCE_EXHAUSTED",
-            details=[{"violations": [{"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier"}]}],
-        )
+def _daily_quota_error():
+    return _api_error(
+        429,
+        "You exceeded your current quota, please check your plan and billing details.",
+        "RESOURCE_EXHAUSTED",
+        details=[{"violations": [{"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier"}]}],
     )
+
+
+def test_quota_exhaustion_is_not_retried_without_a_fallback_model(client, fake_gemini, monkeypatch):
+    monkeypatch.setenv("GEMINI_FALLBACK_MODEL", "none")
+    fake_gemini.script.append(_daily_quota_error())
     resp = _predict(client)
     assert resp.status_code == 429
     assert resp.json()["error"] == "gemini_quota_exceeded"
     assert len(fake_gemini.calls) == 1
+
+
+def test_daily_quota_on_one_model_switches_to_the_fallback_model(client, fake_gemini, monkeypatch):
+    monkeypatch.setenv("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite")
+    fake_gemini.script.append(_daily_quota_error())
+    resp = _predict(client)
+    assert resp.status_code == 200, resp.text
+    assert [c["model"] for c in fake_gemini.calls] == ["gemini-3.5-flash", "gemini-3.5-flash-lite"]
+    assert resp.json()["metadata"]["gemini"]["model"] == "gemini-3.5-flash-lite"
+
+
+def test_quota_exhausted_on_both_models_is_reported(client, fake_gemini, monkeypatch):
+    monkeypatch.setenv("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite")
+    fake_gemini.script.extend([_daily_quota_error(), _daily_quota_error()])
+    resp = _predict(client)
+    assert resp.status_code == 429
+    assert resp.json()["error"] == "gemini_quota_exceeded"
+    assert len(fake_gemini.calls) == 2
 
 
 def test_rate_limit_is_retried_with_backoff_then_succeeds(client, fake_gemini):

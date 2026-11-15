@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import io
 
+import pytest
 from PIL import Image
 
 from services import analytics_store
@@ -35,11 +36,43 @@ def test_uncatalogued_condition_shows_geminis_advice(fastapi_client, fake_gemini
     assert GENERIC_TIP not in str(body)
 
 
-def test_catalogued_condition_keeps_the_catalog_advice(fastapi_client, fake_gemini):
+def test_catalogued_condition_shows_geminis_advice(fastapi_client, fake_gemini):
     fake_gemini.diagnosis["recommended_action"] = "Gemini says something else."
     body = _scan(fastapi_client).json()
     assert body["disease"] == "Powdery Mildew"
-    assert body["health"]["recommendation"].startswith("Improve airflow")
+    assert body["health"]["recommendation"] == "Gemini says something else."
+
+
+def test_geminis_condition_name_is_never_renamed(fastapi_client, fake_gemini):
+    fake_gemini.diagnosis["diagnosis"]["primary_condition"] = "Rose Black Spot"
+    body = _scan(fastapi_client).json()
+    assert body["disease"] == "Rose Black Spot"
+    assert body["class_name"] == "leaf_spot"
+
+
+@pytest.mark.parametrize(
+    "status, health_category, category, stress, expected",
+    [
+        ("healthy", "healthy", "healthy", "none", "healthy"),
+        ("diseased", "possible_disease", "fungal", "none", "possible_disease"),
+        ("stressed", "possible_water_stress", "environmental_stress", "dehydration_or_sun_stress", "possible_water_stress"),
+        ("stressed", "other_problem", "pest", "other_stress", "other_problem"),
+        ("uncertain", "possible_disease", "unknown", "unknown", "uncertain"),
+        ("not_assessable", None, "unknown", "unknown", "uncertain"),
+        # Gemini left health_category empty: read it from its other fields.
+        ("stressed", None, "environmental_stress", "dehydration_or_sun_stress", "possible_water_stress"),
+        ("diseased", None, "bacterial", "none", "possible_disease"),
+    ],
+)
+def test_scan_carries_the_health_assessment(fastapi_client, fake_gemini, status, health_category, category, stress, expected):
+    dx = fake_gemini.diagnosis
+    dx["diagnosis"].update(status=status, category=category, primary_condition=None if status in ("uncertain", "not_assessable") else "Some condition")
+    if status == "not_assessable":
+        dx["image_quality"] = "unusable"
+    dx["stress_signal"] = stress
+    dx["health_category"] = health_category
+    body = _scan(fastapi_client).json()
+    assert body["metadata"]["assessment"]["category"] == expected
 
 
 def test_missing_advice_falls_back_without_failing(fastapi_client, fake_gemini):
