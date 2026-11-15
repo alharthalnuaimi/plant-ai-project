@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-PROMPT_VERSION = "gemini-v1"
+PROMPT_VERSION = "gemini-v2"
 
 DIAGNOSIS_SYSTEM = """\
 You are a careful plant pathologist examining ONE photograph.

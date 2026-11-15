@@ -118,6 +118,10 @@ class GeminiDiagnosis(BaseModel):
     uncertainties: list[str] = Field(description="What cannot be determined from this image, and why.")
     stress_signal: StressSignal
     summary: str = Field(description="One or two plain sentences summarising the visual assessment.")
+    recommended_action: str | None = Field(
+        default=None,
+        description="The single most useful next step for the grower, based on what is visible. Null if no plant is assessable.",
+    )
 
 
 # --------------------------------------------------------------------------
