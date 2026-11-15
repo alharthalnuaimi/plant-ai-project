@@ -5,15 +5,19 @@ Exposes GET /admin/providers and POST /admin/providers/test.
 
 from __future__ import annotations
 
+import asyncio
 import io
 from typing import Any
 from fastapi import APIRouter, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from PIL import Image
 from pydantic import BaseModel, Field
 
 from services.providers.multi_provider import PROVIDER_REGISTRY
 
 router = APIRouter(prefix="/admin/providers", tags=["admin_providers"])
+
+PROVIDER_TEST_TIMEOUT_S = 20.0
 
 
 class TestProviderRequest(BaseModel):
@@ -40,7 +44,22 @@ async def test_provider_connection(payload: TestProviderRequest) -> dict[str, An
     # Providers now receive the image itself, so the connection test must send a real one.
     buf = io.BytesIO()
     Image.new("RGB", (64, 64), (40, 110, 60)).save(buf, format="JPEG")
-    res = provider.annotate(buf.getvalue(), context_label="Healthy Money Plant")
+    # Provider SDKs block, so run them in a worker thread with a deadline.
+    # shortcut: a timed-out call keeps running in its thread until the SDK gives up; pass a per-call timeout to each SDK if that matters.
+    try:
+        res = await asyncio.wait_for(
+            run_in_threadpool(provider.annotate, buf.getvalue(), context_label="Healthy Money Plant"),
+            timeout=PROVIDER_TEST_TIMEOUT_S,
+        )
+    except asyncio.TimeoutError:
+        res = {
+            "provider": provider.name,
+            "class_label": None,
+            "confidence": 0.0,
+            "bbox": None,
+            "reasoning": f"No response within {PROVIDER_TEST_TIMEOUT_S:.0f} s",
+            "status": "error",
+        }
     return {
         "provider": provider.name,
         "env_var": provider.env_var,
