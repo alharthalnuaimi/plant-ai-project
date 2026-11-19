@@ -141,6 +141,30 @@ class GeminiDiagnosis(BaseModel):
     )
 
 
+class LocalizedDiagnosis(BaseModel):
+    """Arabic rendering of the user-facing text of a diagnosis (language="ar" only)."""
+
+    # Every field has a default: a partial Arabic block must never fail the
+    # whole diagnosis (the English fields are the canonical record).
+    condition: str | None = Field(default=None, description="Arabic name of diagnosis.primary_condition, or null when that is null.")
+    summary: str | None = Field(default=None, description="Arabic version of summary.")
+    recommended_action: str | None = Field(default=None, description="Arabic version of recommended_action, or null.")
+    image_quality_notes: str | None = Field(default=None, description="Arabic version of image_quality_notes, or null.")
+    observations: list[str] = Field(default_factory=list, description="Arabic text of each observations[].finding, same order.")
+    uncertainties: list[str] = Field(default_factory=list, description="Arabic text of each uncertainties[] item, same order.")
+    alternative_diagnoses: list[str] = Field(default_factory=list, description="One Arabic line per alternative diagnosis, same order.")
+    plant_common_name: str | None = Field(default=None, description="Common Arabic name of the plant, or null.")
+
+
+class GeminiDiagnosisLocalized(GeminiDiagnosis):
+    """``GeminiDiagnosis`` plus an Arabic block. Used only when the user reads Arabic;
+    the English fields stay the canonical, persisted record."""
+
+    localized: LocalizedDiagnosis | None = Field(
+        default=None, description="Arabic rendering of the user-facing text fields."
+    )
+
+
 # --------------------------------------------------------------------------
 # Reasoning (text)
 # --------------------------------------------------------------------------
@@ -221,4 +245,7 @@ def enforce_diagnosis_consistency(d: GeminiDiagnosis) -> GeminiDiagnosis:
 
     if dx is not d.diagnosis:
         updates["diagnosis"] = dx
+    localized = getattr(d, "localized", None)
+    if localized is not None and dx.primary_condition is None and localized.condition is not None:
+        updates["localized"] = localized.model_copy(update={"condition": None})
     return d.model_copy(update=updates) if updates else d

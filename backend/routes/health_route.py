@@ -63,6 +63,7 @@ async def plant_health(
     user_id: str = Query(default="demo_user"),
     zone_id: str = Query(default="zone_alpha"),
     device_id: str = Query(default="esp32_001"),
+    lang: str = Query(default="en", max_length=10),
 ) -> PlantHealthScore:
     uid = (user_id or "demo_user").strip() or "demo_user"
     zid = (zone_id or "zone_alpha").strip() or "zone_alpha"
@@ -74,7 +75,9 @@ async def plant_health(
     if scan:
         from services.plant_health import compute_from_scan_record
 
-        return compute_from_scan_record(scan, sensor)
+        from services.gemini.prompts import normalize_language
+
+        return compute_from_scan_record(scan, sensor, normalize_language(lang))
 
     if sensor:
         return compute_plant_health(

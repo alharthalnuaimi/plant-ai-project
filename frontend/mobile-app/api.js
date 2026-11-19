@@ -87,6 +87,9 @@ async function predictPlantImage(file, opts = {}) {
   form.append("zone_id", zoneId);
   form.append("device_id", deviceId);
   form.append("source", source);
+  // UI language: with "ar" Gemini also returns an Arabic block (English stays canonical).
+  const uiLang = (window.pvI18n && typeof window.pvI18n.getLang === "function") ? window.pvI18n.getLang() : "en";
+  if (uiLang !== "en") form.append("language", uiLang);
   if (plantId)   form.append("plant_id", plantId);
   if (plantName) form.append("plant_name", plantName);
 

@@ -27,7 +27,9 @@ from services.gemini.diagnosis import (
     primary_label,
     stress_hint,
     user_guidance,
+    user_guidance_ar,
 )
+from services.gemini.prompts import normalize_language
 from services.gemini.schemas import GeminiDiagnosis
 from services.species_taxonomy import lookup as species_lookup
 
@@ -94,6 +96,7 @@ def vision_result_from_diagnosis(
     identify: bool,
     species_id: str | None,
     elapsed_ms: float,
+    language: str = "en",
 ) -> VisionResult:
     d = outcome.diagnosis
     label = primary_label(d)
@@ -131,6 +134,17 @@ def vision_result_from_diagnosis(
     guidance = user_guidance(d) or (d.recommended_action or "").strip() or None
     if guidance:
         meta["guidance"] = guidance
+    if language == "ar":
+        meta["language"] = "ar"
+        localized = getattr(d, "localized", None)
+        guidance_ar = user_guidance_ar(d) or ((localized.recommended_action if localized else None) or "").strip() or None
+        if guidance_ar:
+            meta["guidance_localized"] = guidance_ar
+        # Compact copies that survive in every scan store (list views read these).
+        if localized is not None and localized.condition:
+            meta["localized_condition"] = localized.condition
+        if localized is not None and localized.plant_common_name:
+            meta["localized_plant_name"] = localized.plant_common_name
 
     return VisionResult(
         disease=disease,
@@ -159,6 +173,7 @@ def run_vision_prediction(
     *,
     identify: bool = True,
     species_id: str | None = None,
+    language: str | None = None,
 ) -> VisionResult:
     """Diagnose one image with Gemini and return the legacy ``VisionResult`` shape.
 
@@ -174,10 +189,11 @@ def run_vision_prediction(
         entry = species_lookup(species_id)
         hint = entry.common_name if entry.species_id != "unknown" else species_id.strip()
 
-    outcome = diagnose_plant_image(image_bytes, species_hint=hint)
+    lang = normalize_language(language)
+    outcome = diagnose_plant_image(image_bytes, species_hint=hint, language=lang)
     elapsed_ms = (time.perf_counter() - t0) * 1000.0
     result = vision_result_from_diagnosis(
-        outcome, identify=identify, species_id=species_id, elapsed_ms=elapsed_ms
+        outcome, identify=identify, species_id=species_id, elapsed_ms=elapsed_ms, language=lang
     )
 
     try:

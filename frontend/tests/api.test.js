@@ -217,7 +217,9 @@ test('the Export action clicks a button that exists', () => {
 
 test('a failed scan does not create a scan notification', () => {
   const observer = src('app.js').match(/const resObserver[\s\S]*?pushNotification/)[0];
-  assert.match(observer, /'Scan Failed'\) return/);
+  // Guarded by a flag, not the title text (which is translated in Arabic).
+  assert.match(observer, /dataset\.pvFailed === '1'\) return/);
+  assert.match(src('app.js'), /titleEl\.textContent = 'Scan Failed'; titleEl\.dataset\.pvFailed = '1';/);
 });
 
 // ---- AI status (header chip) -----------------------------------------------

@@ -16,6 +16,9 @@
     return document.getElementById(id);
   }
 
+  // Stored Arabic copy of a scan field in Arabic mode (see i18n.js pick()).
+  const _pick = (o, f) => (window.pvI18n && window.pvI18n.pick ? window.pvI18n.pick(o, f) : (o ? o[f] : undefined));
+
   function zoneLabel(zid) {
     return ZONE_LABELS[zid] || (zid || "—").replace(/_/g, " ");
   }
@@ -30,7 +33,7 @@
 
   function fmtTime(ts) {
     if (!ts) return "—";
-    return new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return new Date(ts * 1000).toLocaleTimeString(window.pvI18n ? window.pvI18n.dateLocale() : undefined, { hour: "2-digit", minute: "2-digit" });
   }
 
   function sessionMode(summary, backendOk, sensorCtx) {
@@ -197,7 +200,7 @@
       : "—";
     const last = history && history[0];
     const disEl = $("prof-metric-disease");
-    if (disEl) disEl.textContent = last ? last.disease : health ? health.class_name || "—" : "—";
+    if (disEl) disEl.textContent = last ? _pick(last, "disease") : health ? health.class_name || "—" : "—";
     if (_prevScans !== null && scans > _prevScans) {
       setTrend("prof-trend-scans", "↑ +" + (scans - _prevScans) + " scans", "up");
     } else if (scans > 0) {
@@ -257,7 +260,7 @@
 
     if (scanEl) {
       scanEl.textContent = scan
-        ? `${scan.disease} (${((scan.confidence || 0) * 100).toFixed(1)}%)`
+        ? `${_pick(scan, "disease")} (${((scan.confidence || 0) * 100).toFixed(1)}%)`
         : "No scan in session yet";
     }
     if (zoneEl) zoneEl.textContent = zoneLabel(scan?.zone_id || zid);
@@ -474,7 +477,7 @@
         const d = (latest.disease || "").trim();
         const conf = Number(latest.confidence) || 0;
         const unclassified = !d || /^(unknown|pending|unclassified|n\/a)$/i.test(d) || conf < 0.4;
-        diseaseEl.textContent = unclassified ? "Pending analysis" : d;
+        diseaseEl.textContent = unclassified ? "Pending analysis" : _pick(latest, "disease");
       }
     }
     if (confEl) {
@@ -488,7 +491,7 @@
     if (countEl) countEl.textContent = (profile && profile.scan_count) || 0;
     if (tsEl) tsEl.textContent = profile ? _ppFmtAgo(profile.last_scanned_at) : "—";
 
-    const rec = latest && (latest.recommendation || (latest.metadata && latest.metadata.recommendation));
+    const rec = latest && (_pick(latest, "recommendation") || (latest.metadata && latest.metadata.recommendation));
     if (rec && recBlock && recEl) {
       recEl.textContent = rec;
       recBlock.hidden = false;
@@ -507,7 +510,7 @@
           const dRaw = (it.disease || "").trim();
           const conf = Number(it.confidence) || 0;
           const unclassified = !dRaw || /^(unknown|pending|unclassified|n\/a)$/i.test(dRaw) || conf < 0.4;
-          const disease = unclassified ? "Pending analysis" : dRaw;
+          const disease = unclassified ? "Pending analysis" : _pick(it, "disease");
           const confTxt = unclassified ? "—" : (conf * 100).toFixed(1) + "%";
           return `<div class="pp-history-row" data-scan-id="${it.id || ""}" data-scan-zone="${it.zone_id || ""}" role="button" tabindex="0">
             <span class="pp-row-disease">${disease}</span>
@@ -586,6 +589,7 @@
       (history && history[0]
         ? {
             disease: history[0].disease,
+            disease_localized: history[0].disease_localized,
             confidence: history[0].confidence,
             zone_id: history[0].zone_id,
           }
@@ -677,7 +681,7 @@
   }
 
   function clearLocalCache() {
-    if (!confirm("Clear local cache (zones, notifications, chat position)? Settings and API identity are kept.")) return;
+    if (!confirm(window.pvI18n ? window.pvI18n.t("Clear local cache (zones, notifications, chat position)? Settings and API identity are kept.") : "Clear local cache (zones, notifications, chat position)? Settings and API identity are kept.")) return;
     ["pv-zones", "pv-notifications", "pv-notif-counter", "pv-chat-pos", "pv-profile"].forEach((k) =>
       localStorage.removeItem(k)
     );
@@ -688,7 +692,7 @@
   }
 
   function resetDemoSession() {
-    if (!confirm("Reset demo session IDs to defaults?")) return;
+    if (!confirm(window.pvI18n ? window.pvI18n.t("Reset demo session IDs to defaults?") : "Reset demo session IDs to defaults?")) return;
     window.PLANT_USER_ID = "demo_user";
     window.PLANT_ZONE_ID = "zone_alpha";
     window.PLANT_DEVICE_ID = "esp32_001";

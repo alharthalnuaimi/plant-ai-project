@@ -50,6 +50,8 @@ class ChatRequest(BaseModel):
     user_id: str | None = None
     zone_id: str | None = None
     device_id: str | None = None
+    # UI language: "en" (default) or "ar" — Gemini answers in that language.
+    language: str | None = Field(default=None, max_length=10)
 
     @model_validator(mode="after")
     def _needs_something_to_reason_about(self) -> "ChatRequest":
@@ -194,7 +196,7 @@ async def chat(req: ChatRequest) -> dict:
     if len(json.dumps(context, default=str)) > _MAX_CONTEXT_CHARS:
         raise HTTPException(status_code=413, detail="Request is too large to analyse")
 
-    outcome = await run_in_threadpool(reason_about_plant, context)
+    outcome = await run_in_threadpool(reason_about_plant, context, language=req.language)
     log.info("POST /chat — Gemini reasoning ok model=%s", outcome.model)
 
     return {

@@ -159,6 +159,8 @@ _REPORT_META_KEYS = (
     "plant_id", "plant_name", "raw_disease_label", "plant_identification", "stress_hint",
     # Gemini's own advice and verdict, so later views don't fall back to catalog text.
     "guidance", "assessment",
+    # Arabic copies (language="ar" scans only); the English fields stay canonical.
+    "guidance_localized", "localized_condition", "localized_plant_name",
 )
 
 
@@ -534,7 +536,10 @@ def get_latest_scan_for_plant(
 
 
 def get_history(limit: int = 20) -> list[ScanHistoryItem]:
-    return [ScanHistoryItem(**s) for s in list(_scans)[:limit]]
+    return [
+        ScanHistoryItem(**s, disease_localized=(s.get("metadata") or {}).get("localized_condition"))
+        for s in list(_scans)[:limit]
+    ]
 
 
 def _demo_history() -> list[ScanHistoryItem]:

@@ -8,10 +8,11 @@ import time
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 import asyncio
+import json
 import logging
 
 from config.settings import SETTINGS
@@ -63,6 +64,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 wire_observability(app)
+
+# English/Arabic: with ``?lang=ar`` the rule-based English sentences in these
+# read/scan responses are returned in Arabic (services.localization). The
+# response is rewritten only; nothing stored changes. Sensor and device
+# routes are never rewritten.
+_LOCALIZED_PREFIXES = ("/report", "/analytics", "/scans", "/care", "/predict", "/health/plant", "/chat")
+
+
+@app.middleware("http")
+async def _localize_rule_text(request: Request, call_next):
+    response = await call_next(request)
+    if (
+        request.query_params.get("lang") != "ar"
+        or not request.url.path.startswith(_LOCALIZED_PREFIXES)
+        or "application/json" not in (response.headers.get("content-type") or "")
+    ):
+        return response
+    from services.localization import localize_payload
+
+    body = b"".join([chunk async for chunk in response.body_iterator])
+    try:
+        payload = json.loads(body)
+    except ValueError:
+        payload = None
+    headers = {k: v for k, v in response.headers.items() if k.lower() != "content-length"}
+    if payload is None:
+        return Response(content=body, status_code=response.status_code, headers=headers)
+    return JSONResponse(
+        content=localize_payload(payload, "ar"), status_code=response.status_code, headers=headers
+    )
+
 
 _APP_STARTED_AT = time.time()
 

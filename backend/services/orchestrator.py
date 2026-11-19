@@ -23,12 +23,13 @@ def run_analysis_pipeline(
     request_id: str,
     image_bytes: bytes,
     request: OrchestratorRequest,
+    language: str | None = None,
 ) -> OrchestratorResponse:
     t0 = time.perf_counter()
     warnings: list[str] = []
 
     t_vision_0 = time.perf_counter()
-    vision = run_vision_prediction(image_bytes)
+    vision = run_vision_prediction(image_bytes, language=language)
     t_vision = (time.perf_counter() - t_vision_0) * 1000.0
     if not vision.accepted:
         warnings.append(
@@ -75,7 +76,7 @@ def run_analysis_pipeline(
     prepared = prepare_image(image_bytes, load_gemini_config())
 
     t_llm_0 = time.perf_counter()
-    outcome = reason_about_plant(context, image=(prepared.data, prepared.mime_type))
+    outcome = reason_about_plant(context, image=(prepared.data, prepared.mime_type), language=language)
     t_llm = (time.perf_counter() - t_llm_0) * 1000.0
 
     total_ms = (time.perf_counter() - t0) * 1000.0

@@ -15,6 +15,9 @@ class ScanHistoryItem(BaseModel):
     inference_ms: float
     timestamp: float
     accepted: bool
+    # Arabic condition name stored by language="ar" scans (null otherwise);
+    # ``disease`` stays the canonical English value.
+    disease_localized: str | None = None
 
 
 class AnalyticsEvent(BaseModel):

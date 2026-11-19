@@ -86,3 +86,56 @@ Respond with JSON matching the schema only.
 
 def reasoning_user_prompt(context: dict[str, Any]) -> str:
     return "Context JSON:\n" + json.dumps(context, ensure_ascii=False, default=str)
+
+
+# --------------------------------------------------------------------------
+# Arabic output (opt-in with language="ar"; English prompts above are unchanged)
+# --------------------------------------------------------------------------
+
+SUPPORTED_LANGUAGES = ("en", "ar")
+
+# Version of the Arabic addenda below. It is part of the Arabic diagnosis
+# cache key only, so editing the Arabic text invalidates Arabic entries
+# without touching English ones (PROMPT_VERSION covers the English prompt).
+ARABIC_PROMPT_VERSION = "ar-1"
+
+
+def normalize_language(language: str | None) -> str:
+    """``"ar"`` for Arabic, otherwise ``"en"`` (unknown values fall back to English)."""
+
+    lang = (language or "").strip().lower()[:2]
+    return lang if lang in SUPPORTED_LANGUAGES else "en"
+
+
+DIAGNOSIS_ARABIC_ADDENDUM = """
+
+LANGUAGE: The user reads Arabic.
+Keep every field above exactly as specified, in English (it is the canonical record).
+Additionally fill "localized" with a faithful Modern Standard Arabic rendering for the user:
+- condition: the Arabic name of diagnosis.primary_condition (null when it is null); you may append the
+  English or scientific name in parentheses when it helps, e.g. "البياض الدقيقي (Powdery Mildew)".
+- summary, recommended_action, image_quality_notes: Arabic versions of those fields (null when null).
+- observations: the Arabic text of each observations[].finding, in the same order.
+- uncertainties: the Arabic text of each uncertainties[] item, in the same order.
+- alternative_diagnoses: one Arabic line per alternative, "<condition> — <reason>", same order.
+- plant_common_name: the common Arabic name of the plant, or null if not identified.
+Keep scientific (Latin) names in Latin script. Use clear, practical Arabic for a home grower.
+"""
+
+REASONING_ARABIC_ADDENDUM = """
+
+LANGUAGE: The user reads Arabic. Write every free-text value (answer, summary, disease_explanation,
+possible_causes, environmental_analysis, recommendations, treatment_plan, prevention, urgent_actions,
+recovery_assessment.explanation) in clear Modern Standard Arabic. Use "لا توجد بيانات" instead of
+"No data". Keep the enum values (urgency, recovery_assessment.estimate, recovery_assessment.confidence)
+exactly as specified in English. Keep scientific (Latin) names in Latin script; you may add the Arabic
+common name next to them.
+"""
+
+
+def diagnosis_system(language: str | None) -> str:
+    return DIAGNOSIS_SYSTEM + (DIAGNOSIS_ARABIC_ADDENDUM if normalize_language(language) == "ar" else "")
+
+
+def reasoning_system(language: str | None) -> str:
+    return REASONING_SYSTEM + (REASONING_ARABIC_ADDENDUM if normalize_language(language) == "ar" else "")

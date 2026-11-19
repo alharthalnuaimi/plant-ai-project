@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Any
 
 from services.gemini.client import GeminiClient, get_gemini_client
-from services.gemini.prompts import PROMPT_VERSION, REASONING_SYSTEM, reasoning_user_prompt
+from services.gemini.prompts import PROMPT_VERSION, reasoning_system, reasoning_user_prompt
 from services.gemini.schemas import GeminiReasoning
 
 SENSOR_FIELDS = (
@@ -106,6 +106,7 @@ def reason_about_plant(
     context: dict[str, Any],
     *,
     image: tuple[bytes, str] | None = None,
+    language: str | None = None,
     client: GeminiClient | None = None,
 ) -> ReasoningOutcome:
     """Run the reasoning call. ``image`` is an optional ``(jpeg_bytes, mime)`` pair."""
@@ -122,7 +123,7 @@ def reason_about_plant(
         model=model,
         contents=contents,
         schema=GeminiReasoning,
-        system_instruction=REASONING_SYSTEM,
+        system_instruction=reasoning_system(language),
         temperature=client.config.reasoning_temperature,
     )
     return ReasoningOutcome(reasoning=reasoning, model=info.model, call=info.as_dict())

@@ -39,7 +39,7 @@ from schemas.sensors import SensorReading
 from services import analytics_store, sensor_store
 from services.care_engine import build_care_plan
 from services.disease_taxonomy import classify_disease
-from services.plant_health import apply_gemini_advice, compute_plant_health
+from services.plant_health import apply_gemini_advice, compute_plant_health, scan_guidance
 from services.prediction import run_vision_prediction
 
 log = logging.getLogger("plantvision.report")
@@ -232,6 +232,7 @@ def build_report_from_image(
     plant_id: str | None = None,
     species_id: str | None = None,
     identify: bool = True,
+    language: str = "en",
 ) -> PlantReport:
     """Run the full report pipeline on a fresh image."""
 
@@ -242,6 +243,7 @@ def build_report_from_image(
         image_bytes,
         identify=identify,
         species_id=species_id,
+        language=language,
     )
     timings["vision_ms"] = round((time.perf_counter() - t) * 1000.0, 2)
 
@@ -255,7 +257,7 @@ def build_report_from_image(
         sensor=sensor,
         source="live" if sensor is not None else "baseline",
     )
-    health = apply_gemini_advice(health, (vision.metadata or {}).get("guidance"))
+    health = apply_gemini_advice(health, scan_guidance(vision.metadata, language))
 
     # Resolve species: explicit override > vision.plant > plant_id slug heuristic > cucumber.
     resolved_species = (
@@ -298,6 +300,7 @@ def build_report_from_plant_id(
     zone_id: str = "zone_alpha",
     device_id: str = "esp32_001",
     species_id: str | None = None,
+    language: str = "en",
 ) -> PlantReport:
     """Build a report from the latest persisted scan + sensor cache.
 
@@ -362,7 +365,7 @@ def build_report_from_plant_id(
         sensor=sensor,
         source="live" if sensor is not None else "baseline",
     )
-    health = apply_gemini_advice(health, meta.get("guidance"))
+    health = apply_gemini_advice(health, scan_guidance(meta, language))
 
     resolved_species = (
         species_id

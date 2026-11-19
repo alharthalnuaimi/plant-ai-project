@@ -230,7 +230,7 @@
       hbAnalytics.textContent = at ? "Analytics: " + fmtAgo(Math.floor(at / 1000)) : "Analytics: —";
     }
 
-    if (polled) polled.textContent = "Updated " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    if (polled) polled.textContent = "Updated " + new Date().toLocaleTimeString(window.pvI18n ? window.pvI18n.dateLocale() : undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     if (tag) {
       tag.textContent = backendOk ? "● Live" : "● Offline";
       tag.style.color = backendOk ? "var(--sage)" : "var(--coral)";
@@ -478,7 +478,7 @@
     });
 
     document.getElementById("btn-clear")?.addEventListener("click", () => {
-      if (!confirm("Clear cached zones, notifications, and profile data? Scanner settings are kept.")) return;
+      if (!confirm(window.pvI18n ? window.pvI18n.t("Clear cached zones, notifications, and profile data? Scanner settings are kept.") : "Clear cached zones, notifications, and profile data? Scanner settings are kept.")) return;
       ["pv-zones", "pv-notifications", "pv-notif-counter", "pv-profile", "pv-chat-pos"].forEach((k) =>
         localStorage.removeItem(k)
       );
@@ -967,7 +967,7 @@
           return `<div class="pv-review-card" data-review-id="${item.id}">
             <div class="pv-review-header">
               <span class="pv-review-img mono">${_escapeHtml(item.image_ref || 'scan')}</span>
-              <span class="pv-review-ts mono">${item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}</span>
+              <span class="pv-review-ts mono">${item.created_at ? new Date(item.created_at).toLocaleDateString(window.pvI18n ? window.pvI18n.dateLocale() : undefined) : ''}</span>
             </div>
             <div class="pv-review-body">
               <div class="pv-review-col">
