@@ -235,6 +235,16 @@ function _pvAssessment(result){
   return { category, label: PV_ASSESSMENT_LABELS[category] };
 }
 
+// English/Arabic helpers. `_pvT` translates UI text (identity in English);
+// `_pvLoc` is Gemini's Arabic block for a scan when the UI is in Arabic.
+function _pvT(s, vars){ return (window.pvI18n && window.pvI18n.t) ? window.pvI18n.t(s, vars) : s; }
+function _pvLang(){ return (window.pvI18n && window.pvI18n.getLang) ? window.pvI18n.getLang() : 'en'; }
+function _pvLoc(result){
+  if(_pvLang() !== 'ar') return null;
+  const loc = result?.metadata?.gemini_diagnosis?.localized;
+  return (loc && typeof loc === 'object') ? loc : null;
+}
+
 // The scan result currently shown in the result modal (null after an error).
 let _pvLastScanResult = null;
 let _pvLastScanAt = null;
@@ -267,6 +277,7 @@ function _pvBuildScanReport(result, extra = {}){
   return {
     generated_at: new Date().toISOString(),
     app: 'PlantVision',
+    language: _pvLang(),
     scan: {
       result_received_at: extra.scannedAt || null,
       scan_source: meta.scan_source || null,
@@ -301,6 +312,8 @@ function _pvBuildScanReport(result, extra = {}){
       gemini_recommended_action: (gd && gd.recommended_action) || meta.guidance || null,
       ai_analysis: extra.aiAnalysis || null,
     },
+    // Gemini's Arabic rendering of the diagnosis text (Arabic UI only).
+    localized: gd && gd.localized ? gd.localized : null,
     environment: extra.environment || {},
     ai_model: {
       provider: meta.gemini?.provider || null,
@@ -330,6 +343,8 @@ function _renderDiagnosisSection(result, assessment){
   if(assessment.category === 'healthy') condition = 'No problem visible';
   else if(assessment.category === 'uncertain') condition = 'Not determined';
   else condition = d.primary_condition || result?.metadata?.raw_disease_label || result?.disease || '—';
+  const loc = _pvLoc(result);
+  if(loc && loc.condition && assessment.category !== 'healthy' && assessment.category !== 'uncertain') condition = loc.condition;
   set('r-dx-condition', condition);
   const sev = d.severity && d.severity !== 'unknown' ? d.severity : null;
   set('r-dx-severity', sev ? sev.charAt(0).toUpperCase() + sev.slice(1) : '—');
@@ -337,14 +352,16 @@ function _renderDiagnosisSection(result, assessment){
   const conf = Number(d.confidence ?? result?.confidence);
   const hasConf = assessment.category !== 'uncertain' && Number.isFinite(conf) && conf > 0;
   set('r-dx-conf', hasConf ? Math.round(conf * 100) + '% (AI estimate)' : '—');
-  set('r-dx-summary', (dx && dx.summary) || result?.gemini_reasoning || '');
+  set('r-dx-summary', (loc && loc.summary) || (dx && dx.summary) || result?.gemini_reasoning || '');
   const signsEl = document.getElementById('r-dx-signs');
   if(signsEl){
     signsEl.textContent = '';
     const obs = Array.isArray(dx?.observations) ? dx.observations : [];
-    obs.filter(o => o && o.finding && o.category !== 'healthy_tissue').slice(0, 3).forEach(o => {
+    const locObs = (loc && Array.isArray(loc.observations)) ? loc.observations : null;
+    obs.map((o, i) => ({ o, ar: locObs ? locObs[i] : null }))
+      .filter(({ o }) => o && o.finding && o.category !== 'healthy_tissue').slice(0, 3).forEach(({ o, ar }) => {
       const li = document.createElement('li');
-      li.textContent = o.finding + (o.certainty === 'possible' ? ' (possible)' : '');
+      li.textContent = (ar || o.finding) + (o.certainty === 'possible' ? ' (possible)' : '');
       signsEl.appendChild(li);
     });
   }
@@ -452,6 +469,8 @@ function _pvBuildChatPayload(scan, sensor, question){
     user_id:   meta.user_id   || (scan && scan.user_id) || window.PLANT_USER_ID   || null,
     zone_id:   meta.zone_id   || (scan && scan.zone_id) || window.PLANT_ZONE_ID   || null,
     device_id: meta.device_id || window.PLANT_DEVICE_ID || null,
+    // UI language: with "ar" Gemini answers in Arabic (default English unchanged).
+    language: _pvLang(),
   };
 }
 
@@ -533,13 +552,15 @@ function showPredictResult(result){
   _setResultIcon(tone);
 
   const classLabel = result.class_name || result.disease_type || '';
-  if(titleEl) titleEl.innerHTML = _resultHeadline(result, tone, userOk); // static icon + fixed text only, no server data
+  if(titleEl){ titleEl.innerHTML = _resultHeadline(result, tone, userOk); delete titleEl.dataset.pvFailed; } // static icon + fixed text only, no server data
   _renderDiagnosisSection(result, _pvAssessment(result));
   _pvLastScanResult = result;
   _pvLastScanAt = new Date().toISOString();
 
   // Plant identification — canonical Pl@ntNet shape with legacy fallback.
-  const plantName = (result.plant && result.plant.common_name)
+  const _loc = _pvLoc(result);
+  const plantName = (_loc && _loc.plant_common_name)
+    || (result.plant && result.plant.common_name)
     || result.plant_name
     || 'Unknown plant';
   const sciName = (result.plant && result.plant.scientific_name) || '—';
@@ -589,7 +610,8 @@ function showPredictResult(result){
   if(envEcEl)    envEcEl.textContent    = _envFmt(_snap.soil_ec,         ' mS', 1);
 
   // AI Recommendation — health.recommendation is the canonical place.
-  const recText = (health && health.recommendation)
+  const recText = (_pvLang() === 'ar' && result.metadata && result.metadata.guidance_localized)
+    || (health && health.recommendation)
     || result.recommendation
     || (result.stress_hint)
     || (_isUnclassified ? 'Awaiting analysis. Rescan with a clearer image when possible.' : '—');
@@ -661,7 +683,7 @@ function showPredictResult(result){
 
     // Show loading state in the recommendation area.
     const loadingMsg = 'Analysing your plant with AI...';
-    if (recEl) recEl.textContent = loadingMsg;
+    if (recEl) { recEl.textContent = loadingMsg; recEl.dataset.pvLoading = '1'; }
     if (recLegacyEl) recLegacyEl.textContent = loadingMsg;
 
     try {
@@ -693,6 +715,7 @@ function showPredictResult(result){
       const isGemini = data.source === 'gemini';
       const aiRec = isGemini ? (data.reply || data.recommendation || '') : '';
 
+      if (recEl) delete recEl.dataset.pvLoading;
       if (aiRec) {
         if (recEl)       recEl.textContent = aiRec;
         if (recLegacyEl) recLegacyEl.textContent = aiRec;
@@ -709,14 +732,20 @@ function showPredictResult(result){
     } catch (err) {
       console.warn('Gemini reasoning failed (non-fatal):', err);
       if (isStale()) return;
+      if (recEl) delete recEl.dataset.pvLoading;
       // Keep the scan's own recommendation and say plainly that the
       // detailed AI analysis did not run, so the user can retry.
       const baseRec = (result.health && result.health.recommendation)
         || result.recommendation
         || '—';
-      const note = `
+      const reason = _pvT(err && err.message ? err.message : 'request failed');
+      const note = _pvLang() === 'ar'
+        ? `
 
-(Detailed AI analysis unavailable: ${err && err.message ? err.message : 'request failed'} Ask the assistant to retry.)`;
+(التحليل التفصيلي بالذكاء الاصطناعي غير متاح: ${reason} اطلب من المساعد إعادة المحاولة.)`
+        : `
+
+(Detailed AI analysis unavailable: ${reason} Ask the assistant to retry.)`;
       if (recEl)       recEl.textContent = baseRec + note;
       if (recLegacyEl) recLegacyEl.textContent = baseRec + note;
     }
@@ -779,7 +808,7 @@ function showScanError(message){
   const card = document.getElementById('res-modal-card');
   if(card) card.setAttribute('data-tone', 'crit');
   _setResultIcon('crit');
-  if(titleEl) titleEl.textContent = 'Scan Failed';
+  if(titleEl){ titleEl.textContent = 'Scan Failed'; titleEl.dataset.pvFailed = '1'; }
   // Phase E — reset every visible field in the new modal layout so the
   // error state doesn't show stale values from the previous scan. The
   // legacy ids (r-species/r-conf/r-hp/r-risk/r-surv/r-rec) are also
@@ -1186,6 +1215,38 @@ if(new URLSearchParams(window.location.search).has('debug')){
 
 document.getElementById('m-cancel').addEventListener('click',()=>{ clearScanTimer(); scanModal.classList.remove('active'); });
 document.getElementById('r-dismiss').addEventListener('click',()=> resModal.classList.remove('active'));
+// The report is built from the scan result itself; only the environment
+// block and Gemini's chat analysis are read from what the modal shows.
+function _pvCurrentScanReport(){
+  const getText = (id) => { const el = document.getElementById(id); return el ? el.textContent.trim() : '—'; };
+  if(!_pvLastScanResult) throw new Error('no scan result to export');
+  const recNode = document.getElementById('r-recommendation');
+  const aiText = (recNode && recNode.dataset.pvLoading) ? '—' : getText('r-recommendation');
+  return _pvBuildScanReport(_pvLastScanResult, {
+    scannedAt: _pvLastScanAt,
+    aiAnalysis: (aiText && aiText !== '—') ? aiText : null,
+    environment: {
+      air_temperature: getText('r-env-temp'),
+      air_humidity:    getText('r-env-humid'),
+      light:           getText('r-env-light'),
+      soil_humidity:   getText('r-env-soil-moist'),
+      soil_ph:         getText('r-env-ph'),
+      soil_ec:         getText('r-env-ec'),
+    },
+  });
+}
+
+// Printable report (Save as PDF), in the current UI language.
+document.getElementById('r-print')?.addEventListener('click', function(){
+  try {
+    if(typeof window.pvOpenPrintableReport !== 'function') throw new Error('report printer not loaded');
+    window.pvOpenPrintableReport(_pvCurrentScanReport());
+  } catch (err) {
+    console.error('Print report failed:', err);
+    pvToast(_pvT('Could not open the printable report.'));
+  }
+});
+
 document.getElementById('r-save').addEventListener('click', function(){
   // --- Real report generation ---
   const btn = this;
@@ -1194,23 +1255,7 @@ document.getElementById('r-save').addEventListener('click', function(){
   btn.style.opacity = '.6';
 
   try {
-    // The report is built from the scan result itself; only the environment
-    // block and Gemini's chat analysis are read from what the modal shows.
-    const getText = (id) => { const el = document.getElementById(id); return el ? el.textContent.trim() : '—'; };
-    if(!_pvLastScanResult) throw new Error('no scan result to export');
-    const aiText = getText('r-recommendation');
-    const report = _pvBuildScanReport(_pvLastScanResult, {
-      scannedAt: _pvLastScanAt,
-      aiAnalysis: (aiText && aiText !== '—' && aiText !== 'Analysing your plant with AI...') ? aiText : null,
-      environment: {
-        air_temperature: getText('r-env-temp'),
-        air_humidity:    getText('r-env-humid'),
-        light:           getText('r-env-light'),
-        soil_humidity:   getText('r-env-soil-moist'),
-        soil_ph:         getText('r-env-ph'),
-        soil_ec:         getText('r-env-ec'),
-      },
-    });
+    const report = _pvCurrentScanReport();
 
     // Serialize and trigger download
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
@@ -2251,9 +2296,32 @@ function clampToViewport(left, top){
   };
 }
 
+// Keep the open chat panel inside the viewport horizontally, whatever side of
+// the screen the (draggable, physically positioned) chat button sits on and
+// in both reading directions. The panel is anchored to the button's right
+// edge; this only adjusts that offset, never the saved button position.
+function placeChatPanel(){
+  const panel = document.getElementById('chat-panel');
+  if(!panel) return;
+  panel.style.right = '';
+  panel.style.left = '';
+  const margin = 8;
+  const vw = document.documentElement.clientWidth || window.innerWidth;
+  const w = chatWidget.getBoundingClientRect();
+  const pw = panel.offsetWidth;
+  if(!pw) return;
+  const natural = w.right - pw;                      // panel left edge with right:0
+  const left = Math.max(margin, Math.min(vw - margin - pw, natural));
+  if(left !== natural){
+    panel.style.left = 'auto';
+    panel.style.right = (w.right - (left + pw)) + 'px';
+  }
+}
+
 function toggleChat(force){
   const next = typeof force === 'boolean' ? force : !chatWidget.classList.contains('open');
   chatWidget.classList.toggle('open', next);
+  if(next) placeChatPanel();
   chatFab.setAttribute('aria-expanded', String(next));
   chatFab.setAttribute('aria-label', next ? 'Close AI Chat' : 'Open AI Chat');
 }
@@ -2295,6 +2363,7 @@ function onFabPointerUp(e){
   chatDragState = null;
   if(wasDrag){
     chatWidget.classList.remove('dragging');
+    placeChatPanel();
     localStorage.setItem('pv-chat-pos', JSON.stringify({
       left: chatWidget.style.left,
       top: chatWidget.style.top,
@@ -2338,6 +2407,8 @@ document.addEventListener('keydown', e=>{
     toggleChat(false);
   }
 });
+
+window.addEventListener('resize', () => { if(chatWidget.classList.contains('open')) placeChatPanel(); });
 
 // Restore saved position (validated against current viewport)
 try {
@@ -2389,7 +2460,9 @@ function addMsg(text, isUser){
   div.className = `chat-msg ${isUser ? 'chat-msg-user' : 'chat-msg-bot'}`;
   const now = new Date();
   const time = now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
-  div.innerHTML = `<div class="chat-bubble">${escapeChatHtml(text)}</div><span class="chat-time mono">${time}</span>`;
+  // dir="auto" keeps mixed Arabic/English text readable; the user's own words
+  // are never run through the UI translator.
+  div.innerHTML = `<div class="chat-bubble" dir="auto"${isUser ? ' data-i18n-skip' : ''}>${escapeChatHtml(text)}</div><span class="chat-time mono">${time}</span>`;
   chatBody.appendChild(div);
   chatBody.scrollTop = chatBody.scrollHeight;
 }
@@ -2533,7 +2606,8 @@ function handleChatQuickAction(qa){
     sensors: 'Summarise my current sensor readings.',
     advice:  'What should I do to take care of my plant right now?',
   };
-  const userText = labelMap[qa] || qa;
+  // Shown and sent in the UI language so Gemini answers the question as asked.
+  const userText = _pvT(labelMap[qa] || qa);
   addMsg(userText, true);
   showTyping();
 
@@ -3194,7 +3268,7 @@ function timeAgo(ts){
   const days = Math.floor(hrs/24);
   if(days === 1) return 'Yesterday';
   if(days < 7) return days + 'd ago';
-  return new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  return new Date(ts).toLocaleDateString(window.pvI18n ? window.pvI18n.locale() : 'en-US',{month:'short',day:'numeric'});
 }
 
 function getNotifIconClass(type){
@@ -3339,10 +3413,13 @@ const origResModalShow = resModal.classList.add.bind(resModal.classList);
 const resObserver = new MutationObserver((mutations) => {
   mutations.forEach(m => {
     if(m.attributeName === 'class' && resModal.classList.contains('active')){
-      if(document.getElementById('r-title')?.textContent === 'Scan Failed') return;
+      if(document.getElementById('r-title')?.dataset.pvFailed === '1') return;
       // Phase E — read from the new result-card ids; fall back to legacy
       // ids so any future debug overlay that re-mounts them still works.
-      const plant = document.getElementById('r-plant-name')?.textContent
+      // Stored notifications keep the canonical (English) name so they read
+      // correctly in either language; the DOM text may already be Arabic.
+      const plant = (_pvLastScanResult && _pvLastScanResult.plant && _pvLastScanResult.plant.common_name)
+                  || document.getElementById('r-plant-name')?.textContent
                   || document.getElementById('r-species')?.textContent
                   || 'Plant';
       // Label each confidence by what it measures, and leave out any the scan lacks.
@@ -3568,6 +3645,22 @@ function restartSensorPolling(){
 window.plantSensorRefresh = (force) => updateEnvStrip(Boolean(force));
 restartSensorPolling();
 window.addEventListener('plantvision:settings-changed', () => restartSensorPolling());
+
+// ====== LANGUAGE SWITCH ======
+// i18n.js swaps the text already on screen. Re-render the parts it cannot
+// reach (canvas charts, locale-formatted times, Leaflet popups) and refetch
+// backend text so rule-based messages arrive in the new language.
+window.addEventListener('plantvision:lang-changed', (e) => {
+  const lang = e && e.detail ? e.detail.lang : _pvLang();
+  try { renderZoneChips(); renderMapMarkers(); } catch(_){ /* map not ready */ }
+  try { renderNotifications(false); } catch(_){}
+  if (window.plantHome && typeof window.plantHome.refresh === 'function') window.plantHome.refresh();
+  if (window.plantAnalytics && typeof window.plantAnalytics.refresh === 'function') window.plantAnalytics.refresh();
+  if (window.plantGarden && typeof window.plantGarden.refresh === 'function') window.plantGarden.refresh(true);
+  if (window.plantProfile && typeof window.plantProfile.refresh === 'function') window.plantProfile.refresh(true);
+  if (window.plantProfile && typeof window.plantProfile.refreshPlantProfile === 'function') window.plantProfile.refreshPlantProfile();
+  pvToast(lang === 'ar' ? 'تم ضبط اللغة على العربية' : 'Language set to English');
+});
 
 // ====== QUICK ACTION BUTTONS ======
 const actAddZone = document.getElementById('act-add-zone');

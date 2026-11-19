@@ -58,6 +58,7 @@ async def report(
     plant_id: str = Form(default=""),
     species_id: str = Form(default="", max_length=100),
     identify: bool = Form(default=True),
+    language: str = Form(default="", max_length=10),
 ) -> PlantReport:
     """Build a unified plant report.
 
@@ -66,6 +67,10 @@ async def report(
     """
 
     content_type = (request.headers.get("content-type") or "").lower()
+    # UI language: form field or ?lang= (default English, unchanged behaviour).
+    from services.gemini.prompts import normalize_language
+
+    lang = normalize_language(language or request.query_params.get("lang"))
 
     # ---- Image path ------------------------------------------------------
     if file is not None and getattr(file, "filename", None):
@@ -90,6 +95,7 @@ async def report(
                 plant_id=(plant_id or "").strip() or None,
                 species_id=(species_id or "").strip() or None,
                 identify=bool(identify),
+                language=lang,
             )
         except (HTTPException, AppError):
             raise
@@ -124,6 +130,7 @@ async def report(
             zone_id=(payload.zone_id or "zone_alpha").strip() or "zone_alpha",
             device_id=(payload.device_id or "esp32_001").strip() or "esp32_001",
             species_id=(payload.species_id or "").strip() or None,
+            language=lang,
         )
     except HTTPException:
         raise

@@ -56,12 +56,14 @@ async def _read_image(file: UploadFile) -> tuple[bytes, str, str]:
     return data, image_ext, image_type
 
 
-async def _diagnose(data: bytes, *, identify: bool, species_id: str | None) -> VisionResult:
+async def _diagnose(
+    data: bytes, *, identify: bool, species_id: str | None, language: str | None = None
+) -> VisionResult:
     """Gemini diagnosis off the event loop; structured errors pass through unchanged."""
 
     try:
         return await run_in_threadpool(
-            run_vision_prediction, data, identify=identify, species_id=species_id
+            run_vision_prediction, data, identify=identify, species_id=species_id, language=language
         )
     except (HTTPException, AppError):
         raise
@@ -107,6 +109,11 @@ async def predict(
         default=True,
         description="Run plant identification (default true). Disable for fastest path on known plants.",
     ),
+    language: str = Form(
+        default="en",
+        max_length=10,
+        description="UI language: 'en' (default) or 'ar'. With 'ar' Gemini also returns an Arabic block.",
+    ),
 ) -> VisionResult:
     data, image_ext, image_type = await _read_image(file)
 
@@ -117,7 +124,9 @@ async def predict(
 
     # Diagnose first: if Gemini fails, nothing is persisted and the client
     # gets a structured, retryable error (no fabricated fallback result).
-    pred = await _diagnose(data, identify=bool(identify), species_id=(species_id or None))
+    pred = await _diagnose(
+        data, identify=bool(identify), species_id=(species_id or None), language=language
+    )
 
     # Phase 4 — try Supabase Storage first; gracefully fall back to the
     # legacy `backend/uploads/` write path when Storage is disabled OR
@@ -248,6 +257,7 @@ async def analyze(
     humidity: float = Form(...),
     species: str | None = Form(default=None, max_length=100),
     user_question: str | None = Form(default=None, max_length=2000),
+    language: str = Form(default="en", max_length=10),
 ) -> OrchestratorResponse:
     image_bytes, _, _ = await _read_image(file)
 
@@ -270,4 +280,5 @@ async def analyze(
         request_id=request_id,
         image_bytes=image_bytes,
         request=payload,
+        language=language,
     )

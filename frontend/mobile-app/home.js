@@ -19,6 +19,9 @@
     return document.getElementById(id);
   }
 
+  // Stored Arabic copy of a scan field in Arabic mode (see i18n.js pick()).
+  const _pick = (o, f) => (window.pvI18n && window.pvI18n.pick ? window.pvI18n.pick(o, f) : (o ? o[f] : undefined));
+
   function fmtAgo(ts) {
     if (!ts) return "—";
     const sec = Math.max(0, Math.floor(Date.now() / 1000 - ts));
@@ -136,8 +139,8 @@
       meta.textContent = "Plant Vision · " + conf + "% AI diagnosis confidence · " + fmtAgo(lastScan.timestamp);
       const hp = lastHealth && typeof lastHealth.plant_health === "number" ? lastHealth.plant_health : null;
       status.textContent = hp != null
-        ? "● " + lastScan.disease + " — Health " + hp + "%"
-        : "● " + lastScan.disease + " — last scan";
+        ? "● " + _pick(lastScan, "disease") + " — Health " + hp + "%"
+        : "● " + _pick(lastScan, "disease") + " — last scan";
       status.classList.remove("st-warn", "st-crit");
       if (lastScan.status === "WARN") status.classList.add("st-warn");
       else if (lastScan.status === "CRITICAL") status.classList.add("st-crit");
@@ -320,7 +323,7 @@
 
     const labels = series.map((s) => {
       const t = s.created_at ? new Date(s.created_at) : new Date((s.timestamp || 0) * 1000);
-      return t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return t.toLocaleTimeString(window.pvI18n ? window.pvI18n.dateLocale() : undefined, { hour: "2-digit", minute: "2-digit" });
     });
     const data = series.map((s) => Math.round(s.health_score));
     const lastScore = data[data.length - 1];
@@ -333,7 +336,7 @@
     if (tag) tag.style.color = toneColor;
 
     const ds = {
-      label: "Plant health",
+      label: window.pvI18n ? window.pvI18n.t("Plant health") : "Plant health",
       data: data,
       borderColor: toneColor,
       backgroundColor: toneColor + "22",
@@ -372,7 +375,11 @@
               cornerRadius: 6,
               displayColors: false,
               callbacks: {
-                label: (ctx) => " Health " + ctx.parsed.y + " / 100",
+                // Canvas text is not reached by the DOM translator, so translate here.
+                label: (ctx) => {
+                  const txt = " Health " + ctx.parsed.y + " / 100";
+                  return window.pvI18n ? window.pvI18n.t(txt) : txt;
+                },
               },
             },
           },
@@ -445,7 +452,7 @@
     const sub = $("home-hero-sub");
     if (title) {
       if (latestScan && latestScan.disease) {
-        title.textContent = latestScan.disease;
+        title.textContent = _pick(latestScan, "disease");
       } else if (tone === "tone-crit") title.textContent = "Critical — act now";
       else if (tone === "tone-warn") title.textContent = "Needs attention";
       else title.textContent = "Healthy plant";
@@ -575,7 +582,7 @@
   }
   function _friendlyDisease(r) {
     if (_isUnclassified(r)) return "Uncertain — retake photo";
-    return r.disease;
+    return _pick(r, "disease");
   }
   function _friendlyConfidence(r) {
     if (_isUnclassified(r)) return "—";

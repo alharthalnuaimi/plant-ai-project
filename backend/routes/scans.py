@@ -56,6 +56,11 @@ class ScanListItem(BaseModel):
     created_at: str
     has_sensor_snapshot: bool = False
     is_legacy: bool = False  # row predates Phase 3 metadata enrichment
+    # Arabic copies stored by language="ar" scans (null otherwise). The
+    # English fields above stay the canonical record.
+    disease_localized: str | None = None
+    plant_name_localized: str | None = None
+    recommendation_localized: str | None = None
 
 
 class ScanDetail(ScanListItem):
@@ -101,6 +106,17 @@ def _status_from(disease: str | None, confidence: float, accepted: bool) -> str:
     if confidence >= 0.9 or (not accepted and confidence >= 0.7):
         return "CRITICAL"
     return "WARN"
+
+
+def _localized_fields(meta: dict[str, Any] | None) -> dict[str, Any]:
+    meta = meta if isinstance(meta, dict) else {}
+    loc = (meta.get("gemini_diagnosis") or {}).get("localized") or {}
+    loc = loc if isinstance(loc, dict) else {}
+    return {
+        "disease_localized": meta.get("localized_condition") or loc.get("condition"),
+        "plant_name_localized": meta.get("localized_plant_name") or loc.get("plant_common_name"),
+        "recommendation_localized": meta.get("guidance_localized"),
+    }
 
 
 def _row_to_item(row: dict[str, Any]) -> ScanListItem:
@@ -187,6 +203,7 @@ def _row_to_item(row: dict[str, Any]) -> ScanListItem:
         created_at=created_iso,
         has_sensor_snapshot=has_snap,
         is_legacy=is_legacy,
+        **_localized_fields(meta),
     )
 
 
@@ -287,6 +304,7 @@ def _memory_fallback(zone: str | None, limit: int, status_filter: str | None) ->
             status=st,
             created_at=created_iso,
             has_sensor_snapshot=False,
+            **_localized_fields(s.get("metadata")),
         ))
         if len(items) >= limit:
             break
@@ -462,6 +480,7 @@ async def plant_profile(plant_id: str) -> PlantProfile:
                     scan_source=s.get("source") or "upload",
                     status=_status_from(s.get("disease") or "", float(s.get("confidence") or 0.0), bool(s.get("accepted", True))),
                     created_at=str(s.get("timestamp") or s.get("created_at") or ""),
+                    **_localized_fields(s.get("metadata")),
                 )
             )
         latest = items[0] if items else None

@@ -21,8 +21,18 @@ from services.gemini.cache import TTLCache
 from services.gemini.client import GeminiClient, get_gemini_client
 from services.gemini.config import GeminiConfig
 from services.gemini.images import PreparedImage, prepare_image
-from services.gemini.prompts import DIAGNOSIS_SYSTEM, PROMPT_VERSION, diagnosis_user_prompt
-from services.gemini.schemas import GeminiDiagnosis, enforce_diagnosis_consistency
+from services.gemini.prompts import (
+    ARABIC_PROMPT_VERSION,
+    PROMPT_VERSION,
+    diagnosis_system,
+    diagnosis_user_prompt,
+    normalize_language,
+)
+from services.gemini.schemas import (
+    GeminiDiagnosis,
+    GeminiDiagnosisLocalized,
+    enforce_diagnosis_consistency,
+)
 
 log = logging.getLogger("plantvision.gemini.diagnosis")
 
@@ -70,15 +80,18 @@ def clear_diagnosis_cache() -> None:
             _cache.clear()
 
 
-def _cache_key(image_hash: str, model: str, species_hint: str | None) -> str:
+def _cache_key(image_hash: str, model: str, species_hint: str | None, language: str = "en") -> str:
     hint = (species_hint or "").strip().lower()
-    return f"{image_hash}|{model}|{PROMPT_VERSION}|{hint}"
+    key = f"{image_hash}|{model}|{PROMPT_VERSION}|{hint}"
+    # English keeps its original key; other languages get their own entry.
+    return key if language == "en" else f"{key}|{language}|{ARABIC_PROMPT_VERSION}"
 
 
 def diagnose_plant_image(
     image_bytes: bytes,
     *,
     species_hint: str | None = None,
+    language: str | None = None,
     client: GeminiClient | None = None,
 ) -> DiagnosisOutcome:
     """Diagnose one plant photo with Gemini. Raises a ``GeminiError`` / ``InvalidImageError`` on failure."""
@@ -89,7 +102,8 @@ def diagnose_plant_image(
 
     image = prepare_image(image_bytes, config)
     cache = _get_cache(config)
-    key = _cache_key(image.sha256, model, species_hint)
+    lang = normalize_language(language)
+    key = _cache_key(image.sha256, model, species_hint, lang)
 
     cached = cache.get(key)
     if cached is not None:
@@ -105,8 +119,8 @@ def diagnose_plant_image(
             client.image_part(image.data, image.mime_type),
             diagnosis_user_prompt(species_hint),
         ],
-        schema=GeminiDiagnosis,
-        system_instruction=DIAGNOSIS_SYSTEM,
+        schema=GeminiDiagnosisLocalized if lang == "ar" else GeminiDiagnosis,
+        system_instruction=diagnosis_system(lang),
         temperature=config.diagnosis_temperature,
     )
     diagnosis = enforce_diagnosis_consistency(raw)
@@ -204,5 +218,25 @@ def user_guidance(d: GeminiDiagnosis) -> str | None:
         return (
             "Symptoms are visible but the cause is not clear from this photo. "
             "Take a close-up of the affected leaves (top and underside) and scan again."
+        )
+    return None
+
+
+def user_guidance_ar(d: GeminiDiagnosis) -> str | None:
+    """Arabic counterpart of ``user_guidance`` (same rules, same cases)."""
+
+    status = d.diagnosis.status
+    localized = getattr(d, "localized", None)
+    if status == "not_assessable":
+        note = ((localized.image_quality_notes if localized else None) or "").strip()
+        if not d.plant_identification.is_plant:
+            base = "لم يتم التعرّف على أي نبتة في هذه الصورة."
+        else:
+            base = "الصورة غير واضحة بما يكفي لتقييم النبتة."
+        return " ".join(p for p in (base, note, "أعد التقاط الصورة في إضاءة جيدة وعلى مقربة من الأوراق المصابة.") if p)
+    if status == "uncertain":
+        return (
+            "تظهر أعراض على النبتة لكن سببها غير واضح من هذه الصورة. "
+            "التقط صورة قريبة للأوراق المصابة (من الأعلى ومن الأسفل) ثم أعد الفحص."
         )
     return None

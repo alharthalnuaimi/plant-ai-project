@@ -42,6 +42,9 @@
     off: ["offline", "off", "awaiting", "no sensor"],
   };
 
+  // Stored Arabic copy of a scan field in Arabic mode (see i18n.js pick()).
+  const _pick = (o, f) => (window.pvI18n && window.pvI18n.pick ? window.pvI18n.pick(o, f) : (o ? o[f] : undefined));
+
   function bridge() {
     return window.plantGardenBridge || {};
   }
@@ -63,7 +66,7 @@
   }
 
   function fmtTime(ts) {
-    return new Date(ts * 1000).toLocaleTimeString([], {
+    return new Date(ts * 1000).toLocaleTimeString(window.pvI18n ? window.pvI18n.dateLocale() : undefined, {
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -254,7 +257,7 @@
     if (scan) {
       lines.push(
         '<div class="zt-row">Last scan: <b>' +
-        scan.disease +
+        _pick(scan, "disease") +
         "</b> (" +
         (scan.confidence * 100).toFixed(0) +
         "%)</div>"
@@ -614,7 +617,7 @@
       const dRaw = (s.disease || "").trim();
       const conf = Number(s.confidence) || 0;
       const unclassified = _UNK.has(dRaw.toLowerCase()) || conf < 0.4;
-      const disease = unclassified ? "Uncertain — retake photo" : dRaw;
+      const disease = unclassified ? "Uncertain — retake photo" : _pick(s, "disease");
       const confTxt = unclassified ? "—" : (conf * 100).toFixed(1) + "%";
       const statusLbl = s.status === "PASS" ? "Healthy" : (s.status === "CRITICAL" ? "Critical" : (s.status === "UNKNOWN" ? "—" : "Warn"));
       const src = s.scan_source || "—";
@@ -1174,6 +1177,12 @@
   document.getElementById("gzs-close")?.addEventListener("click", () => {
     const panel = document.getElementById("garden-zone-scans");
     if (panel) panel.hidden = true;
+  });
+  // Language switch: re-render the open zone-scans panel (its scan names come
+  // from the stored Arabic copies, not the DOM translator).
+  window.addEventListener("plantvision:lang-changed", () => {
+    const panel = document.getElementById("garden-zone-scans");
+    if (selectedZoneKey && panel && !panel.hidden) refreshZoneScansPanel(selectedZoneKey);
   });
 
   if (document.readyState === "loading") {

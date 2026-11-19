@@ -86,7 +86,7 @@
   }
 
   function fmtTime(ts) {
-    return new Date(ts * 1000).toLocaleTimeString([], {
+    return new Date(ts * 1000).toLocaleTimeString(window.pvI18n ? window.pvI18n.dateLocale() : undefined, {
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -118,11 +118,14 @@
     return !d || _UNCLASSIFIED.has(d);
   }
 
+  // Stored Arabic copy of a scan field in Arabic mode (see i18n.js pick()).
+  const _pick = (o, f) => (window.pvI18n && window.pvI18n.pick ? window.pvI18n.pick(o, f) : (o ? o[f] : undefined));
+
   function _friendlyDisease(scan) {
     if (_isUnclassified(scan)) {
       return scan && scan.is_legacy ? "Unclassified scan" : "Uncertain — retake photo";
     }
-    return scan.disease;
+    return _pick(scan, "disease");
   }
 
   function _friendlyPlantName(scan) {
@@ -131,7 +134,7 @@
     // generic "Plant" label so we never claim a species we don't actually
     // know about.
     if (!scan) return "Plant specimen";
-    return scan.plant_name || (scan.plant_id ? "Plant" : "Plant specimen");
+    return _pick(scan, "plant_name") || (scan.plant_id ? "Plant" : "Plant specimen");
   }
 
   function _friendlyConfidence(scan) {
@@ -445,7 +448,7 @@
 
   function _scanLabel(scan) {
     const disease = _friendlyDisease(scan);
-    const plant = scan && (scan.plant_name || scan.plant_id);
+    const plant = scan && (_pick(scan, "plant_name") || scan.plant_id);
     return plant ? `${disease} · ${plant}` : disease;
   }
 
@@ -990,7 +993,7 @@
       metricsEl.innerHTML = cards.join("");
     }
 
-    setText("sd-rec", scan.recommendation || meta.recommendation || "No advisory generated for this scan.");
+    setText("sd-rec", _pick(scan, "recommendation") || meta.recommendation || "No advisory generated for this scan.");
 
     // Sensor snapshot or safe fallback
     const snapEl = document.getElementById("sd-snapshot");
@@ -1266,6 +1269,9 @@
     // Refresh the dedicated history page in background so it's ready next visit.
     refreshHistoryPage();
   });
+  // Language switch: scan names/advice come from the stored Arabic copies
+  // (not the DOM translator), so re-render the history grid in the new language.
+  window.addEventListener("plantvision:lang-changed", () => refreshHistoryPage());
   // Phase 4: refresh whenever the user flips Demo Mode so the per-card
   // DEMO ribbon and "—" / fixture numbers swap immediately instead of
   // waiting for the next 5s poll cycle.

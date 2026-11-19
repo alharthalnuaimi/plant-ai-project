@@ -164,7 +164,18 @@ def apply_gemini_advice(health: PlantHealthScore, guidance: str | None) -> Plant
     return health.model_copy(update={"recommendation": advice})
 
 
-def compute_from_scan_record(scan: dict[str, Any], sensor: SensorReading | None) -> PlantHealthScore:
+def scan_guidance(meta: dict[str, Any] | None, language: str = "en") -> str | None:
+    """Gemini's advice for a scan, in Arabic when asked for and available."""
+
+    meta = meta or {}
+    if language == "ar" and meta.get("guidance_localized"):
+        return meta["guidance_localized"]
+    return meta.get("guidance")
+
+
+def compute_from_scan_record(
+    scan: dict[str, Any], sensor: SensorReading | None, language: str = "en"
+) -> PlantHealthScore:
     health = compute_plant_health(
         scan.get("disease", "unknown"),
         float(scan.get("confidence", 0)),
@@ -172,4 +183,4 @@ def compute_from_scan_record(scan: dict[str, Any], sensor: SensorReading | None)
         sensor=sensor,
         source="live",
     )
-    return apply_gemini_advice(health, (scan.get("metadata") or {}).get("guidance"))
+    return apply_gemini_advice(health, scan_guidance(scan.get("metadata"), language))

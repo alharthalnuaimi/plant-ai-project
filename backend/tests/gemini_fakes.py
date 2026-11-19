@@ -120,7 +120,7 @@ class FakeGenai:
             return item
         schema = getattr(config, "response_schema", None)
         name = getattr(schema, "__name__", "")
-        if name == "GeminiDiagnosis":
+        if name.startswith("GeminiDiagnosis"):
             return make_response(json.dumps(self.diagnosis))
         if name == "GeminiReasoning":
             return make_response(json.dumps(self.reasoning))
