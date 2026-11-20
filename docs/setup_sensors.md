@@ -144,6 +144,20 @@ The Home environment strip polls **GET /sensor/latest** every 5 seconds and maps
 **POST /survival** still uses `SurvivalSensorInput` (`soil_moisture`, `temperature`, `humidity`).  
 **POST /survival/from-latest-sensor** maps the latest ESP reading: `soil_humidity` → moisture, `air_temperature` / `air_humidity` → temp/humidity.
 
+## Troubleshooting: the app shows no sensor data
+
+1. **Check the board's `API_BASE_URL`.** The backend moved from Railway to Render, and the old
+   Railway URLs return 404. `include/config.h` must say
+   `#define API_BASE_URL "https://plant-ai-project-de01.onrender.com"`. Re-flash after changing it.
+2. **Watch the serial monitor** (`pio device monitor`, 115200 baud). A good post prints `HTTP status: 200`.
+   `-1` / `-11` means it cannot reach the server; `404` means a wrong URL; `422` means bad JSON.
+3. **Render free tier sleeps** after 15 minutes without traffic, and waking takes up to about 50 s. The firmware
+   waits 60 s per attempt, so the first post after a sleep can be slow but should succeed.
+   Before a demo, open `https://plant-ai-project-de01.onrender.com/health` once to wake it.
+4. **Check the server directly:** `GET /sensor/latest?device_id=esp32_001` should show `"freshness":"live"`
+   within 30 s of the board posting. The app's `device_id`/`zone_id` must match the board's (`esp32_001` / `zone_alpha`).
+5. Readings are kept in memory on Render, so after a restart or redeploy the app is empty until the next post (≤30 s).
+
 ## Connecting Sensors to a Remote Server / Supabase
 
 When deploying physical ESP32 sensors in the field (outside your local network), you have two options for posting telemetry:

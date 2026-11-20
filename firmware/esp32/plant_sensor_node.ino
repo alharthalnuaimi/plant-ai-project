@@ -43,6 +43,11 @@
 #include <ArduinoOTA.h>
 #include "config.h"
 
+// Older config.h files have no USER_ID; the backend defaults to demo_user too.
+#ifndef USER_ID
+#define USER_ID "demo_user"
+#endif
+
 // ────────────────────────── Devices ──────────────────────────
 
 HardwareSerial rs485(2);
@@ -335,6 +340,7 @@ void addFloatOrNull(JsonDocument &doc, const char *key, float value) {
 String buildPayload(const SensorReadings &readings) {
   JsonDocument doc;
 
+  doc["user_id"]   = USER_ID;
   doc["device_id"] = DEVICE_ID;
   doc["zone_id"]   = ZONE_ID;
 
@@ -372,14 +378,14 @@ int doHttpPost(const String &endpoint, const String &payload) {
 
   if (endpoint.startsWith("https://")) {
     secureClient.setInsecure();   // skip cert validation (OK for LAN/dev)
-    secureClient.setHandshakeTimeout(15);  // seconds
+    secureClient.setHandshakeTimeout(30);  // seconds
     http.begin(secureClient, endpoint);
   } else {
     http.begin(endpoint);
   }
 
   http.addHeader("Content-Type", "application/json");
-  http.setTimeout(15000);  // 15 s — accounts for Railway cold-start
+  http.setTimeout(60000);  // 60 s — Render free tier can take ~50 s to wake
 
   Serial.print("POST ");
   Serial.println(endpoint);

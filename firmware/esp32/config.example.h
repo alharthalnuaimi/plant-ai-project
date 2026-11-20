@@ -8,12 +8,14 @@
 #define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
 
 // ---------- Backend API ----------
-// FastAPI backend API endpoint. Examples:
-//   - Local LAN dev:   "http://192.168.1.10:8000"
-//   - Public Cloud:    "https://your-app.up.railway.app" (automatic HTTPS supported)
-#define API_BASE_URL "http://192.168.1.10:8000"
+// FastAPI backend API endpoint. The live app reads from Render, so the board
+// must post there. (The old Railway URLs are shut down and return 404.)
+//   - Live / demo:   "https://plant-ai-project-de01.onrender.com"
+//   - Local LAN dev: "http://192.168.1.10:8000"  (only seen by a local backend)
+#define API_BASE_URL "https://plant-ai-project-de01.onrender.com"
 
 // ---------- Identity ----------
+#define USER_ID   "demo_user"
 #define DEVICE_ID "esp32_001"
 #define ZONE_ID "zone_alpha"
 
